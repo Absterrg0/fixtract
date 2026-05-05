@@ -331,10 +331,9 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   useEffect(() => {
-    // Reset on projectId change so a stale favorited flag from the previous project can't leak
     setInitialFavorited(null);
     if (!projectId) return;
-    // Non-customers can't favorite; unblock render immediately with a concrete value
+    if (authLoading) return;
     if (!isAuthenticated || user?.role !== 'customer') {
       setInitialFavorited(false);
       return;
@@ -366,7 +365,7 @@ export default function ProjectDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, isAuthenticated, user?.role]);
+  }, [projectId, isAuthenticated, user?.role, authLoading]);
 
   useEffect(() => {
     if (!projectId) return;

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { publicGetCms } from "@/lib/cms";
+import { publicGetCms } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";

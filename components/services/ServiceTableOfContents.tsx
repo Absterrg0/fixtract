@@ -9,10 +9,42 @@ interface Props {
   items: TocItem[];
 }
 
+function measureStickyHeaderHeight(): number {
+  const selectors = ['header', '[data-app-header]', 'nav[role="navigation"]'];
+  const seen = new Set<HTMLElement>();
+  let total = 0;
+  const viewportHeight = window.innerHeight;
+  for (const sel of selectors) {
+    const nodes = document.querySelectorAll(sel);
+    nodes.forEach((node) => {
+      if (!(node instanceof HTMLElement)) return;
+      if (seen.has(node)) return;
+      const rect = node.getBoundingClientRect();
+      if (rect.height <= 0) return;
+      const cs = getComputedStyle(node);
+      if (cs.position !== 'fixed' && cs.position !== 'sticky') return;
+      if (cs.bottom !== 'auto' && cs.top === 'auto') return;
+      if (rect.bottom >= viewportHeight - 1) return;
+      seen.add(node);
+      total += rect.height;
+    });
+  }
+  return total;
+}
+
 function smoothScrollTo(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const cssOffset = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--header-height')
+  );
+  const headerOffset =
+    Number.isFinite(cssOffset) && cssOffset > 0 ? cssOffset : measureStickyHeaderHeight() || 80;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerOffset;
+  const prefersReducedMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   if (typeof history.replaceState === 'function') {
     history.replaceState(null, '', `#${id}`);
   } else if (typeof history.pushState === 'function') {

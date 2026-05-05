@@ -25,7 +25,7 @@ export default function FaqAccordion({ groups }: Props) {
           </div>
           <div className="space-y-3">
             {group.items.map((item) => (
-              <FaqItem key={item._id} anchor={item.slug} title={item.title} body={item.body} />
+              <FaqItem key={item._id} anchor={`${group.slug}-${item.slug}`} title={item.title} body={item.body} />
             ))}
           </div>
         </section>

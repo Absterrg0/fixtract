@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { HelpCircle } from "lucide-react";
 import type { Metadata } from "next";
-import { publicGetFaq, type FaqGroup } from "@/lib/cms";
+import { type FaqGroup } from "@/lib/cms";
+import { publicGetFaq } from "@/lib/cms/public";
 import FaqAccordion from "@/components/cms/FaqAccordion";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";

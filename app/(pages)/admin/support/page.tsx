@@ -154,7 +154,8 @@ function TicketsAdmin() {
                   aria-label={`Status for ticket "${t.subject}"`}
                   value={t.status}
                   onChange={(e) => update(t._id, { status: e.target.value as SupportTicketStatus })}
-                  className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                  disabled={Boolean(saving[t._id])}
+                  className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {TICKET_STATUSES.map((s) => (
                     <option key={s} value={s}>{s.replace("_", " ")}</option>
@@ -264,18 +265,23 @@ function MeetingsAdmin() {
                   aria-label={`Meeting status for "${m.topic}"`}
                   value={m.status}
                   onChange={(e) => {
+                    if (saving[m._id]) return;
                     const next = e.target.value as MeetingRequestStatus;
                     if (next === "scheduled" && !draft.scheduledAt && !m.scheduledAt) {
                       toast.error("Set a scheduled time before marking as scheduled");
                       return;
                     }
                     const payload: Parameters<typeof adminUpdateMeetingRequest>[1] = { status: next };
-                    if (next === "scheduled" && draft.scheduledAt) {
-                      payload.scheduledAt = new Date(draft.scheduledAt).toISOString();
+                    if (next === "scheduled") {
+                      const source = draft.scheduledAt
+                        ? new Date(draft.scheduledAt).toISOString()
+                        : m.scheduledAt;
+                      if (source) payload.scheduledAt = source;
                     }
                     update(m._id, payload);
                   }}
-                  className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                  disabled={Boolean(saving[m._id])}
+                  className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {MEETING_STATUSES.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -307,13 +313,16 @@ function MeetingsAdmin() {
               <div className="flex justify-end">
                 <button
                   onClick={() => {
-                    const payload: Parameters<typeof adminUpdateMeetingRequest>[1] = {
-                      scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
-                      adminResponse: draft.adminResponse,
-                    };
-                    if (draft.scheduledAt) {
-                      payload.status = "scheduled";
+                    const payload: Parameters<typeof adminUpdateMeetingRequest>[1] = {};
+                    const draftIso = draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : "";
+                    const persistedIso = m.scheduledAt ? new Date(m.scheduledAt).toISOString() : "";
+                    if (draftIso !== persistedIso) {
+                      payload.scheduledAt = draftIso === "" ? null : draftIso;
                     }
+                    if (draft.adminResponse !== (m.adminResponse || "")) {
+                      payload.adminResponse = draft.adminResponse;
+                    }
+                    if (Object.keys(payload).length === 0) return;
                     update(m._id, payload);
                   }}
                   disabled={Boolean(saving[m._id])}

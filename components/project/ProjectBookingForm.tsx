@@ -285,6 +285,7 @@ export default function ProjectBookingForm({
   const [showCalendar, setShowCalendar] = useState(false);
   const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false);
   const [serverSlotsForSelectedDate, setServerSlotsForSelectedDate] = useState<string[] | null>(null);
+  const [serverSlotsError, setServerSlotsError] = useState(false);
   const [loadingServerSlots, setLoadingServerSlots] = useState(false);
   const [scheduleWindow, setScheduleWindow] = useState<{
     scheduledStartDate: string;
@@ -565,6 +566,7 @@ export default function ProjectBookingForm({
     if (projectMode !== 'hours' || !selectedDate) {
       latestSlotsRequestRef.current += 1;
       setServerSlotsForSelectedDate(null);
+      setServerSlotsError(false);
       setLoadingServerSlots(false);
       return;
     }
@@ -575,6 +577,7 @@ export default function ProjectBookingForm({
     const run = async () => {
       try {
         setServerSlotsForSelectedDate(null);
+        setServerSlotsError(false);
         setLoadingServerSlots(true);
         let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
         if (typeof selectedPackageIndex === 'number') {
@@ -583,16 +586,24 @@ export default function ProjectBookingForm({
         const res = await fetch(url, { signal: controller.signal });
         if (!isCurrent()) return;
         if (!res.ok) {
+          setServerSlotsError(true);
+          setSelectedTime('');
           return;
         }
         const data = await res.json();
         if (!isCurrent()) return;
         if (!Array.isArray(data?.slots)) {
+          setServerSlotsError(true);
+          setSelectedTime('');
           return;
         }
         setServerSlotsForSelectedDate(data.slots as string[]);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
+        if (isCurrent()) {
+          setServerSlotsError(true);
+          setSelectedTime('');
+        }
       } finally {
         if (isCurrent()) {
           setLoadingServerSlots(false);
@@ -1940,6 +1951,16 @@ export default function ProjectBookingForm({
         return false;
       }
 
+      if (projectMode === 'hours' && loadingServerSlots) {
+        toast.error('Please wait while we load available time slots.');
+        return false;
+      }
+
+      if (projectMode === 'hours' && serverSlotsError) {
+        toast.error('Could not load availability. Please try a different date.');
+        return false;
+      }
+
       // Check time selection for hourly projects
       if (projectMode === 'hours' && !selectedTime) {
         toast.error('Please select a time slot for your booking');
@@ -3178,6 +3199,15 @@ export default function ProjectBookingForm({
                         {loadingServerSlots ? (
                           <div className='flex items-center justify-center py-6 text-sm text-gray-500'>
                             <Loader2 className='animate-spin mr-2' size={16} /> Loading available times...
+                          </div>
+                        ) : serverSlotsError ? (
+                          <div className='bg-amber-50 border border-amber-200 rounded-lg p-4'>
+                            <p className='text-sm text-amber-900 font-semibold mb-2'>
+                              Could not load availability
+                            </p>
+                            <p className='text-sm text-amber-800'>
+                              We could not check available times right now. Please try a different date or refresh the page.
+                            </p>
                           </div>
                         ) : (serverSlotsForSelectedDate ?? generateTimeSlots()).length === 0 ? (
                           <div className='bg-red-50 border border-red-200 rounded-lg p-4'>

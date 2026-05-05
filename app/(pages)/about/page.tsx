@@ -4,7 +4,7 @@ import TeamSection from "@/components/about-page/TeamSection";
 import CTASection from "@/components/CTASection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
-import { publicGetCms } from "@/lib/cms";
+import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 
 async function fetchAboutContent() {
   try {
-    const policy = await publicGetCms("policy", "about");
-    if (policy) return policy;
-    return await publicGetCms("landing", "about");
+    const landing = await publicGetCms("landing", "about");
+    if (landing) return landing;
+    return await publicGetCms("policy", "about");
   } catch {
     return null;
   }

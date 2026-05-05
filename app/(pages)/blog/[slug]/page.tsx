@@ -1,8 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
-import { fetchCmsPostWithError, cmsAuthorName } from "@/lib/cms";
+import { cmsAuthorName } from "@/lib/cms";
+import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -84,11 +86,13 @@ export default async function BlogDetailPage({ params }: Props) {
       {post.coverImage && (
         <div className="mx-auto mt-4 max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img
+            <Image
               src={post.coverImage}
               alt={post.title}
-              fetchPriority="high"
-              decoding="async"
+              width={1280}
+              height={560}
+              priority
+              unoptimized
               className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
             />
           </div>

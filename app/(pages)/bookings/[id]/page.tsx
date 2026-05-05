@@ -506,6 +506,7 @@ export default function BookingDetailPage() {
   const [confirmingCompletion, setConfirmingCompletion] = useState(false)
   const [extraCostClientSecret, setExtraCostClientSecret] = useState("")
   const [loadingExtraCostPayment, setLoadingExtraCostPayment] = useState(false)
+  const extraCostInitInFlightRef = useRef(false)
   const [extraCostPaymentCompleted, setExtraCostPaymentCompleted] = useState(false)
 
   useEffect(() => {
@@ -739,15 +740,22 @@ export default function BookingDetailPage() {
     if ((booking?.extraCostTotal || 0) <= 0) return
     if (extraCostClientSecret) return
     if (booking?.extraCostStatus === "confirmed" || booking?.extraCostStatus === "disputed") return
-    initializeExtraCostPayment()
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href)
-      url.searchParams.delete("payExtras")
-      router.replace(`${url.pathname}${url.search}${url.hash}`)
+    let cancelled = false
+    ;(async () => {
+      const ok = await initializeExtraCostPayment()
+      if (cancelled) return
+      if (ok && typeof window !== "undefined") {
+        const url = new URL(window.location.href)
+        url.searchParams.delete("payExtras")
+        router.replace(`${url.pathname}${url.search}${url.hash}`)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
     // initializeExtraCostPayment is stable enough — intentionally not in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret, router])
+  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret, router, bookingId])
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
@@ -1606,7 +1614,9 @@ export default function BookingDetailPage() {
     if (!bookingId) return false
 
     if (extraCostClientSecret) return true
+    if (extraCostInitInFlightRef.current) return false
 
+    extraCostInitInFlightRef.current = true
     setLoadingExtraCostPayment(true)
     try {
       const token = getAuthToken()
@@ -1632,6 +1642,7 @@ export default function BookingDetailPage() {
       return false
     } finally {
       setLoadingExtraCostPayment(false)
+      extraCostInitInFlightRef.current = false
     }
   }
 
@@ -2562,11 +2573,14 @@ export default function BookingDetailPage() {
                   <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
                     {(() => {
+                      const isCustomerView = user?.role === 'customer'
+                      const displayAmount = (n: number) => isCustomerView && customerPricingReady ? customerPrice(n) : n
                       const total = booking.milestonePayments!.reduce((s, m) => s + m.amount, 0)
                       const paid = booking.milestonePayments!.filter(m => m.status === 'paid').reduce((s, m) => s + m.amount, 0)
                       const completed = booking.milestonePayments!.filter(m => (m.workStatus || 'pending') === 'completed').reduce((s, m) => s + m.amount, 0)
                       const paymentPct = total > 0 ? Math.round((paid / total) * 100) : 0
                       const workPct = total > 0 ? Math.round((completed / total) * 100) : 0
+                      const showAmounts = !isCustomerView || customerPricingReady
                       return (
                         <div className="mb-4 space-y-3">
                           <div>
@@ -2588,8 +2602,8 @@ export default function BookingDetailPage() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>{booking.quote?.currency || 'EUR'} {completed.toFixed(2)} completed</span>
-                            <span>{booking.quote?.currency || 'EUR'} {paid.toFixed(2)} paid</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(completed).toFixed(2) : '...'} completed</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(paid).toFixed(2) : '...'} paid</span>
                           </div>
                         </div>
                       )
@@ -2642,7 +2656,12 @@ export default function BookingDetailPage() {
                                 )}
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
-                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {ms.amount.toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {booking.quote?.currency || 'EUR'}{' '}
+                                    {user?.role === 'customer'
+                                      ? (customerPricingReady ? customerPrice(ms.amount).toFixed(2) : '...')
+                                      : ms.amount.toFixed(2)}
+                                  </p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
                                   )}

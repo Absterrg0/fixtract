@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { publicListCms, type CmsContent } from "@/lib/cms";
+import { type CmsContent } from "@/lib/cms";
+import { publicListCms } from "@/lib/cms/public";
 import BlogCard from "@/components/cms/BlogCard";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";

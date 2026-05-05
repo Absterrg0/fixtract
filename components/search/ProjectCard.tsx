@@ -143,7 +143,8 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
       return formatAmount(amount);
     }
     if (pricing.type === 'unit') {
-      const perUnit = unitSuffix ? `/${unitSuffix}` : '';
+      const subprojectSuffix = project.priceModel ? formatPriceModelLabel(project.priceModel) : 'unit';
+      const perUnit = subprojectSuffix ? `/${subprojectSuffix}` : '';
       if (
         pricing.priceRange &&
         Number.isFinite(pricing.priceRange.min) &&

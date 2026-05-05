@@ -91,7 +91,7 @@ export interface CmsListResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-const API = () => process.env.NEXT_PUBLIC_BACKEND_URL || "";
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 async function parseJson<T>(res: Response): Promise<T | undefined> {
   if (res.status === 204) return undefined;
@@ -137,17 +137,17 @@ export async function adminListCms(params: {
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
 
-  const res = await authFetch(`${API()}/api/admin/cms?${qs.toString()}`);
+  const res = await authFetch(`${API}/api/admin/cms?${qs.toString()}`);
   return parseJsonRequired<CmsListResponse>(res);
 }
 
 export async function adminGetCms(id: string): Promise<CmsContent> {
-  const res = await authFetch(`${API()}/api/admin/cms/${id}`);
+  const res = await authFetch(`${API}/api/admin/cms/${id}`);
   return parseJsonRequired<CmsContent>(res);
 }
 
 export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsContent> {
-  const res = await authFetch(`${API()}/api/admin/cms`, {
+  const res = await authFetch(`${API}/api/admin/cms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -156,7 +156,7 @@ export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsCont
 }
 
 export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Promise<CmsContent> {
-  const res = await authFetch(`${API()}/api/admin/cms/${id}`, {
+  const res = await authFetch(`${API}/api/admin/cms/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -165,14 +165,14 @@ export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Pro
 }
 
 export async function adminDeleteCms(id: string): Promise<void> {
-  const res = await authFetch(`${API()}/api/admin/cms/${id}`, { method: "DELETE" });
+  const res = await authFetch(`${API}/api/admin/cms/${id}`, { method: "DELETE" });
   await parseJson<void>(res);
 }
 
 export async function adminUploadCmsImage(file: File): Promise<{ url: string; key: string }> {
   const form = new FormData();
   form.append("image", file);
-  const res = await authFetch(`${API()}/api/admin/cms/upload-image`, {
+  const res = await authFetch(`${API}/api/admin/cms/upload-image`, {
     method: "POST",
     body: form,
   });
@@ -180,12 +180,12 @@ export async function adminUploadCmsImage(file: File): Promise<{ url: string; ke
 }
 
 export async function adminListFaqCategories(): Promise<FaqCategory[]> {
-  const res = await authFetch(`${API()}/api/admin/cms/faq-categories`);
+  const res = await authFetch(`${API}/api/admin/cms/faq-categories`);
   return parseJsonRequired<FaqCategory[]>(res);
 }
 
 export async function adminListCmsServiceOptions(): Promise<CmsServiceOption[]> {
-  const res = await authFetch(`${API()}/api/admin/cms/service-options`);
+  const res = await authFetch(`${API}/api/admin/cms/service-options`);
   const data = await parseJsonRequired<{ items: CmsServiceOption[] }>(res);
   return data.items || [];
 }
@@ -205,61 +205,22 @@ export interface CmsLandingSlot {
 }
 
 export async function adminListLandingSlots(): Promise<CmsLandingSlot[]> {
-  const res = await authFetch(`${API()}/api/admin/cms/landing-slots`);
+  const res = await authFetch(`${API}/api/admin/cms/landing-slots`);
   const data = await parseJsonRequired<{ slots: CmsLandingSlot[] }>(res);
   return data.slots;
 }
 
 export async function adminSyncLandingSlots(): Promise<{ created: number }> {
-  const res = await authFetch(`${API()}/api/admin/cms/landing-slots/sync`, { method: "POST" });
+  const res = await authFetch(`${API}/api/admin/cms/landing-slots/sync`, { method: "POST" });
   return parseJsonRequired<{ created: number }>(res);
 }
 
 // ---------- Public ----------
 
-export async function publicListCms(
-  type: CmsContentType,
-  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string } = {}
-): Promise<CmsListResponse> {
-  const qs = new URLSearchParams();
-  if (params.page) qs.set("page", String(params.page));
-  if (params.limit) qs.set("limit", String(params.limit));
-  if (params.tag) qs.set("tag", params.tag);
-  if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
-  const res = await fetch(`${API()}/api/public/cms/${type}?${qs.toString()}`, { cache: "no-store" });
-  return parseJsonRequired<CmsListResponse>(res);
-}
-
-export async function publicGetCms(
-  type: CmsContentType,
-  slug: string
-): Promise<CmsContent | null> {
-  const res = await fetch(`${API()}/api/public/cms/${type}/${encodeURIComponent(slug)}`, { cache: "no-store" });
-  if (res.status === 404) return null;
-  return parseJsonRequired<CmsContent>(res);
-}
-
-export async function fetchCmsPostWithError(
-  type: CmsContentType,
-  slug: string
-): Promise<{ post: CmsContent | null; fetchError: boolean }> {
-  try {
-    const post = await publicGetCms(type, slug);
-    return { post, fetchError: false };
-  } catch {
-    return { post: null, fetchError: true };
-  }
-}
-
 export interface FaqGroup {
   slug: string;
   name: string;
   items: Array<Pick<CmsContent, "_id" | "title" | "slug" | "body" | "category" | "publishedAt" | "updatedAt">>;
-}
-
-export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
-  const res = await fetch(`${API()}/api/public/cms/faq`, { cache: "no-store" });
-  return parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);
 }
 
 export interface PolicyLink {
@@ -270,9 +231,12 @@ export interface PolicyLink {
 
 export async function publicListPolicyLinks(): Promise<PolicyLink[]> {
   try {
-    const res = await fetch(`${API()}/api/public/cms/policy-links`, { cache: "no-store" });
+    const res = await fetch(`${API}/api/public/cms/policy-links`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(8000),
+    });
     const data = await parseJsonRequired<{ items: PolicyLink[] }>(res);
-    return data.items || [];
+    return data.items ?? [];
   } catch {
     return [];
   }
@@ -298,7 +262,7 @@ export async function publicListSitemapEntries(
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const res = await fetch(`${API()}/api/public/cms/sitemap${suffix}`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/public/cms/sitemap${suffix}`, { cache: "no-store" });
   return parseJsonRequired<SitemapPage>(res);
 }
 
@@ -316,6 +280,8 @@ export const CMS_RESERVED_POLICIES: CmsReservedPolicy[] = [
   { slug: "terms-of-service", label: "Terms of Service", path: "/pages/terms-of-service", usedFor: "Footer link + Pro onboarding T&C (read) link" },
   { slug: "cookie-policy", label: "Cookie Policy", path: "/pages/cookie-policy", usedFor: "Footer link" },
   { slug: "gdpr-compliance", label: "GDPR Compliance", path: "/pages/gdpr-compliance", usedFor: "Footer link" },
+  { slug: "platform-rules", label: "Platform Rules", path: "/pages/platform-rules", usedFor: "Pro onboarding rules (read) link" },
+  { slug: "self-billing-agreement", label: "Self-Billing Agreement", path: "/pages/self-billing-agreement", usedFor: "Pro onboarding self-billing (read) link" },
 ];
 
 export const CMS_RESERVED_LANDINGS: CmsReservedPolicy[] = [

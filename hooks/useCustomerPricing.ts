@@ -11,12 +11,9 @@ interface LoyaltyDiscountInfo {
 
 export interface CustomerPricing {
   commissionPercent: number | null
+  commissionLoaded: boolean
+  commissionError: Error | null
   loyalty: LoyaltyDiscountInfo | null
-  /**
-   * True once the loyalty fetch has resolved (or has been skipped because the user is not a customer).
-   * Use together with `commissionPercent != null` before rendering customer-facing prices to avoid
-   * a flicker from a higher (commission-only) to a lower (commission + loyalty) value.
-   */
   loyaltyLoaded: boolean
   customerPrice: (amount: number) => number
   originalPrice: (amount: number) => number
@@ -26,7 +23,7 @@ export interface CustomerPricing {
 const toRoundedTwo = (value: number) => Math.round(value * 100) / 100
 
 export function useCustomerPricing(): CustomerPricing {
-  const { commissionPercent, customerPrice: baseCustomerPrice } = useCommissionRate()
+  const { commissionPercent, commissionLoaded, commissionError, customerPrice: baseCustomerPrice } = useCommissionRate()
   const { user, isAuthenticated } = useAuth()
   const [loyalty, setLoyalty] = useState<LoyaltyDiscountInfo | null>(null)
   const [loyaltyLoaded, setLoyaltyLoaded] = useState(false)
@@ -134,12 +131,14 @@ export function useCustomerPricing(): CustomerPricing {
   return useMemo(
     () => ({
       commissionPercent,
+      commissionLoaded,
+      commissionError,
       loyalty,
       loyaltyLoaded,
       customerPrice,
       originalPrice,
       customerPriceWithRepeatBuyer,
     }),
-    [commissionPercent, loyalty, loyaltyLoaded, customerPrice, originalPrice, customerPriceWithRepeatBuyer]
+    [commissionPercent, commissionLoaded, commissionError, loyalty, loyaltyLoaded, customerPrice, originalPrice, customerPriceWithRepeatBuyer]
   )
 }

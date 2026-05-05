@@ -1,7 +1,7 @@
 import { Shield } from "lucide-react";
 import type { Metadata } from "next";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
-import { publicGetCms } from "@/lib/cms";
+import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";

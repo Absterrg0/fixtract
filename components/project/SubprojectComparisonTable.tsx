@@ -9,12 +9,12 @@ import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricin
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 
-const NON_UNIT_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
+const SUFFIXLESS_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
 
-const isNonUnitPriceModel = (model: string): boolean => {
+const isSuffixlessPriceModel = (model: string): boolean => {
   const normalized = model.trim().toLowerCase()
   if (!normalized) return false
-  return NON_UNIT_PRICE_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  return SUFFIXLESS_PRICE_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
 }
 
 interface DateLabels {
@@ -257,7 +257,7 @@ export default function SubprojectComparisonTable({
                         ) : (
                           formatCurrency(currentCustomerAmount ?? currentSubproject.pricing.amount)
                         )}
-                        {priceModel && !isNonUnitPriceModel(priceModel) && (
+                        {priceModel && !isSuffixlessPriceModel(priceModel) && (
                           <span className="text-lg font-normal text-gray-500 ml-2">
                             /{priceModel}
                           </span>
@@ -382,7 +382,7 @@ export default function SubprojectComparisonTable({
               const priceModelLower = (priceModel || '').toLowerCase()
               const priceModelIsRealUnit =
                 Boolean(priceModel) &&
-                !isNonUnitPriceModel(priceModelLower) &&
+                !isSuffixlessPriceModel(priceModelLower) &&
                 subprojectPricingType !== 'rfq' &&
                 subprojectPricingType !== 'fixed'
               return (
