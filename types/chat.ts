@@ -23,8 +23,11 @@ export interface ConversationLabel {
 
 export interface ChatConversation {
   _id: string;
-  customerId: ChatUserSummary;
-  professionalId: ChatUserSummary;
+  type?: "direct" | "support";
+  customerId?: ChatUserSummary;
+  professionalId?: ChatUserSummary;
+  supportAdminId?: ChatUserSummary;
+  supportTargetUserId?: ChatUserSummary;
   initiatedBy: string;
   status: "active" | "archived";
   starredBy: string[];
@@ -87,7 +90,7 @@ export interface ChatMessage {
   _id: string;
   conversationId: string;
   senderId: ChatUserSummary;
-  senderRole: "customer" | "professional" | "system";
+  senderRole: "customer" | "professional" | "system" | "admin";
   messageType?: "text" | "review_notification" | "warranty_notification" | "quotation_notification";
   text?: string;
   images: string[];

@@ -103,6 +103,8 @@ interface BookingDetail {
     capturedAt?: string
     transferredAt?: string
     paidAt?: string
+    refundedAt?: string
+    refundReason?: string
     discount?: {
       loyaltyTier?: string
       loyaltyAmount?: number
@@ -1948,6 +1950,47 @@ export default function BookingDetailPage() {
           <Card className="bg-rose-50 border border-rose-100">
             <CardContent className="py-4 text-sm text-rose-700">
               {error}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Refund banner — shown to customer when payment has been refunded */}
+        {!error && user?.role === 'customer' && booking?.payment && (booking.payment.status === 'refunded' || booking.payment.status === 'partially_refunded') && (
+          <Card className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200">
+            <CardContent className="py-4">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <CheckCircle className="h-5 w-5 text-emerald-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-emerald-900">
+                    {booking.payment.status === 'refunded' ? 'Refund processed' : 'Partial refund processed'}
+                  </h3>
+                  <p className="text-sm text-emerald-800 mt-0.5">
+                    {booking.payment.status === 'refunded' && booking.payment.totalWithVat != null && (
+                      <>
+                        <strong>{booking.payment.currency || 'EUR'} {booking.payment.totalWithVat.toFixed(2)}</strong>
+                        {' '}was refunded
+                      </>
+                    )}
+                    {booking.payment.status === 'partially_refunded' && (
+                      <>A partial refund has been issued</>
+                    )}
+                    {booking.payment.refundedAt && (
+                      <> on {new Date(booking.payment.refundedAt).toLocaleDateString()}</>
+                    )}
+                    .
+                  </p>
+                  {booking.payment.refundReason && (
+                    <p className="text-xs text-emerald-700 mt-1">
+                      <strong>Reason:</strong> {booking.payment.refundReason}
+                    </p>
+                  )}
+                  <p className="text-xs text-emerald-600 mt-1">
+                    The refund should appear on your original payment method within 5–10 business days, depending on your bank.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

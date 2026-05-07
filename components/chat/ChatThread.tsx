@@ -457,8 +457,9 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
         }
 
         const isMine = getSenderId(message) === currentUserId;
-        const senderName = getSenderName(message);
-        const senderImage = getSenderImage(message);
+        const isAdminSender = message.senderRole === "admin";
+        const senderName = isAdminSender ? "Fixera Support" : getSenderName(message);
+        const senderImage = isAdminSender ? null : getSenderImage(message);
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showAvatar = !prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification" || prevMessage.messageType === "quotation_notification" || prevMessage.messageType === "warranty_notification";
 
@@ -472,9 +473,14 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
             {!isMine && (
               <div className="w-8 shrink-0">
                 {showAvatar && (
-                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                  <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center overflow-hidden",
+                    isAdminSender ? "bg-gradient-to-br from-indigo-500 to-purple-600" : "bg-indigo-100"
+                  )}>
                     {senderImage ? (
                       <img src={senderImage} alt="" className="h-full w-full object-cover" />
+                    ) : isAdminSender ? (
+                      <ShieldCheck className="h-4 w-4 text-white" />
                     ) : (
                       <span className="text-[10px] font-semibold text-indigo-600">
                         {senderName.charAt(0).toUpperCase()}
@@ -492,11 +498,23 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
               <div
                 className={cn(
                   "rounded-lg px-3 py-2 shadow-sm w-full",
-                  isMine ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-slate-200"
+                  isMine
+                    ? "bg-indigo-600 text-white"
+                    : isAdminSender
+                      ? "bg-indigo-50 text-gray-900 border border-indigo-200"
+                      : "bg-white text-gray-900 border border-slate-200"
                 )}
               >
-                
-                {!isMine && showAvatar && <p className="mb-1 text-[11px] font-semibold text-indigo-700">{senderName}</p>}
+
+                {!isMine && showAvatar && (
+                  <p className={cn(
+                    "mb-1 text-[11px] font-semibold flex items-center gap-1",
+                    isAdminSender ? "text-indigo-700" : "text-indigo-700"
+                  )}>
+                    {senderName}
+                    {isAdminSender && <ShieldCheck className="h-3 w-3" />}
+                  </p>
+                )}
                 {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
 
                 {Array.isArray(message.images) && message.images.length > 0 && (

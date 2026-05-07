@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText } from "lucide-react";
+import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,6 +37,9 @@ import { cn, getAuthToken } from "@/lib/utils";
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
 const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
+  if (conversation.type === "support") {
+    return role === "admin" ? conversation.supportTargetUserId : conversation.supportAdminId;
+  }
   if (role === "professional") return conversation.customerId;
   return conversation.professionalId;
 };
@@ -202,7 +205,10 @@ export default function ChatPage() {
   const otherParticipant = selectedConversation
     ? getOtherParticipant(selectedConversation, userRole)
     : null;
-  const otherName = otherParticipant?.username || otherParticipant?.name || "Conversation";
+  const isSupportConversation = selectedConversation?.type === "support";
+  const otherName = isSupportConversation
+    ? "Fixera Support"
+    : otherParticipant?.username || otherParticipant?.name || "Conversation";
 
   const loadConversationList = useCallback(
     async (showBusy: boolean) => {
@@ -697,9 +703,14 @@ export default function ChatPage() {
                   <ArrowLeft className="h-5 w-5 text-gray-600" />
                 </button>
                 {/* Profile pic in header */}
-                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden shrink-0">
-                  {otherParticipant?.profileImage ? (
+                <div className={cn(
+                  "h-8 w-8 rounded-full flex items-center justify-center overflow-hidden shrink-0",
+                  isSupportConversation ? "bg-gradient-to-br from-indigo-500 to-purple-600" : "bg-indigo-100"
+                )}>
+                  {!isSupportConversation && otherParticipant?.profileImage ? (
                     <img src={otherParticipant.profileImage} alt="" className="h-full w-full object-cover" />
+                  ) : isSupportConversation ? (
+                    <ShieldCheck className="h-4 w-4 text-white" />
                   ) : (
                     <span className="text-xs font-semibold text-indigo-600">
                       {otherName.charAt(0).toUpperCase()}
@@ -707,7 +718,14 @@ export default function ChatPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{otherName}</p>
+                  <p className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                    {otherName}
+                    {isSupportConversation && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                        Official
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">

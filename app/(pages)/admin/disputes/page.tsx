@@ -49,6 +49,8 @@ interface DisputeBooking {
     resolution?: string
     resolvedBy?: string
     adminAdjustedAmount?: number
+    slaDeadline?: string
+    slaBreachNotifiedAt?: string
   }
   createdAt?: string
 }
@@ -265,6 +267,11 @@ export default function AdminDisputesPage() {
                         <Badge variant={d.dispute?.resolvedAt ? "default" : "destructive"} className="text-xs">
                           {d.dispute?.resolvedAt ? 'Resolved' : 'Open'}
                         </Badge>
+                        {!d.dispute?.resolvedAt && d.dispute?.slaDeadline && new Date(d.dispute.slaDeadline) < new Date() && (
+                          <Badge variant="destructive" className="text-xs bg-red-700">
+                            SLA breached
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-gray-500">
                         Customer: {d.customer?.name || d.customer?.email || 'Unknown'}

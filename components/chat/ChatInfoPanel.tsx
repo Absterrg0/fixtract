@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,9 @@ interface ChatInfoPanelProps {
 }
 
 const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
+  if (conversation.type === "support") {
+    return role === "admin" ? conversation.supportTargetUserId : conversation.supportAdminId;
+  }
   if (role === "professional") return conversation.customerId;
   return conversation.professionalId;
 };
@@ -94,6 +97,28 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
 
   const displayConversation = infoConversation || conversation;
   if (!displayConversation) return null;
+
+  if (displayConversation.type === "support") {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 border-b border-slate-200">
+          <h3 className="text-sm font-semibold text-gray-700">Info</h3>
+        </div>
+        <div className="p-4 flex flex-col items-center text-center">
+          <div className="h-16 w-16 mb-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <ShieldCheck className="h-8 w-8 text-white" />
+          </div>
+          <p className="text-sm font-semibold text-gray-900">Fixera Support</p>
+          <Badge variant="secondary" className="mt-1 text-[10px] bg-indigo-100 text-indigo-700">
+            Official
+          </Badge>
+          <p className="mt-3 text-xs text-gray-500 leading-relaxed">
+            This is an official conversation with the Fixera team. We&apos;ll help you with anything platform-related.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const other = getOtherParticipant(displayConversation, currentUserRole);
   const name = other?.username || other?.name || "User";

@@ -277,7 +277,10 @@ export default function AdminDiscountCodesPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Failed to save");
+      if (!res.ok || !json.success) {
+        const detail = json?.error?.message ? ` (${json.error.message})` : "";
+        throw new Error((json.msg || "Failed to save") + detail);
+      }
       toast.success(editingId ? "Discount code updated" : "Discount code created");
       setDialogOpen(false);
       await loadCodes();

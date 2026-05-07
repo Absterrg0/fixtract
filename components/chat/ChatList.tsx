@@ -23,12 +23,31 @@ interface ChatListProps {
 }
 
 const getParticipantDisplay = (conversation: ChatConversation, role: string | undefined) => {
+  if (conversation.type === "support") {
+    if (role === "admin") {
+      const target = conversation.supportTargetUserId;
+      return {
+        name: target?.name || target?.username || "Support thread",
+        subtitle: target?.email || target?.role || "",
+        profileImage: target?.profileImage,
+        isSupport: false as const,
+      };
+    }
+    return {
+      name: "Fixera Support",
+      subtitle: "Official support team",
+      profileImage: undefined,
+      isSupport: true as const,
+    };
+  }
+
   if (role === "professional") {
     const customer = conversation.customerId;
     return {
       name: customer?.name || "Customer",
       subtitle: customer?.email || "",
       profileImage: customer?.profileImage,
+      isSupport: false as const,
     };
   }
 
@@ -38,10 +57,17 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
     name: professionalName || "Professional",
     subtitle: professional?.businessInfo?.city || professional?.email || "",
     profileImage: professional?.profileImage,
+    isSupport: false as const,
   };
 };
 
 const getUnreadCount = (conversation: ChatConversation, role: string | undefined) => {
+  if (conversation.type === "support") {
+    if (role === "admin") {
+      return conversation.professionalUnreadCount || 0;
+    }
+    return conversation.customerUnreadCount || 0;
+  }
   if (role === "professional") {
     return conversation.professionalUnreadCount || 0;
   }
@@ -170,7 +196,12 @@ export default function ChatList({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2.5 min-w-0">
                       {/* Profile pic */}
-                      <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className={cn(
+                        "h-9 w-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
+                        participant.isSupport
+                          ? "bg-gradient-to-br from-indigo-500 to-purple-600"
+                          : "bg-indigo-100"
+                      )}>
                         {participant.profileImage ? (
                           <img
                             src={participant.profileImage}
@@ -178,14 +209,22 @@ export default function ChatList({
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className="text-xs font-semibold text-indigo-600">
-                            {participant.name.charAt(0).toUpperCase()}
+                          <span className={cn(
+                            "text-xs font-semibold",
+                            participant.isSupport ? "text-white" : "text-indigo-600"
+                          )}>
+                            {participant.isSupport ? "F" : participant.name.charAt(0).toUpperCase()}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1">
                           <p className="truncate text-sm font-medium text-gray-900">{participant.name}</p>
+                          {participant.isSupport && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-indigo-100 text-indigo-700">
+                              Official
+                            </Badge>
+                          )}
                           {isStarred && (
                             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />
                           )}

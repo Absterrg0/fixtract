@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3 } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -835,6 +835,42 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700"
                   >
                     Open Dispute Dashboard
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-amber-600" />
+                    Cancellation Requests
+                  </CardTitle>
+                  <CardDescription>Review and approve or deny cancellation requests from customers and professionals</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/cancellation-requests', '_blank')}
+                    className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
+                  >
+                    Open Cancellation Requests
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-purple-100 bg-gradient-to-br from-white via-purple-50 to-pink-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertOctagon className="h-5 w-5 text-purple-600" />
+                    Reported Chats
+                  </CardTitle>
+                  <CardDescription>Review reported chat messages, warn or ban users, and dismiss false reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/chat-reports', '_blank')}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                  >
+                    Open Reported Chats
                   </Button>
                 </CardContent>
               </Card>
