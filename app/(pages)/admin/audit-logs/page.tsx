@@ -187,7 +187,16 @@ export default function AdminAuditLogsPage() {
     }
   }, [user, fetchLogs, fetchStats])
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      logsAbortRef.current?.abort()
+      statsAbortRef.current?.abort()
+    }
+  }, [])
+
   if (loading || !user) return null
+  if (user.role !== 'admin') return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">

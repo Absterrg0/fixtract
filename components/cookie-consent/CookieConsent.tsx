@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { CONSENT_EVENT, getConsent, setConsent, type ConsentState } from '@/lib/consent'
-
-const STORAGE_KEY = 'fixera-consent-v1'
+import { CONSENT_EVENT, STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
 
 export default function CookieConsent() {
   const [decided, setDecided] = useState<ConsentState | null | undefined>(undefined)
@@ -93,32 +91,40 @@ export default function CookieConsent() {
           <div className="space-y-4 py-2">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-medium">Necessary</p>
+                <p id="cookie-label-necessary" className="font-medium">Necessary</p>
                 <p className="text-sm text-muted-foreground">
                   Required for the site to function (login, security, payment processing). Always on.
                 </p>
               </div>
-              <Switch checked disabled />
+              <Switch checked disabled aria-labelledby="cookie-label-necessary" />
             </div>
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-medium">Analytics</p>
+                <p id="cookie-label-analytics" className="font-medium">Analytics</p>
                 <p className="text-sm text-muted-foreground">
                   Helps us understand how the site is used so we can improve it. No personal data is sold.
                 </p>
               </div>
-              <Switch checked={analyticsOn} onCheckedChange={setAnalyticsOn} />
+              <Switch
+                checked={analyticsOn}
+                onCheckedChange={setAnalyticsOn}
+                aria-labelledby="cookie-label-analytics"
+              />
             </div>
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-medium">Marketing</p>
+                <p id="cookie-label-marketing" className="font-medium">Marketing</p>
                 <p className="text-sm text-muted-foreground">
                   Used to show relevant content and measure campaign performance.
                 </p>
               </div>
-              <Switch checked={marketingOn} onCheckedChange={setMarketingOn} />
+              <Switch
+                checked={marketingOn}
+                onCheckedChange={setMarketingOn}
+                aria-labelledby="cookie-label-marketing"
+              />
             </div>
           </div>
 
