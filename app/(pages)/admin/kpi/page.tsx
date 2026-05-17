@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { authFetch } from '@/lib/utils'
@@ -69,7 +69,12 @@ interface ResponseRow {
   quotesSent: number
 }
 
-const toISODateInput = (d: Date) => d.toISOString().slice(0, 10)
+const toISODateInput = (d: Date) => {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
 
 const computePreset = (preset: Preset): { from: string; to: string } => {
   const now = new Date()
@@ -80,15 +85,15 @@ const computePreset = (preset: Preset): { from: string; to: string } => {
     return { from: toISODateInput(from), to }
   }
   if (preset === 'quarter') {
-    const q = Math.floor(now.getUTCMonth() / 3)
-    const from = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 1))
+    const q = Math.floor(now.getMonth() / 3)
+    const from = new Date(now.getFullYear(), q * 3, 1)
     return { from: toISODateInput(from), to }
   }
   if (preset === 'year') {
-    const from = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+    const from = new Date(now.getFullYear(), 0, 1)
     return { from: toISODateInput(from), to }
   }
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const from = new Date(now.getFullYear(), now.getMonth(), 1)
   return { from: toISODateInput(from), to }
 }
 
@@ -128,6 +133,7 @@ export default function AdminKpiDashboard() {
   const [responses, setResponses] = useState<ResponseRow[]>([])
   const [loading, setLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (authLoading) return
@@ -152,6 +158,7 @@ export default function AdminKpiDashboard() {
   const range = useMemo(() => `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, [from, to])
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     try {
       const [sumRes, regRes, svcRes, respRes] = await Promise.all([
@@ -160,20 +167,23 @@ export default function AdminKpiDashboard() {
         authFetch(`${BACKEND}/api/admin/kpi/by-service?${range}`),
         authFetch(`${BACKEND}/api/admin/kpi/professional-response?${range}`),
       ])
+      if (requestId !== requestIdRef.current) return
       if (!sumRes.ok || !regRes.ok || !svcRes.ok || !respRes.ok) {
         toast.error('Failed to load KPI data')
         return
       }
       const [sumJson, regJson, svcJson, respJson] = await Promise.all([sumRes.json(), regRes.json(), svcRes.json(), respRes.json()])
+      if (requestId !== requestIdRef.current) return
       setSummary(sumJson.data || null)
       setRegions(regJson.data?.rows || [])
       setServices(svcJson.data?.rows || [])
       setResponses(respJson.data?.rows || [])
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       console.error(err)
       toast.error('Failed to load KPI data')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }, [range])
 
@@ -184,7 +194,8 @@ export default function AdminKpiDashboard() {
 
   const downloadCsv = (section: 'region' | 'service' | 'response') => {
     const url = `${BACKEND}/api/admin/kpi/export?section=${section}&${range}`
-    window.open(url, '_blank')
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer')
+    if (newWindow) newWindow.opener = null
   }
 
   const emailPdf = async () => {
