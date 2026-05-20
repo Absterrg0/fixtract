@@ -55,7 +55,7 @@ interface BookingProfessional {
 }
 
 type BookingProject = Partial<
-  Pick<ProjectDto, '_id' | 'title' | 'extraOptions' | 'postBookingQuestions'>
+  Pick<ProjectDto, '_id' | 'title' | 'extraOptions' | 'postBookingQuestions' | 'minResources' | 'minOverlapPercentage'>
 >;
 
 interface BookingRfqDetails {
@@ -183,7 +183,7 @@ export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const bookingId = params.id as string;
-  const { commissionPercent, customerPrice, loyaltyLoaded } = useCustomerPricing();
+  const { commissionPercent, customerPrice, loyalty, loyaltyLoaded, originalPrice } = useCustomerPricing();
   const customerPricingReady = commissionPercent != null && loyaltyLoaded;
 
   const [loading, setLoading] = useState(true);
@@ -969,11 +969,45 @@ export default function BookingPaymentPage() {
                     </div>
                   </div>
                 )}
-                <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
-                  <p className="text-xs text-amber-800">
-                    <span className="font-semibold">Member Savings:</span> Your loyalty tier discount and any returning-customer savings are applied automatically before payment.
-                  </p>
-                </div>
+                {(typeof booking?.project?.minResources === 'number' || typeof booking?.project?.minOverlapPercentage === 'number') && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Team requirement:</p>
+                    <p className="text-xs text-gray-600">
+                      {typeof booking?.project?.minResources === 'number'
+                        ? `${booking.project.minResources} team member${booking.project.minResources === 1 ? '' : 's'} required`
+                        : 'Team size as configured'}
+                      {typeof booking?.project?.minOverlapPercentage === 'number'
+                        ? `, with at least ${booking.project.minOverlapPercentage}% overlap of the scheduled time.`
+                        : '.'}
+                    </p>
+                  </div>
+                )}
+                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.quote?.amount != null && customerPricingReady && (() => {
+                  const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
+                  const baseWithCommission = originalPrice(booking.quote.amount);
+                  const afterLoyalty = customerPrice(booking.quote.amount);
+                  const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
+                  return (
+                    <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                      <p className="text-xs text-amber-800">
+                        <span className="font-semibold">Your level:</span> {loyalty.level} ({loyalty.percentage}% loyalty discount)
+                        {saving > 0 && (
+                          <>
+                            <span className="mx-1">·</span>
+                            <span className="font-semibold">Saving:</span> -{formatMoney(saving, currency)}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
+                {(!loyaltyLoaded || !loyalty || loyalty.percentage <= 0) && (
+                  <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                    <p className="text-xs text-amber-800">
+                      <span className="font-semibold">Member Savings:</span> Your loyalty tier discount and any returning-customer savings are applied automatically before payment.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
