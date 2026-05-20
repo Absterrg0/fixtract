@@ -120,6 +120,14 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const isFaq = type === "faq";
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
+  const coverRecommendation =
+    type === "landing"
+      ? "Recommended: 1600 × 700 px (16:7) — full-width page hero"
+      : type === "policy"
+      ? "Recommended: 1600 × 700 px (16:7) — page hero (optional)"
+      : type === "blog" || type === "news"
+      ? "Recommended: 1600 × 900 px (16:9) — used on cards and the article hero"
+      : "Recommended: 1600 × 900 px (16:9)";
 
   const update = (patch: Partial<CmsContent>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -380,6 +388,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                 value={form.coverImage}
                 onChange={(url) => update({ coverImage: url })}
                 required={requiresCover}
+                recommendedSize={coverRecommendation}
               />
             </div>
           </GradientCard>
