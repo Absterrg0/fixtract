@@ -180,12 +180,20 @@ export default function AdminDiscountCodesPage() {
     return () => clearTimeout(t);
   }, [isAuthenticated, user, loadCodes]);
 
+  const serviceCatalogCountry = useMemo(() => {
+    const parts = form.activeCountries.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+    return parts.length === 1 && /^[A-Z]{2}$/.test(parts[0]) ? parts[0] : null;
+  }, [form.activeCountries]);
+
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     const ac = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/service-categories/active?country=BE`, {
+        const url = serviceCatalogCountry
+          ? `${API_BASE}/api/service-categories/active?country=${encodeURIComponent(serviceCatalogCountry)}`
+          : `${API_BASE}/api/service-categories/active`;
+        const res = await fetch(url, {
           signal: ac.signal,
           cache: "no-store",
         });
@@ -198,7 +206,7 @@ export default function AdminDiscountCodesPage() {
       }
     })();
     return () => ac.abort();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, serviceCatalogCountry]);
 
   useEffect(() => {
     if (!servicesOpen) return;
