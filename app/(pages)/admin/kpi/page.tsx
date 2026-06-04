@@ -438,6 +438,95 @@ export default function AdminKpiDashboard() {
     [activeTab, sortByTab, tabRowsMap]
   )
 
+  const columnsByTab: Record<TabKey, KpiColumn[]> = useMemo(() => {
+    const emailFormat = showEmails ? undefined : maskEmail
+    return {
+      city: [
+        { key: 'city', label: 'City' },
+        { key: 'signUps', label: 'Sign-ups', numeric: true },
+        { key: 'views', label: 'Views', numeric: true },
+        { key: 'totalBookings', label: 'Bookings', numeric: true },
+        { key: 'bookedValue', label: 'Booked €', numeric: true, format: fmtMoney },
+        { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
+        { key: 'quotationConversionRate', label: 'Convert %', numeric: true, format: fmtPct },
+        { key: 'disputeRate', label: 'Dispute %', numeric: true, format: fmtPct },
+        { key: 'warrantyClaimRate', label: 'Warranty %', numeric: true, format: fmtPct },
+        { key: 'refundRate', label: 'Refund %', numeric: true, format: fmtPct },
+      ],
+      service: [
+        { key: 'serviceType', label: 'Service' },
+        { key: 'totalRfqs', label: 'RFQs', numeric: true },
+        { key: 'quotedCount', label: 'Quotes', numeric: true },
+        { key: 'bookingsCount', label: 'Bookings', numeric: true },
+        { key: 'completedCount', label: 'Completed', numeric: true },
+        { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
+        { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
+        { key: 'quotationConversionRate', label: 'Convert %', numeric: true, format: fmtPct },
+        { key: 'disputeRate', label: 'Dispute %', numeric: true, format: fmtPct },
+        { key: 'refundRate', label: 'Refund %', numeric: true, format: fmtPct },
+        { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
+        { key: 'avgTtfqHours', label: 'Avg TTFQ (h)', numeric: true },
+      ],
+      subproject: [
+        { key: 'projectTitle', label: 'Project' },
+        { key: 'subprojectName', label: 'Subproject' },
+        { key: 'totalRfqs', label: 'RFQs', numeric: true },
+        { key: 'bookingsCount', label: 'Bookings', numeric: true },
+        { key: 'completedCount', label: 'Completed', numeric: true },
+        { key: 'disputeCount', label: 'Disputes', numeric: true },
+        { key: 'refundCount', label: 'Refunds', numeric: true },
+        { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
+        { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
+        { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
+        { key: 'price', label: 'Price', numeric: true, format: fmtMoney },
+      ],
+      professional: [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email', format: emailFormat },
+        { key: 'city', label: 'City' },
+        { key: 'professionalLevel', label: 'Level' },
+        { key: 'createdProjects', label: 'Projects', numeric: true },
+        { key: 'rfqsReceived', label: 'RFQs', numeric: true },
+        { key: 'quotedCount', label: 'Quoted', numeric: true },
+        { key: 'bookingsCount', label: 'Bookings', numeric: true },
+        { key: 'completedCount', label: 'Completed', numeric: true },
+        { key: 'disputeCount', label: 'Disputes', numeric: true },
+        { key: 'avgTtfqHours', label: 'Avg TTFQ (h)', numeric: true },
+        { key: 'avgReviewScore', label: 'Avg review', numeric: true },
+        { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
+        { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
+      ],
+      customer: [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email', format: emailFormat },
+        { key: 'city', label: 'City' },
+        { key: 'loyaltyLevel', label: 'Loyalty' },
+        { key: 'rfqsCreated', label: 'RFQs', numeric: true },
+        { key: 'bookingsCount', label: 'Bookings', numeric: true },
+        { key: 'completedCount', label: 'Completed', numeric: true },
+        { key: 'disputeCount', label: 'Disputes', numeric: true },
+        { key: 'refundCount', label: 'Refunds', numeric: true },
+        { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
+        { key: 'avgPaymentTimeHours', label: 'Avg pay (h)', numeric: true },
+        { key: 'grossSpend', label: 'Gross spend €', numeric: true, format: fmtMoney },
+        { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
+      ],
+    }
+  }, [showEmails])
+
+  const activeChartData = useMemo(() => {
+    const columns = columnsByTab[activeTab]
+    const sort = sortByTab[activeTab]
+    const sortColumn = columns.find((c) => c.key === sort.key)
+    const chartKey = sortColumn?.numeric ? sort.key : 'platformRevenue'
+    const labelKey = TAB_LABEL_KEY[activeTab]
+    return activeSorted.slice(0, 12).map((r) => ({
+      name: String(r[labelKey] ?? '—'),
+      value: Number(r[chartKey]) || 0,
+      rowKey: makeRowKey(activeTab, r),
+    }))
+  }, [activeSorted, activeTab, sortByTab, columnsByTab])
+
   const toggleSortForTab = useCallback((tab: TabKey, key: string) => {
     setSortByTab((prev) => {
       const cur = prev[tab]
@@ -450,78 +539,6 @@ export default function AdminKpiDashboard() {
 
   if (authLoading) return null
   if (!user || user.role !== 'admin') return null
-
-  const regionColumns = [
-    { key: 'city', label: 'City' },
-    { key: 'signUps', label: 'Sign-ups', numeric: true },
-    { key: 'views', label: 'Views', numeric: true },
-    { key: 'totalBookings', label: 'Bookings', numeric: true },
-    { key: 'bookedValue', label: 'Booked €', numeric: true, format: fmtMoney },
-    { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
-    { key: 'quotationConversionRate', label: 'Convert %', numeric: true, format: fmtPct },
-    { key: 'disputeRate', label: 'Dispute %', numeric: true, format: fmtPct },
-    { key: 'warrantyClaimRate', label: 'Warranty %', numeric: true, format: fmtPct },
-    { key: 'refundRate', label: 'Refund %', numeric: true, format: fmtPct },
-  ]
-  const serviceColumns = [
-    { key: 'serviceType', label: 'Service' },
-    { key: 'totalRfqs', label: 'RFQs', numeric: true },
-    { key: 'quotedCount', label: 'Quotes', numeric: true },
-    { key: 'bookingsCount', label: 'Bookings', numeric: true },
-    { key: 'completedCount', label: 'Completed', numeric: true },
-    { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
-    { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
-    { key: 'quotationConversionRate', label: 'Convert %', numeric: true, format: fmtPct },
-    { key: 'disputeRate', label: 'Dispute %', numeric: true, format: fmtPct },
-    { key: 'refundRate', label: 'Refund %', numeric: true, format: fmtPct },
-    { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
-    { key: 'avgTtfqHours', label: 'Avg TTFQ (h)', numeric: true },
-  ]
-  const subprojectColumns = [
-    { key: 'projectTitle', label: 'Project' },
-    { key: 'subprojectName', label: 'Subproject' },
-    { key: 'totalRfqs', label: 'RFQs', numeric: true },
-    { key: 'bookingsCount', label: 'Bookings', numeric: true },
-    { key: 'completedCount', label: 'Completed', numeric: true },
-    { key: 'disputeCount', label: 'Disputes', numeric: true },
-    { key: 'refundCount', label: 'Refunds', numeric: true },
-    { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
-    { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
-    { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
-    { key: 'price', label: 'Price', numeric: true, format: fmtMoney },
-  ]
-  const emailFormat = showEmails ? undefined : maskEmail
-  const professionalColumns = [
-    { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email', format: emailFormat },
-    { key: 'city', label: 'City' },
-    { key: 'professionalLevel', label: 'Level' },
-    { key: 'createdProjects', label: 'Projects', numeric: true },
-    { key: 'rfqsReceived', label: 'RFQs', numeric: true },
-    { key: 'quotedCount', label: 'Quoted', numeric: true },
-    { key: 'bookingsCount', label: 'Bookings', numeric: true },
-    { key: 'completedCount', label: 'Completed', numeric: true },
-    { key: 'disputeCount', label: 'Disputes', numeric: true },
-    { key: 'avgTtfqHours', label: 'Avg TTFQ (h)', numeric: true },
-    { key: 'avgReviewScore', label: 'Avg review', numeric: true },
-    { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
-    { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
-  ]
-  const customerColumns = [
-    { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email', format: emailFormat },
-    { key: 'city', label: 'City' },
-    { key: 'loyaltyLevel', label: 'Loyalty' },
-    { key: 'rfqsCreated', label: 'RFQs', numeric: true },
-    { key: 'bookingsCount', label: 'Bookings', numeric: true },
-    { key: 'completedCount', label: 'Completed', numeric: true },
-    { key: 'disputeCount', label: 'Disputes', numeric: true },
-    { key: 'refundCount', label: 'Refunds', numeric: true },
-    { key: 'reschedulingCount', label: 'Reschedules', numeric: true },
-    { key: 'avgPaymentTimeHours', label: 'Avg pay (h)', numeric: true },
-    { key: 'grossSpend', label: 'Gross spend €', numeric: true, format: fmtMoney },
-    { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
-  ]
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -647,11 +664,7 @@ export default function AdminKpiDashboard() {
 
           {(['city', 'service', 'subproject', 'professional', 'customer'] as TabKey[]).map((tab) => {
             const columns: KpiColumn[] =
-              tab === 'city' ? regionColumns
-              : tab === 'service' ? serviceColumns
-              : tab === 'subproject' ? subprojectColumns
-              : tab === 'professional' ? professionalColumns
-              : customerColumns
+              columnsByTab[tab]
             const isActive = tab === activeTab
             const sort = sortByTab[tab]
             const sorted = isActive ? activeSorted : []
@@ -661,12 +674,7 @@ export default function AdminKpiDashboard() {
             const chartColumn = columns.find((c) => c.key === chartKey)
             const chartLabel = chartColumn?.label || 'Platform €'
             const chartFmt = chartColumn?.format
-            const labelKey = TAB_LABEL_KEY[tab]
-            const chartData = sorted.slice(0, 12).map((r) => ({
-              name: String(r[labelKey] ?? '—'),
-              value: Number(r[chartKey]) || 0,
-              rowKey: makeRowKey(tab, r),
-            }))
+            const chartData = isActive ? activeChartData : []
             return (
             <TabsContent value={tab} key={tab}>
               <Card>
