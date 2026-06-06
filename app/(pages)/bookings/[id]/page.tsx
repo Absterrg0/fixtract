@@ -564,6 +564,7 @@ export default function BookingDetailPage() {
   const [cancelReason, setCancelReason] = useState("")
   const [cancelEvidence, setCancelEvidence] = useState<string[]>([])
   const [uploadingCancelAttachment, setUploadingCancelAttachment] = useState(false)
+  const cancelUploadAbortRef = useRef<AbortController | null>(null)
   const [submittingCancel, setSubmittingCancel] = useState(false)
   const [showRescheduleModal, setShowRescheduleModal] = useState(false)
   const [rescheduleDate, setRescheduleDate] = useState("")
@@ -1861,6 +1862,8 @@ export default function BookingDetailPage() {
     }
     const toUpload = valid.slice(0, remaining)
     if (toUpload.length === 0) return
+    const controller = new AbortController()
+    cancelUploadAbortRef.current = controller
     setUploadingCancelAttachment(true)
     try {
       const token = getAuthToken()
@@ -1870,9 +1873,10 @@ export default function BookingDetailPage() {
       toUpload.forEach((file) => formData.append("files", file))
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/dispute-upload`,
-        { method: "POST", credentials: "include", headers, body: formData }
+        { method: "POST", credentials: "include", headers, body: formData, signal: controller.signal }
       )
       const result = await response.json()
+      if (controller.signal.aborted) return
       const urls: string[] = (Array.isArray(result?.data?.urls) ? result.data.urls : [])
         .filter((u: unknown): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
       if (response.ok && result.success && urls.length > 0) {
@@ -1882,14 +1886,18 @@ export default function BookingDetailPage() {
         toast.error(result?.error?.message || "Failed to upload attachment")
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
       console.error("Failed to upload cancellation attachment:", err)
       toast.error("Failed to upload attachment. Please try again.")
     } finally {
+      if (cancelUploadAbortRef.current === controller) cancelUploadAbortRef.current = null
       setUploadingCancelAttachment(false)
     }
   }
 
   const resetCancelForm = () => {
+    cancelUploadAbortRef.current?.abort()
+    cancelUploadAbortRef.current = null
     setCancelReasonCategory("")
     setCancelReason("")
     setCancelEvidence([])

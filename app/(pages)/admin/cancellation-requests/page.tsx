@@ -14,11 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { Ban, CheckCircle2, RefreshCw, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { CANCEL_REASONS } from "@/lib/constants/cancelReasons"
 
 interface CancellationRequestItem {
   _id: string
   status: 'pending' | 'approved' | 'denied'
+  reasonCategory?: string
   reason: string
+  evidence?: string[]
   denyReason?: string
   refundAmount?: number
   refundedAt?: string
@@ -222,7 +225,22 @@ export default function AdminCancellationRequestsPage() {
                           {' | '}
                           Professional: {item.booking?.professional?.name || '—'}
                         </p>
+                        {item.reasonCategory && (
+                          <p className="text-xs text-red-600 font-medium mt-1">
+                            Category: {CANCEL_REASONS.find((r) => r.value === item.reasonCategory)?.label || item.reasonCategory}
+                          </p>
+                        )}
                         <p className="text-xs text-red-600 font-medium mt-1">Reason: {item.reason}</p>
+                        {Array.isArray(item.evidence) && item.evidence.length > 0 && (
+                          <p className="text-xs text-gray-600 mt-0.5 flex flex-wrap gap-2">
+                            <span>Attachments:</span>
+                            {item.evidence.map((url, i) => (
+                              <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                File {i + 1}
+                              </a>
+                            ))}
+                          </p>
+                        )}
                         {item.booking?.payment && (
                           <p className="text-xs text-gray-600">
                             Payment: {currency} {total.toFixed(2)} ({item.booking.payment.status})
