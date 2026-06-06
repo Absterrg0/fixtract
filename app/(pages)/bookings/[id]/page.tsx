@@ -420,6 +420,8 @@ const isHttpUrl = (value?: string | null) => {
   }
 }
 
+const CANCEL_ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024
+
 const getFileLabel = (value?: string | null, fallback = "Open attachment") => {
   if (!value) return fallback
   try {
@@ -1844,19 +1846,35 @@ export default function BookingDetailPage() {
       toast.error("You can attach up to 10 files")
       return
     }
+    const valid: File[] = []
+    for (const file of Array.from(files)) {
+      const okType = /^(image\/|video\/)/.test(file.type) || file.type === "application/pdf"
+      if (!okType) {
+        toast.error(`${file.name}: unsupported file type`)
+        continue
+      }
+      if (file.size > CANCEL_ATTACHMENT_MAX_BYTES) {
+        toast.error(`${file.name}: exceeds ${CANCEL_ATTACHMENT_MAX_BYTES / (1024 * 1024)}MB limit`)
+        continue
+      }
+      valid.push(file)
+    }
+    const toUpload = valid.slice(0, remaining)
+    if (toUpload.length === 0) return
     setUploadingCancelAttachment(true)
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
       const formData = new FormData()
-      Array.from(files).slice(0, remaining).forEach((file) => formData.append("files", file))
+      toUpload.forEach((file) => formData.append("files", file))
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/dispute-upload`,
         { method: "POST", credentials: "include", headers, body: formData }
       )
       const result = await response.json()
-      const urls: string[] = Array.isArray(result?.data?.urls) ? result.data.urls : []
+      const urls: string[] = (Array.isArray(result?.data?.urls) ? result.data.urls : [])
+        .filter((u: unknown): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
       if (response.ok && result.success && urls.length > 0) {
         setCancelEvidence((prev) => [...prev, ...urls].slice(0, 10))
         toast.success("Attachment uploaded")
@@ -1878,8 +1896,8 @@ export default function BookingDetailPage() {
   }
 
   const handleCustomerCancel = async () => {
-    if (!bookingId || !cancelReasonCategory) {
-      toast.error("Please select a cancellation reason")
+    if (!bookingId || !CANCEL_REASONS.some((r) => r.value === cancelReasonCategory)) {
+      toast.error("Please select a valid cancellation reason")
       return
     }
     setSubmittingCancel(true)

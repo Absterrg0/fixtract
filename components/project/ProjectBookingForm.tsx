@@ -1563,7 +1563,7 @@ export default function ProjectBookingForm({
     return Number.isFinite(days) && days > 0 ? days : 0;
   }, [projectMode, selectedPackage, project.executionDuration]);
 
-  const isExecutionWindowBlockedForStart = useCallback((startDate: Date): boolean => {
+  const isExecutionWindowBlockedForStart = (startDate: Date): boolean => {
     if (executionDaysForBlocking <= 1) return false;
     let counted = 0;
     let cursor = startDate;
@@ -1571,13 +1571,17 @@ export default function ProjectBookingForm({
     while (counted < executionDaysForBlocking && iterations < 366) {
       iterations++;
       if (isProfessionalWorkingDay(cursor)) {
-        if (blockedDates.blockedDates.includes(toLocalDateKey(cursor))) return true;
+        const dayKey = toLocalDateKey(cursor);
+        const intervals = getBlockedIntervalsForDate(cursor);
+        if (blockedDates.blockedDates.includes(dayKey) || shouldBlockDayForIntervals(cursor, intervals)) {
+          return true;
+        }
         counted++;
       }
       cursor = addDays(cursor, 1);
     }
     return false;
-  }, [executionDaysForBlocking, isProfessionalWorkingDay, blockedDates.blockedDates, toLocalDateKey]);
+  };
 
   const isDateBlocked = (dateString: string): boolean => {
     let dateObj: Date;

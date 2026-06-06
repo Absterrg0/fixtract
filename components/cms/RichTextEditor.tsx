@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { adminUploadCmsImage } from "@/lib/cms";
 import { cn } from "@/lib/utils";
+import styles from "./RichTextEditor.module.css";
 
 interface Props {
   value: string;
@@ -111,14 +112,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
   }
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-rose-100 via-pink-100 to-orange-100 p-[1.5px] shadow-sm">
-      <style>{`
-        .ProseMirror table { border-collapse: collapse; width: 100%; margin: 1rem 0; table-layout: fixed; overflow: hidden; }
-        .ProseMirror td, .ProseMirror th { border: 1px solid #f9a8d4; padding: 0.5rem 0.625rem; vertical-align: top; position: relative; }
-        .ProseMirror th { background: #fdf2f8; font-weight: 600; text-align: left; }
-        .ProseMirror .selectedCell:after { content: ""; position: absolute; inset: 0; background: rgba(244,114,182,0.18); pointer-events: none; }
-        .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #ec4899; pointer-events: none; }
-      `}</style>
+    <div className={cn("rounded-2xl bg-gradient-to-br from-rose-100 via-pink-100 to-orange-100 p-[1.5px] shadow-sm", styles.editor)}>
       <div className="rounded-[calc(1rem-1.5px)] bg-white">
         <div className="flex flex-wrap items-center gap-1 border-b border-pink-100 bg-gradient-to-r from-rose-50 via-pink-50 to-white p-2 rounded-t-[calc(1rem-1.5px)]">
           <ToolbarBtn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1"><Heading1 size={16} /></ToolbarBtn>

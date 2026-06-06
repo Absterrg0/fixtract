@@ -26,6 +26,8 @@ type Preset = 'month' | 'quarter' | 'year' | 'last30' | 'custom'
 type SortDir = 'asc' | 'desc'
 type TabKey = 'city' | 'service' | 'subproject' | 'professional' | 'customer'
 
+const TAB_KEYS: TabKey[] = ['city', 'service', 'subproject', 'professional', 'customer']
+
 interface Summary {
   signUps: number
   totalBookings: number
@@ -521,10 +523,6 @@ export default function AdminKpiDashboard() {
     }
   }, [showEmails])
 
-  const TAB_KEYS: TabKey[] = useMemo(() => ['city', 'service', 'subproject', 'professional', 'customer'], [])
-
-  // Hydrate saved column selection from localStorage (once), defaulting to the
-  // first MAX_KPI_COLUMNS of each grouping. The identity column is always kept.
   useEffect(() => {
     if (columnsHydrated.current) return
     columnsHydrated.current = true
@@ -543,15 +541,30 @@ export default function AdminKpiDashboard() {
       next[tab] = all.filter((k) => withIdentity.includes(k))
     })
     setVisibleColsByTab(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [columnsByTab])
 
-  // Persist column selection (autosave) once hydrated.
   useEffect(() => {
     if (!columnsHydrated.current) return
     try {
       localStorage.setItem(KPI_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColsByTab))
     } catch { /* ignore quota errors */ }
+  }, [visibleColsByTab])
+
+  useEffect(() => {
+    setSortByTab((prev) => {
+      let changed = false
+      const next = { ...prev }
+      TAB_KEYS.forEach((tab) => {
+        const vis = visibleColsByTab[tab]
+        if (!vis || vis.length === 0) return
+        if (!vis.includes(prev[tab].key)) {
+          const fallback = vis.includes('platformRevenue') ? 'platformRevenue' : vis[vis.length - 1]
+          next[tab] = { key: fallback, dir: 'desc' }
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
   }, [visibleColsByTab])
 
   const getVisibleColumns = useCallback((tab: TabKey): KpiColumn[] => {
