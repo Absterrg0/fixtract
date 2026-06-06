@@ -11,13 +11,16 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Mail, Download, RefreshCw, TrendingUp, Users, Calendar, AlertTriangle, Shield, RotateCcw, Clock, Eye, Star, Heart, Activity, type LucideIcon } from 'lucide-react'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { Mail, Download, RefreshCw, TrendingUp, Users, Calendar, AlertTriangle, Shield, RotateCcw, Clock, Eye, Star, Heart, Activity, Columns3, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ''
+const MAX_KPI_COLUMNS = 10
+const KPI_COLUMNS_STORAGE_KEY = 'fixera-kpi-columns-v1'
 
 type Preset = 'month' | 'quarter' | 'year' | 'last30' | 'custom'
 type SortDir = 'asc' | 'desc'
@@ -272,6 +275,10 @@ export default function AdminKpiDashboard() {
   const [selectedByTab, setSelectedByTab] = useState<Record<TabKey, string | null>>({
     city: null, service: null, subproject: null, professional: null, customer: null,
   })
+  const [visibleColsByTab, setVisibleColsByTab] = useState<Record<TabKey, string[]>>({
+    city: [], service: [], subproject: [], professional: [], customer: [],
+  })
+  const columnsHydrated = useRef(false)
   const [loading, setLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
   const [showEmails, setShowEmails] = useState(false)
@@ -514,6 +521,63 @@ export default function AdminKpiDashboard() {
     }
   }, [showEmails])
 
+  const TAB_KEYS: TabKey[] = useMemo(() => ['city', 'service', 'subproject', 'professional', 'customer'], [])
+
+  // Hydrate saved column selection from localStorage (once), defaulting to the
+  // first MAX_KPI_COLUMNS of each grouping. The identity column is always kept.
+  useEffect(() => {
+    if (columnsHydrated.current) return
+    columnsHydrated.current = true
+    let stored: Partial<Record<TabKey, string[]>> = {}
+    try {
+      const raw = localStorage.getItem(KPI_COLUMNS_STORAGE_KEY)
+      if (raw) stored = JSON.parse(raw)
+    } catch { /* ignore corrupt storage */ }
+    const next = {} as Record<TabKey, string[]>
+    TAB_KEYS.forEach((tab) => {
+      const all = columnsByTab[tab].map((c) => c.key)
+      const identity = all[0]
+      const saved = Array.isArray(stored[tab]) ? stored[tab]!.filter((k) => all.includes(k)) : null
+      const chosen = saved && saved.length > 0 ? saved : all.slice(0, MAX_KPI_COLUMNS)
+      const withIdentity = [identity, ...chosen.filter((k) => k !== identity)].slice(0, MAX_KPI_COLUMNS)
+      next[tab] = all.filter((k) => withIdentity.includes(k))
+    })
+    setVisibleColsByTab(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist column selection (autosave) once hydrated.
+  useEffect(() => {
+    if (!columnsHydrated.current) return
+    try {
+      localStorage.setItem(KPI_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColsByTab))
+    } catch { /* ignore quota errors */ }
+  }, [visibleColsByTab])
+
+  const getVisibleColumns = useCallback((tab: TabKey): KpiColumn[] => {
+    const all = columnsByTab[tab]
+    const keys = visibleColsByTab[tab]
+    if (!keys || keys.length === 0) return all.slice(0, MAX_KPI_COLUMNS)
+    return all.filter((c) => keys.includes(c.key))
+  }, [columnsByTab, visibleColsByTab])
+
+  const toggleColumn = useCallback((tab: TabKey, key: string) => {
+    setVisibleColsByTab((prev) => {
+      const all = columnsByTab[tab].map((c) => c.key)
+      const identity = all[0]
+      if (key === identity) return prev
+      const current = (prev[tab] && prev[tab].length > 0 ? prev[tab] : all.slice(0, MAX_KPI_COLUMNS))
+      let nextKeys: string[]
+      if (current.includes(key)) {
+        nextKeys = current.filter((k) => k !== key)
+      } else {
+        if (current.length >= MAX_KPI_COLUMNS) return prev
+        nextKeys = [...current, key]
+      }
+      return { ...prev, [tab]: all.filter((k) => nextKeys.includes(k)) }
+    })
+  }, [columnsByTab])
+
   const activeChartData = useMemo(() => {
     const columns = columnsByTab[activeTab]
     const sort = sortByTab[activeTab]
@@ -663,15 +727,16 @@ export default function AdminKpiDashboard() {
           </TabsList>
 
           {(['city', 'service', 'subproject', 'professional', 'customer'] as TabKey[]).map((tab) => {
-            const columns: KpiColumn[] =
-              columnsByTab[tab]
+            const allCols: KpiColumn[] = columnsByTab[tab]
+            const columns: KpiColumn[] = getVisibleColumns(tab)
+            const identityKey = allCols[0]?.key
             const isActive = tab === activeTab
             const sort = sortByTab[tab]
             const sorted = isActive ? activeSorted : []
             const selectedKey = selectedByTab[tab]
-            const sortColumn = columns.find((c) => c.key === sort.key)
+            const sortColumn = allCols.find((c) => c.key === sort.key)
             const chartKey = sortColumn?.numeric ? sort.key : 'platformRevenue'
-            const chartColumn = columns.find((c) => c.key === chartKey)
+            const chartColumn = allCols.find((c) => c.key === chartKey)
             const chartLabel = chartColumn?.label || 'Platform €'
             const chartFmt = chartColumn?.format
             const chartData = isActive ? activeChartData : []
@@ -681,6 +746,32 @@ export default function AdminKpiDashboard() {
                 <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                   <CardTitle className="text-base capitalize">{tab === 'city' ? 'By Region (City)' : `By ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}</CardTitle>
                   <div className="flex gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Columns3 className="h-4 w-4 mr-2" />Columns ({columns.length})
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64 max-h-80 overflow-auto">
+                        <DropdownMenuLabel>Columns (max {MAX_KPI_COLUMNS})</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {allCols.map((c) => {
+                          const checked = columns.some((vc) => vc.key === c.key)
+                          const isIdentity = c.key === identityKey
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={c.key}
+                              checked={checked}
+                              disabled={isIdentity || (!checked && columns.length >= MAX_KPI_COLUMNS)}
+                              onCheckedChange={() => toggleColumn(tab, c.key)}
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              {c.label}
+                            </DropdownMenuCheckboxItem>
+                          )
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button variant="outline" size="sm" onClick={() => downloadExport(TAB_SECTION_MAP[tab], 'csv')}>
                       <Download className="h-4 w-4 mr-2" />CSV
                     </Button>
