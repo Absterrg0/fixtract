@@ -4,9 +4,7 @@ export const FORCEABLE_BOOKING_STATUSES = [
   "in_progress",
   "professional_completed",
   "completed",
-  "cancelled",
   "dispute",
-  "refunded",
 ] as const
 
 export type ForceableBookingStatus = (typeof FORCEABLE_BOOKING_STATUSES)[number]
