@@ -104,7 +104,7 @@ interface DisputeAnalytics {
 
 type DisputeFilter = 'all' | 'open' | 'resolved'
 type ResolveAction = 'accept_professional' | 'reject_extra_costs' | 'adjust'
-type ForceStatus = 'keep' | 'completed' | 'cancelled' | 'refunded' | 'in_progress' | 'booked'
+type ForceStatus = 'keep' | 'completed' | 'cancelled' | 'refunded' | 'in_progress' | 'booked' | 'professional_completed'
 
 interface ResolveDisputeRequest {
   action: ResolveAction
@@ -922,6 +922,7 @@ export default function AdminDisputesPage() {
                       <SelectItem value="keep">Keep (default: completed)</SelectItem>
                       <SelectItem value="booked">booked</SelectItem>
                       <SelectItem value="completed">completed</SelectItem>
+                      <SelectItem value="professional_completed">professional_completed</SelectItem>
                       <SelectItem value="cancelled">cancelled</SelectItem>
                       <SelectItem value="refunded">refunded</SelectItem>
                       <SelectItem value="in_progress">in_progress</SelectItem>
