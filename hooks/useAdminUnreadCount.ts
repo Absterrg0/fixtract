@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
 import { authFetch } from "@/lib/utils";
@@ -54,22 +54,31 @@ export const useAdminUnreadCount = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const enabled = isAuthenticated && user?.role === "admin";
+  const consecutiveFailuresRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
 
   const poll = useCallback(async () => {
     if (!BACKEND) {
       setUnreadCount(0);
       return;
     }
+    if (Date.now() < cooldownUntilRef.current) return;
     try {
       const res = await authFetch(`${BACKEND}/api/admin/conversations/unread-count`);
       const json = await res.json();
       if (!res.ok || !json?.success) {
-        return;
+        throw new Error("unread-count request failed");
       }
       const count = Number(json.data?.count);
       setUnreadCount(Number.isFinite(count) && count > 0 ? count : 0);
+      consecutiveFailuresRef.current = 0;
+      cooldownUntilRef.current = 0;
     } catch {
-      // silently ignore polling errors
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current >= 3) {
+        cooldownUntilRef.current = Date.now() + 60_000;
+        setUnreadCount(0);
+      }
     }
   }, []);
 

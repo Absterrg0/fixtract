@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { getAuthToken, authFetch } from "@/lib/utils"
+import { startAdminSupportChat } from "@/lib/admin-chat-utils"
 import { toast } from "sonner"
 
 interface CustomerRow {
@@ -38,32 +39,9 @@ export default function AdminCustomersPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [chattingId, setChattingId] = useState<string | null>(null)
 
-  const startChat = async (customerId: string) => {
+  const startChat = (customerId: string) => {
     if (chattingId) return
-    setChattingId(customerId)
-    const w = window.open('about:blank', '_blank')
-    try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/chat/start-support`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUserId: customerId, initialMessage: "Hello from Fixera support." }),
-      })
-      const json = await res.json().catch(() => null)
-      const conversationId = json?.data?.conversationId
-      if (res.ok && json?.success && conversationId) {
-        const url = `/admin/chat?conversationId=${conversationId}`
-        if (w) w.location.href = url
-        else window.open(url, '_blank')
-      } else {
-        w?.close()
-        toast.error(json?.msg || "Failed to start chat")
-      }
-    } catch {
-      w?.close()
-      toast.error("Failed to start chat")
-    } finally {
-      setChattingId(null)
-    }
+    void startAdminSupportChat(customerId, setChattingId)
   }
 
   const load = useCallback(async () => {

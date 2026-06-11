@@ -154,7 +154,8 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
     return () => {
       cancelled = true
     }
-  }, [open, bookingId, hydrate, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, bookingId, hydrate])
 
   const availableToAdd = useMemo(() => {
     const usedIds = new Set(rows.map((r) => r.resourceId))

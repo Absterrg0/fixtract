@@ -10,6 +10,7 @@ import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColu
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { authFetch } from "@/lib/utils"
+import { startAdminSupportChat } from "@/lib/admin-chat-utils"
 import { toast } from "sonner"
 import { MessageSquare } from "lucide-react"
 
@@ -121,32 +122,9 @@ export default function ProfessionalsAdminPage() {
   const [idChangeLoading, setIdChangeLoading] = useState(false)
   const [chattingId, setChattingId] = useState<string | null>(null)
 
-  const startChat = async (professionalId: string) => {
+  const startChat = (professionalId: string) => {
     if (chattingId) return
-    setChattingId(professionalId)
-    const w = window.open('about:blank', '_blank')
-    try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/chat/start-support`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId: professionalId, initialMessage: 'Hello from Fixera support.' }),
-      })
-      const json = await res.json().catch(() => null)
-      const conversationId = json?.data?.conversationId
-      if (res.ok && json?.success && conversationId) {
-        const url = `/admin/chat?conversationId=${conversationId}`
-        if (w) w.location.href = url
-        else window.open(url, '_blank')
-      } else {
-        w?.close()
-        toast.error(json?.msg || 'Failed to start chat')
-      }
-    } catch {
-      w?.close()
-      toast.error('Failed to start chat')
-    } finally {
-      setChattingId(null)
-    }
+    void startAdminSupportChat(professionalId, setChattingId)
   }
 
   useEffect(() => {

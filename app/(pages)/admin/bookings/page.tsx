@@ -144,6 +144,7 @@ export default function AdminBookingsPage() {
           </Select>
           <div className="flex flex-1 gap-2">
             <Input
+              aria-label="Search bookings by number, customer or professional"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submitSearch() }}
@@ -172,6 +173,13 @@ export default function AdminBookingsPage() {
             {items.map((item) => {
               const currency = item.payment?.currency || 'EUR'
               const amount = item.payment?.totalWithVat ?? item.payment?.amount
+              const dateLabel = (() => {
+                const raw = item.scheduledStartDate
+                if (raw) { const d = new Date(raw); if (!Number.isNaN(d.getTime())) return `Scheduled ${d.toLocaleDateString()}` }
+                const c = item.createdAt
+                if (c) { const d = new Date(c); if (!Number.isNaN(d.getTime())) return `Created ${d.toLocaleDateString()}` }
+                return ''
+              })()
               return (
                 <Card
                   key={item._id}
@@ -201,13 +209,7 @@ export default function AdminBookingsPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0 text-right">
-                        <p className="text-xs text-gray-400">
-                          {item.scheduledStartDate
-                            ? `Scheduled ${new Date(item.scheduledStartDate).toLocaleDateString()}`
-                            : item.createdAt
-                              ? `Created ${new Date(item.createdAt).toLocaleDateString()}`
-                              : ''}
-                        </p>
+                        <p className="text-xs text-gray-400">{dateLabel}</p>
                         <Button
                           size="sm"
                           variant="outline"

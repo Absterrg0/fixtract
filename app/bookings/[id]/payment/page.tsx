@@ -860,10 +860,18 @@ export default function BookingPaymentPage() {
     booking?.quote?.amount ??
     booking?.payment?.netAmount ??
     0;
-  const breakdownOptionsBaseTotal = selectedExtraOptions.reduce(
-    (sum, optionIndex) => sum + (booking?.project?.extraOptions?.[optionIndex]?.price || 0),
-    0
-  );
+  const breakdownOptionsBaseTotal = selectedExtraOptions.reduce((sum, optionIndex) => {
+    const opt = booking?.project?.extraOptions?.[optionIndex];
+    const optionId = (opt as { _id?: string } | undefined)?._id;
+    const persisted = Array.isArray(booking?.selectedExtraOptions)
+      ? (booking?.selectedExtraOptions as Array<{ extraOptionId?: string; bookedPrice?: number } | number>).find(
+          (e): e is { extraOptionId?: string; bookedPrice?: number } =>
+            typeof e === 'object' && e?.extraOptionId === optionId
+        )
+      : undefined;
+    const price = typeof persisted?.bookedPrice === 'number' ? persisted.bookedPrice : (opt?.price || 0);
+    return sum + price;
+  }, 0);
   const breakdownBaseTotal = (booking?.quote?.amount || 0) + breakdownOptionsBaseTotal;
   const commissionedOptionsAmount =
     breakdownBaseTotal > 0 && breakdownOptionsBaseTotal > 0

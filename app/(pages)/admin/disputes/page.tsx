@@ -439,12 +439,23 @@ export default function AdminDisputesPage() {
           let approveBody: Record<string, unknown> = {}
           if (externalAction === 'adjust') {
             const parsedAmount = Number(externalAmount)
-            const maxRefundable = externalDispute.payment?.totalWithVat ?? externalDispute.payment?.amount
             if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
               toast.error('Custom refund amount must be a number greater than 0')
               return
             }
-            if (typeof maxRefundable === 'number' && maxRefundable > 0 && parsedAmount > maxRefundable) {
+            const totalWithVat = externalDispute.payment?.totalWithVat
+            const paymentAmount = externalDispute.payment?.amount
+            const maxRefundable =
+              typeof totalWithVat === 'number' && totalWithVat > 0
+                ? totalWithVat
+                : typeof paymentAmount === 'number' && paymentAmount > 0
+                  ? paymentAmount
+                  : null
+            if (maxRefundable == null) {
+              toast.error('Cannot process refund: missing payment information')
+              return
+            }
+            if (parsedAmount > maxRefundable) {
               toast.error(`Custom refund amount cannot exceed the payment total of ${maxRefundable.toFixed(2)}`)
               return
             }

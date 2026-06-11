@@ -42,6 +42,7 @@ function AdminChatInner() {
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -55,7 +56,10 @@ function AdminChatInner() {
       setIsLoading(false)
       return
     }
-    if (!silent) setIsLoading(true)
+    if (!silent) {
+      setIsLoading(true)
+      setLoadError(null)
+    }
     try {
       const [convRes, msgRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/conversations/${conversationId}`),
@@ -69,8 +73,12 @@ function AdminChatInner() {
         setMessages(items)
         markAdminConversationSeen(conversationId)
       }
+      setLoadError(null)
     } catch {
-      if (!silent) toast.error("Failed to load conversation")
+      if (!silent) {
+        toast.error("Failed to load conversation")
+        setLoadError("Failed to load conversation. Please try again.")
+      }
     } finally {
       if (!silent) setIsLoading(false)
     }
@@ -86,25 +94,7 @@ function AdminChatInner() {
     if (user?.role === 'admin') load()
   }, [user, load])
 
-  const pollMessages = useCallback(async () => {
-    if (!conversationId) return
-    try {
-      const [convRes, msgRes] = await Promise.all([
-        authFetch(`${BACKEND}/api/admin/conversations/${conversationId}`),
-        authFetch(`${BACKEND}/api/admin/conversations/${conversationId}/messages?limit=100`),
-      ])
-      const convJson = await convRes.json()
-      const msgJson = await msgRes.json()
-      if (convJson?.success) setConversation(convJson.data)
-      if (msgJson?.success) {
-        const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
-        setMessages(items)
-        markAdminConversationSeen(conversationId)
-      }
-    } catch {
-      // silently ignore polling errors
-    }
-  }, [conversationId])
+  const pollMessages = useCallback(() => load(true), [load])
 
   useChatPolling(pollMessages, 6000, user?.role === 'admin' && !!conversationId, [conversationId])
 
@@ -195,6 +185,12 @@ function AdminChatInner() {
             )}
           </div>
         </div>
+
+        {loadError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {loadError}
+          </div>
+        )}
 
         {!conversationId ? (
           <Card><CardContent className="py-12 text-center text-gray-500">No conversation selected.</CardContent></Card>

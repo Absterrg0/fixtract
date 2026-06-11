@@ -840,7 +840,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/bookings', '_blank')}
+                    onClick={() => window.open('/admin/bookings', '_blank', 'noopener,noreferrer')}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800"
                   >
                     Open Booking Management
