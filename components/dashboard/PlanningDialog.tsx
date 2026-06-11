@@ -98,7 +98,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       setRows(
         plan.map((p) => {
           const s = toDateInput(p.startDate) || start
-          const used = !!s && s < todayStr
+          const used = !!s && new Date(s).getTime() < new Date(todayStr).getTime()
           return {
             resourceId: p.resourceId || "",
             startDate: s,
@@ -189,14 +189,18 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
   const validate = (): string | null => {
     if (rows.length === 0) return "At least one resource is required"
     if (!startDate) return "Booking has no scheduled start date"
+    const startTs = new Date(startDate).getTime()
+    const todayTs = new Date(today).getTime()
     for (const row of rows) {
       if (!row.resourceId) return "Each row needs a resource"
       if (!row.endDate) return "Each resource needs an end date"
-      if (row.startDate < startDate) return "A resource cannot start before the booking start date"
-      if (row.endDate < row.startDate) return "An end date cannot be before its start date"
+      const rowStartTs = new Date(row.startDate).getTime()
+      const rowEndTs = new Date(row.endDate).getTime()
+      if (rowStartTs < startTs) return "A resource cannot start before the booking start date"
+      if (rowEndTs < rowStartTs) return "An end date cannot be before its start date"
       if (isInProgress) {
-        if (row.used && row.endDate < today) return "A resource already in use cannot end before today"
-        if (row.isNew && row.startDate < today) return "New resources can only start from today onward"
+        if (row.used && rowEndTs < todayTs) return "A resource already in use cannot end before today"
+        if (row.isNew && rowStartTs < todayTs) return "New resources can only start from today onward"
       }
     }
     return null
