@@ -9,6 +9,10 @@ import { useEffect, useState, useCallback } from "react"
 import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption, AlertTriangle, FileText, Shield, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { authFetch } from "@/lib/utils"
+import { startAdminSupportChat } from "@/lib/admin-chat-utils"
+import { toast } from "sonner"
+import { MessageSquare } from "lucide-react"
 
 function ProfessionalCardSkeleton() {
   return (
@@ -116,6 +120,12 @@ export default function ProfessionalsAdminPage() {
     error: null
   })
   const [idChangeLoading, setIdChangeLoading] = useState(false)
+  const [chattingId, setChattingId] = useState<string | null>(null)
+
+  const startChat = (professionalId: string) => {
+    if (chattingId) return
+    void startAdminSupportChat(professionalId, setChattingId)
+  }
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -649,6 +659,16 @@ export default function ProfessionalsAdminPage() {
                     >
                       <Eye className="h-4 w-4 mr-1" />
                       View Details
+                    </Button>
+
+                    <Button
+                      onClick={() => startChat(professional._id)}
+                      disabled={chattingId === professional._id}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      {chattingId === professional._id ? 'Opening…' : 'Chat'}
                     </Button>
 
                     {professional.professionalStatus === 'pending' && (

@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { getAuthToken } from "@/lib/utils"
+import { getAuthToken, authFetch } from "@/lib/utils"
+import { startAdminSupportChat } from "@/lib/admin-chat-utils"
+import { toast } from "sonner"
 
 interface CustomerRow {
   _id: string
@@ -35,6 +37,12 @@ export default function AdminCustomersPage() {
   const loadRequestIdRef = useRef(0)
   const [patching, setPatching] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [chattingId, setChattingId] = useState<string | null>(null)
+
+  const startChat = (customerId: string) => {
+    if (chattingId) return
+    void startAdminSupportChat(customerId, setChattingId)
+  }
 
   const load = useCallback(async () => {
     abortRef.current?.abort()
@@ -183,6 +191,13 @@ export default function AdminCustomersPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={chattingId === row._id}
+                    onClick={() => void startChat(row._id)}
+                  >
+                    {chattingId === row._id ? "Opening..." : "Chat"}
+                  </Button>
                   <Select onValueChange={(value) => void patchCustomer(row._id, { loyaltyLevel: value })}>
                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="Adjust level" /></SelectTrigger>
                     <SelectContent>
