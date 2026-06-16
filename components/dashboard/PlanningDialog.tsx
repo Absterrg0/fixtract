@@ -11,11 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAuthToken } from "@/lib/utils"
 import { Loader2, Lock, Plus, Trash2 } from "lucide-react"
 
+type BookedSlot = {
+  bookingId: string
+  bookingNumber: string
+  projectTitle: string
+  startDate: string
+  endDate: string
+}
+
 type CandidateResource = {
   _id: string
   name?: string
   email?: string
   username?: string
+  bookedSlots?: BookedSlot[]
 }
 
 type PlanRow = {
@@ -98,7 +107,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       setRows(
         plan.map((p) => {
           const s = toDateInput(p.startDate) || start
-          const used = !!s && new Date(s).getTime() < new Date(todayStr).getTime()
+          const used = !!s && s <= todayStr
           return {
             resourceId: p.resourceId || "",
             startDate: s,
@@ -110,6 +119,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       )
     } else {
       const fallbackEnd = toDateInput(payload.scheduledExecutionEndDate) || start
+      const fallbackUsed = !!start && start <= todayStr
       setRows(
         (payload.assignedTeamMembers || [])
           .filter((m) => !!m._id)
@@ -117,7 +127,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
             resourceId: m._id as string,
             startDate: start,
             endDate: fallbackEnd,
-            used: false,
+            used: fallbackUsed,
             isNew: false,
           }))
       )
@@ -200,7 +210,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       if (rowEndTs < rowStartTs) return "An end date cannot be before its start date"
       if (isInProgress) {
         if (row.used && rowEndTs < todayTs) return "A resource already in use cannot end before today"
-        if (row.isNew && rowStartTs < todayTs) return "New resources can only start from today onward"
+        if (!row.used && rowStartTs < todayTs) return "Resources can only be planned or start from today onward"
       }
     }
     return null
@@ -287,8 +297,10 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
               )}
               {rows.map((row, index) => {
                 const lockDelete = isInProgress && row.used
-                const minStart = isInProgress && row.isNew ? today : startDate
+                const minStart = isInProgress ? today : startDate
                 const minEnd = isInProgress && row.used ? today : row.startDate || startDate
+                const candidate = candidates.find((c) => c._id === row.resourceId)
+                const otherBookings = candidate?.bookedSlots || []
                 return (
                   <div key={`${row.resourceId}-${index}`} className="rounded-lg border border-slate-200 p-3">
                     <div className="flex items-center justify-between gap-2">
@@ -333,6 +345,32 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                         />
                       </div>
                     </div>
+                    {otherBookings.length > 0 && (
+                      <div className="mt-2.5 rounded border border-slate-100 bg-slate-50 p-2 text-[11px] text-slate-500">
+                        <div className="font-semibold text-slate-700 mb-1">Booked slots in other projects:</div>
+                        <div className="space-y-1">
+                          {otherBookings.map((slot, sIdx) => {
+                            const startD = parseISO(slot.startDate)
+                            const endD = parseISO(slot.endDate)
+                            const dateStr =
+                              isValid(startD) && isValid(endD)
+                                ? `${format(startD, "dd MMM")} - ${format(endD, "dd MMM yyyy")}`
+                                : ""
+                            return (
+                              <div
+                                key={sIdx}
+                                className="flex justify-between items-center bg-white px-2 py-1 rounded border border-slate-100"
+                              >
+                                <span className="font-medium text-slate-600 truncate max-w-[200px]" title={slot.projectTitle}>
+                                  {slot.projectTitle} ({slot.bookingNumber})
+                                </span>
+                                <span className="text-slate-500 font-mono shrink-0">{dateStr}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
