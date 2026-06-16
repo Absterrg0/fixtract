@@ -10,11 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAuthToken } from "@/lib/utils"
 import { Loader2, Lock, Plus, Trash2, Calendar, User, Info } from "lucide-react"
 
+type BookedSlot = {
+  bookingId: string
+  bookingNumber: string
+  projectTitle: string
+  startDate: string
+  endDate: string
+}
+
 type CandidateResource = {
   _id: string
   name?: string
   email?: string
   username?: string
+  bookedSlots?: BookedSlot[]
   unavailableDates?: string[]
 }
 
@@ -22,6 +31,7 @@ type PlanRow = {
   resourceId: string
   plannedDates: string[]
   isNew: boolean
+  used?: boolean
 }
 
 type PlanningPayload = {
@@ -141,17 +151,20 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
 
       const newRows: PlanRow[] = []
       daysMap.forEach((dateSet, resourceId) => {
+        const dates = Array.from(dateSet)
+        const used = dates.some(d => d < todayStr)
         newRows.push({
           resourceId,
-          plannedDates: Array.from(dateSet),
-          isNew: false
+          plannedDates: dates,
+          isNew: false,
+          used
         })
       })
       setRows(newRows)
     } else {
       const fallbackEnd = toDateInput(payload.scheduledExecutionEndDate) || start
       const initialDays = (start && fallbackEnd) ? getDaysBetweenDates(start, fallbackEnd) : []
-
+      const fallbackUsed = initialDays.some(d => d < todayStr)
       setRows(
         (payload.assignedTeamMembers || [])
           .filter((m) => !!m._id)
@@ -159,6 +172,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
             resourceId: m._id as string,
             plannedDates: [...initialDays],
             isNew: false,
+            used: fallbackUsed
           }))
       )
     }
@@ -219,6 +233,29 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
     setAddResourceId("")
   }
 
+  const validatePlan = (): string | null => {
+    if (rows.length === 0) return "At least one resource is required"
+    if (!startDate) return "Booking has no scheduled start date"
+    for (const row of rows) {
+      if (!row.resourceId) return "Each row needs a resource"
+      const sorted = [...row.plannedDates].sort()
+      if (sorted.length === 0) {
+        if (row.used) {
+          return "A resource already in use must have its past days planned"
+        }
+        continue
+      }
+      const rowStart = sorted[0]
+      const rowEnd = sorted[sorted.length - 1]
+      if (rowStart < startDate) return "A resource cannot start before the booking start date"
+      if (isInProgress) {
+        if (row.used && rowEnd < todayStr) return "A resource already in use cannot end before today"
+        if (!row.used && rowStart < todayStr) return "New resources can only start from today onward"
+      }
+    }
+    return null
+  }
+
   const getContiguousRanges = (dateStrings: string[]): Array<{ startDate: string; endDate: string }> => {
     if (dateStrings.length === 0) return []
     const sorted = [...dateStrings].sort()
@@ -246,6 +283,11 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
 
   const submit = async () => {
     if (!bookingId) return
+    const errorMsg = validatePlan()
+    if (errorMsg) {
+      toast.error(errorMsg)
+      return
+    }
     if (rows.length === 0) {
       toast.error("At least one resource is required")
       return
@@ -538,6 +580,50 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                 </table>
               </div>
             </div>
+
+            {/* Booked slots in other projects */}
+            {rows.some(row => (candidates.find(c => c._id === row.resourceId)?.bookedSlots?.length || 0) > 0) && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4.5 space-y-3 shadow-sm">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <Info className="h-4 w-4 text-indigo-600" />
+                  Booked Slots in Other Active Projects
+                </div>
+                <div className="space-y-3">
+                  {rows.map((row) => {
+                    const cand = candidates.find((c) => c._id === row.resourceId)
+                    const otherBookings = cand?.bookedSlots || []
+                    if (otherBookings.length === 0) return null
+                    const name = resourceLabel(row.resourceId, candidates, assigned)
+                    return (
+                      <div key={row.resourceId} className="space-y-1.5">
+                        <div className="text-xs font-semibold text-slate-700">{name}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {otherBookings.map((slot, sIdx) => {
+                            const startD = parseISO(slot.startDate)
+                            const endD = parseISO(slot.endDate)
+                            const dateStr =
+                              isValid(startD) && isValid(endD)
+                                ? `${format(startD, "dd MMM")} - ${format(endD, "dd MMM yyyy")}`
+                                : ""
+                            return (
+                              <div
+                                key={sIdx}
+                                className="flex justify-between items-center bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200/50 text-[11px]"
+                              >
+                                <span className="font-medium text-slate-600 truncate max-w-[250px]" title={slot.projectTitle}>
+                                  {slot.projectTitle} ({slot.bookingNumber})
+                                </span>
+                                <span className="text-slate-500 font-mono shrink-0">{dateStr}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Add Resource Selector */}
             {availableToAdd.length > 0 && (
