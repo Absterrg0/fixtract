@@ -117,7 +117,8 @@ export default function AvailabilityDatePicker({
             }))
           )
           if (data.earliestBookableDate) {
-            const parsed = parseISO(data.earliestBookableDate)
+            const localYmd = toLocalYmd(data.earliestBookableDate)
+            const parsed = parseISO(localYmd)
             if (isValid(parsed)) {
               setApiEarliestDate(startOfDay(parsed))
             } else {
