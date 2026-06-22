@@ -140,16 +140,16 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
     [payload?.windowFrom, payload?.windowTo]
   )
 
-  const WEEK_SIZE = 7
+  const PAGE_SIZE = 25
   useEffect(() => {
     setWeekStart(0)
   }, [payload?.bookingId])
   const visibleDays = useMemo(
-    () => days.slice(weekStart, weekStart + WEEK_SIZE),
+    () => days.slice(weekStart, weekStart + PAGE_SIZE),
     [days, weekStart]
   )
   const hasPrevWeek = weekStart > 0
-  const hasNextWeek = weekStart + WEEK_SIZE < days.length
+  const hasNextWeek = weekStart + PAGE_SIZE < days.length
 
   const blockedByResource = useMemo(() => {
     const map: Record<string, Set<string>> = {}
@@ -289,9 +289,9 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setWeekStart((prev) => Math.max(0, prev - WEEK_SIZE))}
+                  onClick={() => setWeekStart((prev) => Math.max(0, prev - PAGE_SIZE))}
                   disabled={!hasPrevWeek}
-                  aria-label="Previous week"
+                  aria-label="Previous days"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -302,9 +302,9 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setWeekStart((prev) => prev + WEEK_SIZE)}
+                  onClick={() => setWeekStart((prev) => prev + PAGE_SIZE)}
                   disabled={!hasNextWeek}
-                  aria-label="Next week"
+                  aria-label="Next days"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

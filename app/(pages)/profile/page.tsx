@@ -596,27 +596,6 @@ export default function ProfilePage() {
               })
             })
 
-            if (bufferStart && bufferEnd && bufferEnd > bufferStart) {
-              const bufferIntervalStart =
-                executionEnd && bufferStart < executionEnd ? executionEnd : bufferStart
-              if (bufferIntervalStart < bufferEnd) {
-                events.push({
-                  id: `buffer-${booking._id}`,
-                  type: 'booking-buffer',
-                  title: 'Buffer',
-                  start: bufferIntervalStart,
-                  end: bufferEnd,
-                  meta: {
-                    bookingId: booking._id,
-                    bookingNumber: booking.bookingNumber,
-                    customerName,
-                    location: booking.location
-                  },
-                  readOnly: true
-                })
-              }
-            }
-
             return
           }
 
