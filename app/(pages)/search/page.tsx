@@ -39,8 +39,6 @@ const incrementFacetCount = (target: Record<string, number>, rawValue?: string |
 
 const countActiveFilters = (filters: SearchFiltersState): number => {
   return [
-    filters.query,
-    filters.location,
     filters.priceMin,
     filters.priceMax,
     filters.category,

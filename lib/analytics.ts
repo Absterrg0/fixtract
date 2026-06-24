@@ -114,8 +114,10 @@ export function getTrafficAttribution(): Record<string, string> {
 }
 
 export function trackPageView(pathname: string, search = ''): void {
+  const pagePath = `${pathname}${search ? `?${search}` : ''}`;
   trackEvent('page_view', {
-    page_path: `${pathname}${search ? `?${search}` : ''}`,
+    page_location: typeof window !== 'undefined' ? `${window.location.origin}${pagePath}` : pagePath,
+    page_title: typeof document !== 'undefined' ? document.title : undefined,
     page_type: getPageType(pathname),
   });
 }
@@ -207,7 +209,7 @@ export function trackBeginRfq(project: ProjectLike, subprojectIndex?: number | n
 }
 
 export function trackCompleteRfq(project: ProjectLike, bookingId?: string, subprojectIndex?: number | null): void {
-  trackOnce('complete_rfq', bookingId || `${project._id || 'project'}:${Date.now()}`, {
+  trackOnce('complete_rfq', bookingId || project._id || 'project', {
     currency: 'EUR',
     value: getProjectPrice(project, subprojectIndex),
     project_id: project._id,

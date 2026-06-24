@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
 import { getPageType, getTrafficAttribution, trackPageView } from '@/lib/analytics';
 
@@ -9,10 +9,8 @@ const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 const clarityProjectId = process.env.NEXT_PUBLIC_MS_CLARITY_PROJECT_ID?.trim();
 
 export default function AnalyticsProvider() {
-  const pathname = usePathname();
   const [analyticsConsented, setAnalyticsConsented] = useState(false);
 
-  // Effect 1: subscribe to consent changes (DOM lifecycle only)
   useEffect(() => {
     const readConsent = () => setAnalyticsConsented(getConsent()?.analytics === true);
     readConsent();
@@ -20,21 +18,31 @@ export default function AnalyticsProvider() {
     return () => window.removeEventListener(CONSENT_EVENT, readConsent);
   }, []);
 
-  // Effect 2: install scripts + track page on consent grant or route change
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsTracker analyticsConsented={analyticsConsented} />
+    </Suspense>
+  );
+}
+
+function AnalyticsTracker({ analyticsConsented }: { analyticsConsented: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   useEffect(() => {
     if (!analyticsConsented) return;
 
     installGoogleAnalytics();
     installClarity();
 
-    const search = window.location.search.replace(/^\?/, '');
+    const search = searchParams.toString();
     trackPageView(pathname, search);
 
     if (window.clarity) {
       window.clarity('set', 'page_type', getPageType(pathname));
       window.clarity('set', 'traffic_bucket', getTrafficAttribution().traffic_bucket || 'unknown');
     }
-  }, [analyticsConsented, pathname]);
+  }, [analyticsConsented, pathname, searchParams]);
 
   return null;
 }

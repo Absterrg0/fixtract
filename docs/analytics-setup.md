@@ -124,8 +124,8 @@ Answers: where do users drop off in the booking flow? Desktop vs mobile comparis
 | 6 | `begin_checkout` |
 | 7 | `complete_booking` |
 
-3. Under **Breakdown** → select **Device category** (gives desktop vs phone/tablet comparison)
-4. Add **Country** as a filter or comparison dimension
+1. Under **Breakdown** → select **Device category** (gives desktop vs phone/tablet comparison)
+2. Add **Country** as a filter or comparison dimension
 
 ---
 
@@ -198,7 +198,7 @@ All events sent by Fixera to GA4 and Clarity:
 
 | Event | Trigger | GA4 ecommerce? |
 |---|---|---|
-| `page_view` | Every route change (after consent) | No |
+| `page_view` | Every pathname change (after consent) | No |
 | `search` | Every successful search | No |
 | `project_search` | Successful search with type = projects | No |
 | `view_item` | Project detail page loaded | Yes (`items[]`) |
