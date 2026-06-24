@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
-import { getPageType, getTrafficAttribution, trackPageView, type GtagCommand } from '@/lib/analytics';
+import { getPageType, getTrafficAttribution, trackPageView } from '@/lib/analytics';
 
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 const clarityProjectId = process.env.NEXT_PUBLIC_MS_CLARITY_PROJECT_ID?.trim();
@@ -43,11 +43,14 @@ function installGoogleAnalytics(): void {
   if (!gaMeasurementId || typeof window === 'undefined') return;
 
   window.dataLayer = window.dataLayer || [];
-  window.gtag =
-    window.gtag ||
-    function gtag(command: GtagCommand, target: string | Date, params?: Record<string, unknown>) {
-      window.dataLayer?.push([command, target, params]);
-    };
+
+  if (!window.gtag) {
+    // Must be a regular `function` (not arrow) so the special `arguments`
+    // pseudo-array is available. GA4's dataLayer processor expects Arguments
+    // objects — not plain arrays — for every queued command.
+    // eslint-disable-next-line prefer-rest-params
+    window.gtag = function gtag() { window.dataLayer!.push(arguments); } as Window['gtag'];
+  }
 
   if (!document.getElementById('fixera-ga4-script')) {
     const script = document.createElement('script');
@@ -56,9 +59,8 @@ function installGoogleAnalytics(): void {
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`;
     document.head.appendChild(script);
 
-    const gtag = window.gtag;
-    gtag('js', new Date());
-    gtag('config', gaMeasurementId, {
+    window.gtag!('js', new Date());
+    window.gtag!('config', gaMeasurementId, {
       send_page_view: false,
       anonymize_ip: true,
     });
