@@ -17,20 +17,8 @@ function initFirebase(config) {
     }
     if (!messaging) {
       messaging = firebase.messaging();
-      messaging.onBackgroundMessage((payload) => {
-        const { title = 'Fixera', body = '' } = payload.notification || {};
-        const data = payload.data || {};
-        const clickUrl = data.clickUrl || '/';
-
-        self.registration.showNotification(title, {
-          body,
-          icon: '/fixera-logo.png',
-          badge: '/fixera-logo.png',
-          data: { url: clickUrl, ...data },
-          tag: data.type || 'fixera-notification',
-          renotify: true,
-        });
-      });
+      // Background display is handled by the notification/webpush payload from the
+      // server. Do not call showNotification() here — that duplicates the OS toast.
     }
   } catch (err) {
     console.error('[FCM SW] Firebase init failed:', err);
