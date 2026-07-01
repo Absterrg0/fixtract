@@ -45,17 +45,22 @@ const FETCH_TIMEOUT_MS = 15_000;
 const SW_ACTIVATION_TIMEOUT_MS = 10_000;
 
 async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const signal =
+    typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+      ? AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      : (() => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+          return controller.signal;
+        })();
+
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...options, signal });
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
+    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
       throw new Error('FCM token request timed out');
     }
     throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -150,14 +155,17 @@ async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null
 function navigateToUrl(router: ReturnType<typeof useRouter>, url: string): void {
   try {
     const target = new URL(url, window.location.origin);
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+      return;
+    }
     if (target.origin === window.location.origin) {
       router.push(`${target.pathname}${target.search}${target.hash}`);
       return;
     }
+    window.location.href = target.toString();
   } catch {
-    // fall through
+    // ignore malformed notification targets
   }
-  window.location.href = url;
 }
 
 // ------------------------------------------------------------------
@@ -176,6 +184,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   const [unreadPushCount, setUnreadPushCount] = useState(0);
   const initialised = useRef(false);
   const currentToken = useRef<string | null>(null);
+  const authSession = useRef(0);
 
   const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration): Promise<boolean> => {
     const messaging = getFirebaseMessaging();
@@ -227,6 +236,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    authSession.current += 1;
     if (initialised.current) return;
     if (typeof window === 'undefined' || !('Notification' in window)) return;
 
@@ -280,6 +290,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     setPermissionGranted(false);
 
     const token = currentToken.current;
+    const logoutSession = authSession.current;
     if (!token) {
       setFcmToken(null);
       return;
@@ -292,6 +303,8 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
         console.warn('[FCM] Failed to remove token from server:', err);
       }
 
+      if (authSession.current !== logoutSession) return;
+
       const messaging = getFirebaseMessaging();
       if (messaging) {
         try {
@@ -300,6 +313,8 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
           console.warn('[FCM] Failed to delete browser token:', err);
         }
       }
+
+      if (authSession.current !== logoutSession) return;
 
       currentToken.current = null;
       setFcmToken(null);
