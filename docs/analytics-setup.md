@@ -1,90 +1,84 @@
 # Analytics Setup Guide
 
-This guide covers everything needed to configure **Google Analytics 4 (GA4)** and **Microsoft Clarity** for Fixera. The code is already integrated — follow the steps below to obtain your measurement IDs, set environment variables, and configure the dashboards.
-
-> **Note:** Fixera uses **Microsoft Clarity** for session recordings and heatmaps — not Sanity CMS. If you were looking for a headless CMS, that is a separate integration and is not part of this analytics feature.
+This document covers everything needed to configure Google Analytics 4 (GA4) and Microsoft Clarity for Fixera. The code is already integrated — this guide is about the dashboard configuration and environment variables required to activate it.
 
 ---
 
-## Quick Reference — Tokens / IDs You Need
+## Environment Variables
 
-| Service | What to get | Environment variable | Format |
-|---------|-------------|---------------------|--------|
-| Google Analytics 4 | Measurement ID | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | `G-XXXXXXXXXX` |
-| Microsoft Clarity | Project ID | `NEXT_PUBLIC_MS_CLARITY_PROJECT_ID` | Short alphanumeric string |
-
-Both variables are **frontend-only** (`fixera` repo). Set them in `.env.local` for local dev and in Vercel (or your host) for production.
+Two new environment variables are introduced. Add both to your deployment environment (e.g. Vercel project settings) and to `.env.local` for local development.
 
 ```env
+# Google Analytics 4 — Measurement ID from your GA4 data stream
 NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+
+# Microsoft Clarity — Project ID from your Clarity project
 NEXT_PUBLIC_MS_CLARITY_PROJECT_ID=your_clarity_project_id
 ```
 
-> **Important:** Both are `NEXT_PUBLIC_` variables — embedded into the client bundle at **build time**. Set them in your hosting environment **before** building and deploying. Changes require a redeploy.
+> **Important:** Both are `NEXT_PUBLIC_` variables, meaning they are embedded into the client bundle at build time. Ensure they are set in your hosting environment **before** building and deploying — changes to these values require a redeploy.
 
-Scripts load **only after the visitor grants analytics consent** via the cookie banner. Without consent, neither GA4 nor Clarity initialises.
+Scripts are loaded **only after the visitor grants analytics consent** via the cookie banner. If consent is not given, neither GA4 nor Clarity will initialise.
 
 ---
 
 ## Part 1 — Google Analytics 4
 
-### Step 1: Get the GA4 Measurement ID
+### Step 1: Create a GA4 Property
 
 1. Go to [analytics.google.com](https://analytics.google.com)
 2. Click **Admin** (gear icon, bottom-left)
-3. Under **Account** → **Create Account** (or select an existing account)
-4. Under **Property** → **Create Property**
-5. Enter a property name (e.g. `Fixera Production`), timezone, and currency → **Next**
-6. Fill in business details → **Create**
+3. Under the **Account** column → **Create Account** (or select an existing account)
+4. Under the **Property** column → **Create Property**
+5. Enter a property name (e.g. `Fixera Production`), select your timezone and currency → **Next**
+6. Fill in business category and size → **Create**
 7. Choose **Web** as the platform
 8. Enter your site URL and a stream name (e.g. `Fixera Web`) → **Create stream**
 9. On the stream details page, copy the **Measurement ID** (format: `G-XXXXXXXXXX`)
 
-Set it as:
-
-```env
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-```
+Set this as `NEXT_PUBLIC_GA_MEASUREMENT_ID` in your environment.
 
 ---
 
 ### Step 2: Mark Key Events
 
-GA4 key events are the business actions Fixera tracks. Mark these in the dashboard so they appear in conversion reports.
+GA4 key events (formerly called "conversions") are the events Fixera considers meaningful business actions. They appear highlighted in reports and power the key event rate metric.
 
-1. GA4 → **Admin** → **Data display** → **Events**
-2. Click **+ New key event**
-3. Add each event name:
+1. In GA4 → **Admin** → **Data display** → **Events**
+2. Click **+ New key event** (top-right)
+3. Add each of the following event names one by one:
 
 | Event name | What it tracks |
-|------------|----------------|
-| `purchase` | Revenue event — fires on payment success |
-| `complete_booking` | Booking confirmed (payment success page) |
+|---|---|
+| `purchase` | GA4 ecommerce revenue event — fires on payment success page |
+| `complete_booking` | Booking confirmed (payment success page reached) |
 | `begin_checkout` | Payment intent created / user reaches payment page |
 | `complete_rfq` | RFQ form submitted successfully |
-| `begin_rfq` | RFQ package selected |
+| `begin_rfq` | RFQ package selected by the user |
 | `generate_lead` | RFQ submitted or professional contacted via chat |
 | `view_item` | Project detail page viewed |
 | `project_search` | Search performed with type = projects |
 
-> You can type event names directly — you do not need to wait for them to appear in the list first.
+> **Note:** If an event name hasn't been received yet, click **+ New key event** and type the name directly — you don't need to wait for the event to appear in the list first.
 
 ---
 
 ### Step 3: Create Custom Dimensions
 
+Custom dimensions allow you to use Fixera-specific parameters in your reports (e.g. filter by page type or traffic channel).
+
 1. **Admin** → **Data display** → **Custom definitions** → **Create custom dimension**
 2. Create all of the following — all are **Event scoped**:
 
 | Dimension name | Event parameter | Description |
-|----------------|-----------------|-------------|
-| Page Type | `page_type` | Page category (`landing_page`, `project_detail`, `search`, etc.) |
-| Traffic Bucket | `traffic_bucket` | Classified traffic channel |
+|---|---|---|
+| Page Type | `page_type` | Type of page (`landing_page`, `blog`, `project_detail`, `search`, etc.) |
+| Traffic Bucket | `traffic_bucket` | Classified traffic channel (see values below) |
 | Project Category | `project_category` | Category of the project viewed or booked |
 | Project Service | `project_service` | Service type of the project |
-| Search Type | `search_type` | `projects` or `professionals` |
-| Results Count | `results_count` | Number of search results |
-| Filters Count | `filters_count` | Active filters on a search |
+| Search Type | `search_type` | Whether the search was for `projects` or `professionals` |
+| Results Count | `results_count` | Number of search results returned |
+| Filters Count | `filters_count` | Number of active filters applied to a search |
 | Booking ID | `booking_id` | Internal booking identifier |
 
 **`page_type` values:** `landing_page`, `blog`, `news`, `service_landing`, `project_detail`, `search`, `professional_profile`, `content_page`, `auth`, `app`, `admin`, `other`
@@ -95,26 +89,33 @@ GA4 key events are the business actions Fixera tracks. Mark these in the dashboa
 
 ### Step 4: Build Reports (Explorations)
 
-Go to **Explore** → **Blank** for each report.
+Go to **Explore** (left navigation) → **Blank** to create each report below.
 
-#### Traffic Acquisition
+#### Traffic Acquisition Report
+
+Answers: which channels drive users, sessions, and revenue?
 
 - **Dimensions:** Session source / medium, Traffic Bucket (custom)
 - **Metrics:** Users, New users, Sessions, Engagement rate, Session key event rate, Total revenue
-- **Filter:** Country
+- **Filter / Comparison:** Country
 
-#### Pages Engagement
+#### Pages Engagement Report
+
+Answers: which pages drive the most engagement and conversion?
 
 - **Dimensions:** Page path + query string, Page Type (custom)
-- **Metrics:** Users, Sessions, Average engagement time, Engagement rate, Session key event rate, Total revenue
+- **Metrics:** Users, New users, Sessions, Average engagement time per session, Engagement rate, Session key event rate, Total revenue
+- **Filter / Comparison:** Country
 
-#### Purchase Funnel
+#### Purchase Funnel Report
 
-1. **Explore** → **Funnel exploration**
-2. Add steps:
+Answers: where do users drop off in the booking flow? Desktop vs mobile comparison?
 
-| Step | Event |
-|------|-------|
+1. Go to **Explore** → **Funnel exploration**
+2. Add steps in this order:
+
+| Step | Event name |
+|---|---|
 | 1 | `session_start` |
 | 2 | `project_search` |
 | 3 | `view_item` |
@@ -123,140 +124,91 @@ Go to **Explore** → **Blank** for each report.
 | 6 | `begin_checkout` |
 | 7 | `complete_booking` |
 
-3. **Breakdown** → Device category
-4. Add **Country** as a filter
+1. Under **Breakdown** → select **Device category** (gives desktop vs phone/tablet comparison)
+2. Add **Country** as a filter or comparison dimension
 
 ---
 
-### Step 5: Verify GA4
+### Step 5: Verify GA4 is Receiving Data
 
-1. Open the deployed site in Chrome
+1. Open your deployed site in Chrome
 2. Accept the cookie/analytics consent banner
-3. DevTools → **Network** → filter `collect`
-4. Navigate and search — requests to `www.google-analytics.com/g/collect` should return `204`
-5. GA4 → **Reports → Realtime** — active users should appear immediately
+3. Open DevTools → **Network** tab → filter by `collect`
+4. Navigate around the site and perform actions (search, view a project)
+5. You should see requests to `www.google-analytics.com/g/collect` returning `204` — this confirms events are being received
 
-Standard reports populate within 24–48 hours.
+In GA4, go to **Reports → Realtime overview** to see active users appear immediately. Standard reports populate within 24–48 hours.
 
 ---
 
 ## Part 2 — Microsoft Clarity
 
-### Step 1: Get the Clarity Project ID
+### Step 1: Create a Clarity Project
 
 1. Go to [clarity.microsoft.com](https://clarity.microsoft.com)
-2. Sign in with a Microsoft account
-3. Click **New project**
-4. Enter your site name and URL → **Create**
-5. On the setup screen, copy the **Project ID** (short alphanumeric string, e.g. `abc12de3fg`)
+2. Click **New project**
+3. Enter your site name and URL → **Create**
+4. On the setup screen, copy the **Project ID** (short alphanumeric string, e.g. `abc12de3fg`)
 
-Set it as:
-
-```env
-NEXT_PUBLIC_MS_CLARITY_PROJECT_ID=abc12de3fg
-```
-
-> Clarity may show a tracking script snippet during setup — **you do not need to paste it**. Fixera loads Clarity via `AnalyticsProvider` after consent.
+Set this as `NEXT_PUBLIC_MS_CLARITY_PROJECT_ID` in your environment.
 
 ---
 
 ### Step 2: Link Clarity to GA4
 
-Connects Clarity recordings to GA4 segments (e.g. users who completed a booking).
+This integration lets you filter Clarity session recordings and heatmaps by GA4 segments (e.g. view recordings from users who completed a booking).
 
-1. Clarity → your project → **Settings** (gear icon)
-2. **Setup** tab → **Google Analytics**
-3. **Connect to Google Analytics**
+1. In Clarity → open your project → **Settings** (top-right gear icon)
+2. Click the **Setup** tab → scroll to **Google Analytics**
+3. Click **Connect to Google Analytics**
 4. Sign in with the Google account that owns the GA4 property
-5. Select the GA4 property from Part 1 → **Save**
+5. Select the GA4 property created in Part 1 → **Save**
 
 ---
 
-### Step 3: Verify Clarity
+### Step 3: Verify Clarity is Working
 
 1. Open the deployed site in Chrome
 2. Accept the analytics consent banner
-3. DevTools → **Network** → filter `clarity`
-4. Requests to `https://www.clarity.ms/collect` should appear
+3. Open DevTools → **Network** tab → filter by `clarity`
+4. You should see requests to `https://www.clarity.ms/collect`
 
-Recordings show up within minutes. Heatmaps accumulate over time.
-
----
-
-## Deployment Checklist
-
-### Local development (`fixera`)
-
-1. Copy `.env.example` to `.env.local`
-2. Set both analytics variables
-3. Run `npm run dev`
-4. Accept the cookie banner on `http://localhost:3000`
-5. Confirm network requests to GA and Clarity
-
-### Production (Vercel)
-
-1. **Settings → Environment Variables**
-2. Add `NEXT_PUBLIC_GA_MEASUREMENT_ID` and `NEXT_PUBLIC_MS_CLARITY_PROJECT_ID` for Production (and Preview if desired)
-3. **Redeploy** — env changes do not apply to existing builds
+Session recordings appear in Clarity within a few minutes of the first visit. Heatmaps accumulate over time as more users visit.
 
 ---
 
-## Clarity Custom Events and Tags
+## Custom Events in Clarity
 
-Fixera sends Clarity custom events matching GA4 event names (`clarity('event', eventName)`). Filter recordings by funnel steps:
+The code also sends Clarity custom events matching the GA4 event names (via `clarity('event', eventName)`). This means you can filter Clarity recordings by the same funnel steps:
 
-- `project_search` — how users searched
-- `begin_checkout` without `complete_booking` — drop-off behaviour
+- Filter recordings where `project_search` fired → see how users searched
+- Filter recordings where `begin_checkout` fired but `complete_booking` did not → find drop-off behaviour
 
-Per-page Clarity tags (available under **Filters** in recordings):
+Additionally, two Clarity custom tags are set per page:
+- `page_type` — matches the GA4 `page_type` dimension values
+- `traffic_bucket` — matches the GA4 `traffic_bucket` dimension values
 
-| Tag | Values |
-|-----|--------|
-| `page_type` | Same as GA4 `page_type` dimension |
-| `traffic_bucket` | Same as GA4 `traffic_bucket` dimension |
+These tags appear in the Clarity dashboard under **Filters** when viewing recordings.
 
 ---
 
 ## Events Reference
 
-All events sent to GA4 and Clarity:
+All events sent by Fixera to GA4 and Clarity:
 
 | Event | Trigger | GA4 ecommerce? |
-|-------|---------|----------------|
+|---|---|---|
 | `page_view` | Every pathname change (after consent) | No |
 | `search` | Every successful search | No |
-| `project_search` | Search with type = projects | No |
+| `project_search` | Successful search with type = projects | No |
 | `view_item` | Project detail page loaded | Yes (`items[]`) |
 | `begin_booking` | Fixed/unit package selected | No |
 | `begin_rfq` | RFQ package selected | Yes (`items[]`) |
-| `complete_rfq` | RFQ submitted | Yes (`items[]`) |
+| `complete_rfq` | RFQ submitted successfully | Yes (`items[]`) |
 | `generate_lead` | RFQ submitted or professional contacted | No |
-| `contact_professional` | Chat opened from project page | No |
-| `begin_checkout` | Payment page reached | Yes (`items[]`) |
-| `payment_authorized` | Stripe authorization confirmed | No |
+| `contact_professional` | Chat opened from a project page | No |
+| `begin_checkout` | Payment intent created / payment page reached | Yes (`items[]`) |
+| `payment_authorized` | Stripe authorization confirmed by backend | No |
 | `booking_request_submitted` | Non-RFQ booking request submitted | No |
-| `complete_booking` | Payment success page | Yes (`items[]`) |
-| `purchase` | Payment success (revenue) | Yes (`items[]`, `value`, `transaction_id`) |
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| No GA/Clarity requests in Network | Consent not granted | Accept analytics in the cookie banner |
-| GA works locally but not production | Env vars missing at build time | Set vars in Vercel, then redeploy |
-| Realtime shows 0 users | Wrong Measurement ID or ad blocker | Verify `G-XXXXXXXXXX`; test in incognito without extensions |
-| Clarity shows no recordings | Missing Project ID or consent blocked | Verify `NEXT_PUBLIC_MS_CLARITY_PROJECT_ID`; redeploy |
-| Events missing custom dimensions | Dimensions not created in GA4 | Complete Step 3 above; allow 24h for data |
-
----
-
-## Related Files
-
-| File | Purpose |
-|------|---------|
-| `components/analytics/AnalyticsProvider.tsx` | Loads GA4 and Clarity after consent |
-| `lib/analytics.ts` | Event helpers (`trackPageView`, `trackEvent`, ecommerce) |
-| `lib/consent.ts` | Cookie consent state |
-| `components/cookie-consent/CookieConsent.tsx` | Consent banner UI |
+| `complete_booking` | Payment success page reached | Yes (`items[]`) |
+| `purchase` | Payment success page reached (revenue event) | Yes (`items[]`, `value`, `transaction_id`) |
