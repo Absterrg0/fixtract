@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -30,6 +30,7 @@ import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
+import { calculateVatTotalsFromPricingLines } from "@/lib/vatPricing"
 
 const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((status) =>
   [
@@ -60,6 +61,17 @@ const formatValidUntilLabel = (value?: string) => {
   const fallback = new Date(raw)
   if (!isNaN(fallback.getTime())) return fallback.toLocaleDateString()
   return "N/A"
+}
+
+const getQuoteVersionTotals = (
+  version: QuoteVersion | null | undefined,
+  applyCustomerPrice?: (amount: number) => number
+) => {
+  if (!version) return { netAmount: 0, vatAmount: 0, total: 0 }
+  const lines = version.pricingLines?.length
+    ? version.pricingLines
+    : [{ description: version.description || version.scope, price: version.totalAmount, vatRate: 0 }]
+  return calculateVatTotalsFromPricingLines(lines, applyCustomerPrice)
 }
 
 interface PostBookingQuestion {
@@ -189,6 +201,7 @@ interface BookingDetail {
   selectedSubprojectIndex?: number
   vatDecision?: {
     action?: 'standard_rate' | 'reduced_rate' | 'rfq'
+    reverseCharge?: boolean
     explanation?: string
     matchedRuleText?: string
   }
@@ -1559,6 +1572,13 @@ export default function BookingDetailPage() {
   const currentVersion = hasQuotationVersions
     ? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
     : null
+  const currentVersionQuoteTotals = useMemo(
+    () => getQuoteVersionTotals(
+      currentVersion,
+      customerPricingReady ? customerPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, customerPrice]
+  )
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -2706,7 +2726,7 @@ export default function BookingDetailPage() {
                   </div>
                 )}
 
-                {user?.role === "customer" && booking.vatDecision?.action === "rfq" && (
+                {user?.role === "customer" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 space-y-3">
                     <div>
                       <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review required</h3>
@@ -3046,9 +3066,14 @@ export default function BookingDetailPage() {
                         </div>
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm font-semibold text-gray-900">Total</span>
-                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR') : '...'}</span>
+                        <span className="text-sm font-semibold text-gray-900">Total (incl. VAT)</span>
+                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') : '...'}</span>
                       </div>
+                      {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
+                        <p className="text-xs text-gray-500 text-right">
+                          Net {formatMoney(currentVersionQuoteTotals.netAmount, booking.quote?.currency || 'EUR')} + VAT {formatMoney(currentVersionQuoteTotals.vatAmount, booking.quote?.currency || 'EUR')}
+                        </p>
+                      )}
                       {customerPricingReady && loyalty && loyalty.percentage > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <div className="text-xs text-amber-800">
@@ -3082,7 +3107,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(customerPrice(v.totalAmount), booking.quote?.currency || 'EUR') : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(getQuoteVersionTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}

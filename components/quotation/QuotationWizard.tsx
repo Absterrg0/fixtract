@@ -12,6 +12,7 @@ import { Loader2, Plus, Trash2, Package, Clock, Shield, FileText, CreditCard } f
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
+import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
 
 interface QuotationWizardProps {
   bookingId: string
@@ -247,6 +248,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const pricingTotal = Math.round(form.pricingLines.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100
+  const pricingVatTotals = useMemo(
+    () => calculateVatTotalsFromPricingLines(form.pricingLines),
+    [form.pricingLines]
+  )
 
   const addPricingLine = () => updateForm('pricingLines', [
     ...form.pricingLines,
@@ -568,11 +573,21 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             </Button>
           </div>
 
-          <p className="text-sm font-medium text-gray-700 mt-2">Total amount: EUR {pricingTotal.toFixed(2)}</p>
+          <div className="mt-2 space-y-1">
+            <p className="text-sm text-gray-600">
+              Net total: <span className="font-medium text-gray-800">EUR {pricingTotal.toFixed(2)}</span>
+            </p>
+            <p className="text-sm text-gray-600">
+              VAT: <span className="font-medium text-gray-800">EUR {pricingVatTotals.vatAmount.toFixed(2)}</span>
+            </p>
+            <p className="text-sm font-medium text-gray-700">
+              Total (incl. VAT): <span className="font-semibold text-gray-900">EUR {pricingVatTotals.total.toFixed(2)}</span>
+            </p>
+          </div>
 
-          {pricingTotal > 0 && typeof commissionPercent === 'number' && commissionPercent > 0 && (
+          {pricingVatTotals.total > 0 && typeof commissionPercent === 'number' && commissionPercent > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Price shown to customer: <span className="font-semibold text-gray-700">EUR {(pricingTotal * (1 + commissionPercent / 100)).toFixed(2)}</span>
+              Price shown to customer: <span className="font-semibold text-gray-700">EUR {(pricingVatTotals.total * (1 + commissionPercent / 100)).toFixed(2)}</span>
               <span className="text-gray-400 ml-1">({commissionPercent}% commission included)</span>
             </p>
           )}

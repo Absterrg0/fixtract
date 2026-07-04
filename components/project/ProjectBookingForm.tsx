@@ -2249,7 +2249,7 @@ export default function ProjectBookingForm({
             toast.success(returnedVatDecision.explanation);
           }
 
-          if (returnedVatDecision?.action === 'rfq') {
+          if (returnedVatDecision?.action === 'rfq' && !returnedVatDecision?.reverseCharge) {
             toast.info(returnedVatDecision.explanation || 'This VAT case requires quotation review. You can chat with the professional or proceed at the standard rate from your booking.');
             trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
             if (data.booking?._id) {
