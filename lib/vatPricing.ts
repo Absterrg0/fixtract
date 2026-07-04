@@ -1,4 +1,4 @@
-import type { QuotationPricingLine } from '@/types/quotation'
+import type { QuotationMilestone, QuotationPricingLine } from '@/types/quotation'
 
 export interface VatPricingTotals {
   netAmount: number
@@ -6,7 +6,32 @@ export interface VatPricingTotals {
   total: number
 }
 
+export interface VatQuoteVersionLike {
+  scope?: string
+  description?: string
+  totalAmount?: number
+  pricingLines?: Array<Pick<QuotationPricingLine, 'description' | 'price' | 'vatRate'>>
+  milestones?: Array<Pick<QuotationMilestone, 'amount'>>
+}
+
 const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
+
+const allocateRoundedAmounts = (amounts: number[], targetTotal: number): number[] => {
+  const sourceTotal = amounts.reduce((sum, amount) => sum + amount, 0)
+  if (!(sourceTotal > 0) || !(targetTotal > 0)) {
+    return amounts.map(() => 0)
+  }
+
+  let allocated = 0
+  return amounts.map((amount, index) => {
+    if (index === amounts.length - 1) {
+      return roundMoney(targetTotal - allocated)
+    }
+    const share = roundMoney((amount / sourceTotal) * targetTotal)
+    allocated = roundMoney(allocated + share)
+    return share
+  })
+}
 
 export const calculateVatTotalsFromPricingLines = (
   lines: Array<Pick<QuotationPricingLine, 'price' | 'vatRate'>>,
@@ -39,4 +64,37 @@ export const calculateVatTotalsFromPricingLines = (
     vatAmount,
     total: roundMoney(netAmount + vatAmount),
   }
+}
+
+export const getQuoteVersionPricingLines = (
+  version: VatQuoteVersionLike | null | undefined
+): Array<Pick<QuotationPricingLine, 'description' | 'price' | 'vatRate'>> => {
+  if (!version) return []
+  return version.pricingLines?.length
+    ? version.pricingLines
+    : [{ description: version.description || version.scope || 'Quote', price: version.totalAmount || 0, vatRate: 0 }]
+}
+
+export const calculateQuoteVersionVatTotals = (
+  version: VatQuoteVersionLike | null | undefined,
+  mapNetAmount?: (netAmount: number) => number
+): VatPricingTotals => calculateVatTotalsFromPricingLines(
+  getQuoteVersionPricingLines(version),
+  mapNetAmount
+)
+
+export const calculateMilestoneGrossAmounts = (
+  version: VatQuoteVersionLike | null | undefined,
+  mapNetAmount?: (netAmount: number) => number
+): number[] => {
+  const milestones = version?.milestones || []
+  if (milestones.length === 0) return []
+
+  const milestoneNetAmounts = milestones.map((milestone) => {
+    const netAmount = Number(milestone.amount) || 0
+    return mapNetAmount ? mapNetAmount(netAmount) : netAmount
+  })
+  const quoteTotals = calculateQuoteVersionVatTotals(version, mapNetAmount)
+
+  return allocateRoundedAmounts(milestoneNetAmounts, quoteTotals.total)
 }

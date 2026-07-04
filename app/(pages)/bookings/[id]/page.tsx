@@ -30,7 +30,10 @@ import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
-import { calculateVatTotalsFromPricingLines } from "@/lib/vatPricing"
+import {
+  calculateMilestoneGrossAmounts,
+  calculateQuoteVersionVatTotals,
+} from "@/lib/vatPricing"
 
 const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((status) =>
   [
@@ -61,17 +64,6 @@ const formatValidUntilLabel = (value?: string) => {
   const fallback = new Date(raw)
   if (!isNaN(fallback.getTime())) return fallback.toLocaleDateString()
   return "N/A"
-}
-
-const getQuoteVersionTotals = (
-  version: QuoteVersion | null | undefined,
-  applyCustomerPrice?: (amount: number) => number
-) => {
-  if (!version) return { netAmount: 0, vatAmount: 0, total: 0 }
-  const lines = version.pricingLines?.length
-    ? version.pricingLines
-    : [{ description: version.description || version.scope, price: version.totalAmount, vatRate: 0 }]
-  return calculateVatTotalsFromPricingLines(lines, applyCustomerPrice)
 }
 
 interface PostBookingQuestion {
@@ -1573,12 +1565,36 @@ export default function BookingDetailPage() {
     ? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
     : null
   const currentVersionQuoteTotals = useMemo(
-    () => getQuoteVersionTotals(
+    () => calculateQuoteVersionVatTotals(
       currentVersion,
       customerPricingReady ? customerPrice : undefined
     ),
     [currentVersion, customerPricingReady, customerPrice]
   )
+  const currentVersionMilestoneGrossAmounts = useMemo(
+    () => calculateMilestoneGrossAmounts(
+      currentVersion,
+      customerPricingReady ? customerPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, customerPrice]
+  )
+  const currentVersionOriginalQuoteTotals = useMemo(
+    () => calculateQuoteVersionVatTotals(
+      currentVersion,
+      customerPricingReady ? originalPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, originalPrice]
+  )
+  const bookingMilestoneGrossAmounts = useMemo(() => {
+    if (!booking?.milestonePayments?.length || !currentVersion) return []
+    return calculateMilestoneGrossAmounts(
+      {
+        ...currentVersion,
+        milestones: booking.milestonePayments,
+      },
+      user?.role === 'customer' && customerPricingReady ? customerPrice : undefined
+    )
+  }, [booking?.milestonePayments, currentVersion, user?.role, customerPricingReady, customerPrice])
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -3022,10 +3038,19 @@ export default function BookingDetailPage() {
                             {currentVersion.milestones.map((ms, i) => (
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
-                                <span className="font-medium">{customerPricingReady ? formatMoney(customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...'}</span>
+                                <span className="font-medium">
+                                  {customerPricingReady
+                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, booking.quote?.currency || 'EUR')
+                                    : '...'}
+                                </span>
                               </div>
                             ))}
                           </div>
+                          {customerPricingReady && (
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              Milestones are shown incl. VAT and allocated from the quotation gross total.
+                            </p>
+                          )}
                         </div>
                       )}
                       {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
@@ -3080,7 +3105,7 @@ export default function BookingDetailPage() {
                             <span className="font-semibold">{loyalty.level} Member</span> · {loyalty.percentage}% loyalty discount applied
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            You save {formatMoney(originalPrice(currentVersion.totalAmount) - customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR')}
+                            You save {formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR')}
                           </div>
                         </div>
                       )}
@@ -3107,7 +3132,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(getQuoteVersionTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}
@@ -3152,7 +3177,14 @@ export default function BookingDetailPage() {
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
                       <p><span className="text-gray-500">Scope:</span> {currentVersion.scope}</p>
-                      <p><span className="text-gray-500">Total:</span> <strong>{booking.quote?.currency || 'EUR'} {currentVersion.totalAmount.toFixed(2)}</strong></p>
+                      <p>
+                        <span className="text-gray-500">Net total:</span>{' '}
+                        <strong>{formatMoney(currentVersion.totalAmount, booking.quote?.currency || 'EUR')}</strong>
+                      </p>
+                      <p>
+                        <span className="text-gray-500">Total incl. VAT:</span>{' '}
+                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, booking.quote?.currency || 'EUR')}</strong>
+                      </p>
                       <p><span className="text-gray-500">Valid until:</span> {formatValidUntilLabel(currentVersion?.validUntil)}</p>
                       <p className="text-xs text-gray-500">Waiting for customer response...</p>
                     </div>
@@ -3208,13 +3240,24 @@ export default function BookingDetailPage() {
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
-                      const displayAmount = (n: number) => isCustomerView && customerPricingReady ? customerPrice(n) : n
                       const total = booking.milestonePayments!.reduce((s, m) => s + m.amount, 0)
                       const paid = booking.milestonePayments!.filter(m => m.status === 'paid').reduce((s, m) => s + m.amount, 0)
                       const completed = booking.milestonePayments!.filter(m => (m.workStatus || 'pending') === 'completed').reduce((s, m) => s + m.amount, 0)
+                      const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
+                        isCustomerView && customerPricingReady
+                          ? bookingMilestoneGrossAmounts[index] ?? 0
+                          : milestone.amount
+                      )
+                      const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
+                        milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
+                      , 0)
+                      const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
+                        (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
+                      , 0)
                       const paymentPct = total > 0 ? Math.round((paid / total) * 100) : 0
                       const workPct = total > 0 ? Math.round((completed / total) * 100) : 0
                       const showAmounts = !isCustomerView || customerPricingReady
+                      const amountLabel = isCustomerView ? 'incl. VAT' : 'net'
                       return (
                         <div className="mb-4 space-y-3">
                           <div>
@@ -3236,8 +3279,8 @@ export default function BookingDetailPage() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(completed).toFixed(2) : '...'} completed</span>
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(paid).toFixed(2) : '...'} paid</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayCompleted.toFixed(2) : '...'} completed ({amountLabel})</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayPaid.toFixed(2) : '...'} paid ({amountLabel})</span>
                           </div>
                         </div>
                       )
@@ -3293,8 +3336,9 @@ export default function BookingDetailPage() {
                                   <p className="text-xs text-gray-500">
                                     {booking.quote?.currency || 'EUR'}{' '}
                                     {user?.role === 'customer'
-                                      ? (customerPricingReady ? customerPrice(ms.amount).toFixed(2) : '...')
+                                      ? (customerPricingReady ? (bookingMilestoneGrossAmounts[i] ?? 0).toFixed(2) : '...')
                                       : ms.amount.toFixed(2)}
+                                    {user?.role === 'customer' ? ' incl. VAT' : ' net'}
                                   </p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
@@ -3371,7 +3415,7 @@ export default function BookingDetailPage() {
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
                       {/* Original quote amount */}
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Quote Amount:</span>
+                        <span className="text-sm text-gray-600">Quote Amount (excl. VAT):</span>
                         <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
                           {booking.quote.currency || "€"}{booking.quote.amount != null ? booking.quote.amount.toLocaleString() : "—"}
                         </span>

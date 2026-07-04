@@ -17,6 +17,11 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { trackBeginCheckout, trackEvent } from '@/lib/analytics';
+import {
+  calculateMilestoneGrossAmounts,
+  calculateQuoteVersionVatTotals,
+} from '@/lib/vatPricing';
+import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
   stripeClientSecret?: string;
@@ -89,6 +94,10 @@ interface QuoteVersionDuration {
 
 interface QuoteVersion {
   version?: number;
+  scope?: string;
+  description?: string;
+  totalAmount?: number;
+  pricingLines?: QuotationPricingLine[];
   preparationDuration?: QuoteVersionDuration;
   executionDuration?: QuoteVersionDuration;
   bufferDuration?: QuoteVersionDuration;
@@ -232,11 +241,37 @@ export default function BookingPaymentPage() {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
+  const getCurrentQuoteVersion = useCallback((b: Booking | null): QuoteVersion | null => {
+    if (!b?.quoteVersions?.length) return null;
+    return b.currentQuoteVersion != null
+      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion) ?? b.quoteVersions[b.quoteVersions.length - 1] ?? null
+      : b.quoteVersions[b.quoteVersions.length - 1] ?? null;
+  }, []);
+
+  const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
+  const currentQuoteTotals = useMemo(() => {
+    if (!currentQuoteVersion?.totalAmount) return null;
+    return calculateQuoteVersionVatTotals(currentQuoteVersion, customerPricingReady ? customerPrice : undefined);
+  }, [currentQuoteVersion, customerPricingReady, customerPrice]);
+  const milestoneGrossAmounts = useMemo(() => {
+    if (!currentQuoteVersion || !booking?.milestonePayments?.length) return [];
+    return calculateMilestoneGrossAmounts(
+      {
+        ...currentQuoteVersion,
+        milestones: booking.milestonePayments.map((milestone, index) => ({
+          title: milestone.title || `Milestone ${index + 1}`,
+          amount: milestone.amount ?? 0,
+          dueCondition: 'on_start',
+          order: index,
+          status: 'pending',
+        })),
+      },
+      customerPricingReady ? customerPrice : undefined
+    );
+  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice]);
+
   const getQuotedDurations = (b: Booking | null) => {
-    if (!b?.quoteVersions?.length) return { execution: null, preparation: null, buffer: null };
-    const version = b.currentQuoteVersion != null
-      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion)
-      : b.quoteVersions[b.quoteVersions.length - 1];
+    const version = getCurrentQuoteVersion(b);
     if (!version) return { execution: null, preparation: null, buffer: null };
     return {
       execution: version.executionDuration ?? null,
@@ -992,21 +1027,43 @@ export default function BookingPaymentPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Quote Amount:</span>
+                  <span className="text-gray-600">
+                    {currentQuoteTotals ? 'Quote Total (incl. VAT):' : 'Quote Amount:'}
+                  </span>
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
-                      ? formatMoney(customerPrice(booking?.quote?.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                      ? formatMoney(
+                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0),
+                          booking?.quote?.currency?.toUpperCase() || 'EUR'
+                        )
                       : '...'}
                   </span>
                 </div>
+                {currentQuoteTotals && customerPricingReady && currentQuoteTotals.vatAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">VAT included:</span>
+                    <span className="text-gray-700">
+                      {formatMoney(currentQuoteTotals.vatAmount, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                    </span>
+                  </div>
+                )}
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Milestones:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Milestones{milestoneGrossAmounts.length > 0 ? ' (incl. VAT):' : ':'}
+                    </p>
                     <div className="space-y-1">
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
-                          <span className="text-gray-900">{customerPricingReady ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
+                          <span className="text-gray-900">
+                            {customerPricingReady
+                              ? formatMoney(
+                                  milestoneGrossAmounts[i] ?? customerPrice(m.amount ?? 0),
+                                  booking?.quote?.currency?.toUpperCase() || 'EUR'
+                                )
+                              : '...'}
+                          </span>
                         </div>
                       ))}
                     </div>
