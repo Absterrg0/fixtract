@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Gift, Link2, Loader2, Sparkles, TrendingUp } from "lucide-react"
+import { Gift, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { getAuthToken } from "@/lib/utils"
 import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import ReferralCard from "@/components/dashboard/ReferralCard"
+import BacklinkCard from "@/components/dashboard/BacklinkCard"
 
 type CustomerBenefitsResponse = {
   loyaltyStatus?: {
@@ -82,6 +83,15 @@ type ReferralData = {
   conversionRate?: number
 }
 
+function benefitsAuthHeaders(): Record<string, string> {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function benefitsEndpointForRole(role: "customer" | "professional"): string {
+  return role === "customer" ? "/api/user/loyalty/status" : "/api/user/professional-level"
+}
+
 export default function BenefitsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -96,6 +106,32 @@ export default function BenefitsPage() {
     }
   }, [isAuthenticated, loading, router])
 
+  const refreshBenefitsSummary = useCallback(async () => {
+    if (!user || (user.role !== "customer" && user.role !== "professional")) return
+
+    const headers = benefitsAuthHeaders()
+    const benefitsEndpoint = benefitsEndpointForRole(user.role)
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
+        credentials: "include",
+        headers,
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok || !payload?.success) return
+
+      if (user.role === "customer") {
+        setCustomerData(payload.data ?? null)
+        setProfessionalData(null)
+      } else {
+        setProfessionalData(payload.data ?? null)
+        setCustomerData(null)
+      }
+    } catch (error) {
+      console.error("Failed to refresh benefits summary:", error)
+    }
+  }, [user])
+
   useEffect(() => {
     if (!user || (user.role !== "customer" && user.role !== "professional")) {
       setPageLoading(false)
@@ -106,13 +142,8 @@ export default function BenefitsPage() {
 
     const load = async () => {
       setPageLoading(true)
-      const token = getAuthToken()
-      const headers: Record<string, string> = {}
-      if (token) headers.Authorization = `Bearer ${token}`
-      const benefitsEndpoint =
-        user.role === "customer"
-          ? "/api/user/loyalty/status"
-          : "/api/user/professional-level"
+      const headers = benefitsAuthHeaders()
+      const benefitsEndpoint = benefitsEndpointForRole(user.role as "customer" | "professional")
 
       const readJsonSafely = async (response: Response) => {
         try {
@@ -379,20 +410,12 @@ export default function BenefitsPage() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg border bg-slate-50 p-4">
-                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  <Link2 className="h-4 w-4" />
-                  Backlinks
-                </p>
-                <p className="mt-3 text-sm text-slate-600">
-                  Backlink rewards are reserved here and can be surfaced once backend tracking is enabled.
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>
 
         <ReferralCard referralData={referralData} />
+        <BacklinkCard onPointsBalanceChange={refreshBenefitsSummary} />
       </div>
     </div>
   )
