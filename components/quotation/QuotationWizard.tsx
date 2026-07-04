@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,8 +22,21 @@ interface QuotationWizardProps {
   onCancel: () => void
 }
 
+interface VatRateOption {
+  rate: number
+  country: string
+  label: string
+  reverseCharge: boolean
+  source: 'standard' | 'reduced' | 'b2b_exempt'
+}
+
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
-const EMPTY_PRICING_LINE: QuotationPricingLine = { description: '', price: 0, vatRate: 21, vatCountry: 'BE' }
+const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE'): QuotationPricingLine => ({
+  description: '',
+  price: 0,
+  vatRate,
+  vatCountry,
+})
 const EMPTY_MILESTONE: QuotationMilestone = {
   title: '',
   amount: 0,
@@ -44,7 +57,14 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
   'custom_date',
 ] as const satisfies ReadonlyArray<QuotationMilestone['dueCondition']>
 
-const VAT_RATE_OPTIONS = [0, 5, 5.5, 6, 8.1, 9, 9.5, 10, 12, 13.5, 19, 20, 21, 22, 23, 24, 25, 25.5, 27]
+const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [0, 5, 5.5, 6, 8.1, 9, 9.5, 10, 12, 13.5, 19, 20, 21, 22, 23, 24, 25, 25.5, 27]
+  .map(rate => ({
+    rate,
+    country: 'BE',
+    label: `${rate}% VAT`,
+    reverseCharge: rate === 0,
+    source: rate === 0 ? 'b2b_exempt' : 'standard',
+  }))
 
 const coerceNonFirstDueCondition = (
   value: unknown
@@ -138,7 +158,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
     materialsIncluded: null,
     materials: [{ ...EMPTY_MATERIAL }],
     description: '',
-    pricingLines: [{ ...EMPTY_PRICING_LINE }],
+    pricingLines: [createEmptyPricingLine()],
     totalAmount: 0,
     currency: 'EUR',
     useMilestones: false,
@@ -155,6 +175,63 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
+  const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
+
+  const effectiveVatRateOptions = useMemo(
+    () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
+    [vatRateOptions],
+  )
+
+  const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadVatRateOptions = async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token) headers.Authorization = `Bearer ${token}`
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/vat-rates`,
+          {
+            method: 'GET',
+            headers,
+            credentials: 'include',
+          },
+        )
+        const data = await response.json()
+        if (!response.ok || !data?.success || !Array.isArray(data.data?.options)) {
+          return
+        }
+
+        if (!cancelled) {
+          setVatRateOptions(data.data.options)
+          const firstOption = data.data.options[0] as VatRateOption | undefined
+          if (!existingVersion && firstOption) {
+            setForm(prev => ({
+              ...prev,
+              pricingLines: prev.pricingLines.map(line => ({
+                ...line,
+                vatRate: firstOption.rate,
+                vatCountry: firstOption.country,
+                vatLabel: firstOption.label,
+              })),
+            }))
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load quotation VAT options:', error)
+      }
+    }
+
+    void loadVatRateOptions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [bookingId, existingVersion])
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -171,13 +248,27 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
   const pricingTotal = Math.round(form.pricingLines.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100
 
-  const addPricingLine = () => updateForm('pricingLines', [...form.pricingLines, { ...EMPTY_PRICING_LINE }])
+  const addPricingLine = () => updateForm('pricingLines', [
+    ...form.pricingLines,
+    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country),
+  ])
   const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
   const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
     const updated = [...form.pricingLines]
     updated[index] = { ...updated[index], [field]: value }
     updateForm('pricingLines', updated)
     updateForm('totalAmount', Math.round(updated.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100)
+  }
+
+  const updatePricingLineVat = (index: number, option: VatRateOption) => {
+    const updated = [...form.pricingLines]
+    updated[index] = {
+      ...updated[index],
+      vatRate: option.rate,
+      vatCountry: option.country,
+      vatLabel: option.label,
+    }
+    updateForm('pricingLines', updated)
   }
 
   // Milestones helpers
@@ -447,15 +538,23 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   placeholder="1500.00"
                 />
                 <Select
-                  value={String(line.vatRate)}
-                  onValueChange={v => updatePricingLine(index, 'vatRate', Number(v))}
+                  value={`${line.vatCountry || defaultVatOption.country}:${line.vatRate}`}
+                  onValueChange={v => {
+                    const option = effectiveVatRateOptions.find(candidate => `${candidate.country}:${candidate.rate}` === v)
+                    if (option) updatePricingLineVat(index, option)
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {VAT_RATE_OPTIONS.map(rate => (
-                      <SelectItem key={rate} value={String(rate)}>{rate}% VAT</SelectItem>
+                    {effectiveVatRateOptions.map(option => (
+                      <SelectItem
+                        key={`${option.country}:${option.rate}:${option.source}`}
+                        value={`${option.country}:${option.rate}`}
+                      >
+                        {option.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

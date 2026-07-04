@@ -2242,7 +2242,25 @@ export default function ProjectBookingForm({
         debugLog?.('[BOOKING] Response data:', data);
 
         if (response.ok && data.success) {
-          if (shouldPayAtCheckout && data.booking?._id) {
+          const returnedVatDecision = data.booking?.vatDecision;
+          const returnedStatus = data.booking?.status;
+
+          if (returnedVatDecision?.action === 'reduced_rate' && returnedVatDecision?.explanation) {
+            toast.success(returnedVatDecision.explanation);
+          }
+
+          if (returnedVatDecision?.action === 'rfq') {
+            toast.info(returnedVatDecision.explanation || 'This VAT case requires quotation review. You can chat with the professional or proceed at the standard rate from your booking.');
+            trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
+            if (data.booking?._id) {
+              router.replace(`/bookings/${data.booking._id}`);
+            } else {
+              router.replace('/dashboard');
+            }
+            return;
+          }
+
+          if (shouldPayAtCheckout && returnedStatus === 'quote_accepted' && data.booking?._id) {
             trackBeginCheckout(data.booking._id, {
               bookingNumber: data.booking.bookingNumber,
               payment: {

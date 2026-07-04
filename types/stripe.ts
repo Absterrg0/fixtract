@@ -74,6 +74,7 @@ export interface PaymentInfo {
   // Invoice
   invoiceNumber?: string;
   invoiceUrl?: string;
+  invoiceUblUrl?: string;
 }
 
 // ==================== Onboarding Types ====================

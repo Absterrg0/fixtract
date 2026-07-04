@@ -26,6 +26,11 @@ export default function AdminSettingsPage() {
     postalCode: '',
     country: 'Belgium',
   })
+  const [eInvoicing, setEInvoicing] = useState({
+    peppolEnabled: false,
+    provider: 'manual',
+    peppolParticipantId: '',
+  })
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [version, setVersion] = useState<number>(0)
 
@@ -55,6 +60,11 @@ export default function AdminSettingsPage() {
           city: data.data.companyAddress?.city || '',
           postalCode: data.data.companyAddress?.postalCode || '',
           country: data.data.companyAddress?.country || 'Belgium',
+        })
+        setEInvoicing({
+          peppolEnabled: Boolean(data.data.eInvoicing?.peppolEnabled),
+          provider: data.data.eInvoicing?.provider || 'manual',
+          peppolParticipantId: data.data.eInvoicing?.peppolParticipantId || '',
         })
         setLastModified(data.data.lastModified)
         setVersion(data.data.version)
@@ -87,7 +97,7 @@ export default function AdminSettingsPage() {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commissionPercent, companyVatNumber, companyAddress })
+        body: JSON.stringify({ commissionPercent, companyVatNumber, companyAddress, eInvoicing })
       })
 
       if (response.ok) {
@@ -104,6 +114,11 @@ export default function AdminSettingsPage() {
           city: data.data.companyAddress?.city || '',
           postalCode: data.data.companyAddress?.postalCode || '',
           country: data.data.companyAddress?.country || 'Belgium',
+        })
+        setEInvoicing({
+          peppolEnabled: Boolean(data.data.eInvoicing?.peppolEnabled),
+          provider: data.data.eInvoicing?.provider || 'manual',
+          peppolParticipantId: data.data.eInvoicing?.peppolParticipantId || '',
         })
         setLastModified(data.data.lastModified)
         setVersion(data.data.version)
@@ -275,6 +290,48 @@ export default function AdminSettingsPage() {
                       id="company-country"
                       value={companyAddress.country}
                       onChange={(e) => setCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">E-invoicing</h2>
+                  <p className="text-sm text-gray-500">
+                    Generate UBL artifacts now and store provider metadata for Belgian Peppol delivery.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={eInvoicing.peppolEnabled}
+                    onChange={(event) => setEInvoicing(prev => ({ ...prev, peppolEnabled: event.target.checked }))}
+                    className="rounded border-gray-300"
+                  />
+                  Enable Peppol e-invoicing metadata
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="einvoice-provider">Provider</Label>
+                    <select
+                      id="einvoice-provider"
+                      value={eInvoicing.provider}
+                      onChange={(event) => setEInvoicing(prev => ({ ...prev, provider: event.target.value }))}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="manual">Manual upload/export</option>
+                      <option value="odoo">Odoo</option>
+                      <option value="billit">Billit</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="peppol-id">Peppol Participant ID</Label>
+                    <Input
+                      id="peppol-id"
+                      value={eInvoicing.peppolParticipantId}
+                      onChange={(event) => setEInvoicing(prev => ({ ...prev, peppolParticipantId: event.target.value }))}
+                      placeholder="e.g. 0208:BE0123456789"
                     />
                   </div>
                 </div>

@@ -1396,6 +1396,13 @@ export default function ServiceConfigurationManagement() {
                             className="bg-white"
                           />
                         )}
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={question.isRequired !== false}
+                            onCheckedChange={(checked) => updateVatQuestion(index, { isRequired: checked })}
+                          />
+                          <Label className="text-xs">Required question</Label>
+                        </div>
                       </div>
                     ))}
                     {(!formData.vatManagement.reducedVatQuestions || formData.vatManagement.reducedVatQuestions.length === 0) && (
@@ -1432,6 +1439,14 @@ export default function ServiceConfigurationManagement() {
                           placeholder="Custom text shown when this logic is met"
                           className="bg-white"
                         />
+
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={rule.isActive !== false}
+                            onCheckedChange={(checked) => updateVatLogicRule(ruleIndex, { isActive: checked })}
+                          />
+                          <Label className="text-xs">Rule active</Label>
+                        </div>
 
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">

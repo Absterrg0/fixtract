@@ -25,6 +25,10 @@ interface BookingPayment {
   vatAmount?: number;
   vatRate?: number;
   totalWithVat?: number;
+  reverseCharge?: boolean;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  invoiceUblUrl?: string;
   status?: string;
   discount?: {
     loyaltyTier?: string;
@@ -1561,6 +1565,11 @@ export default function BookingPaymentPage() {
                   <span className="text-gray-900">
                     {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
                   </span>
+                </div>
+              )}
+              {booking?.payment?.reverseCharge && (
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  0% VAT applied: Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t">
