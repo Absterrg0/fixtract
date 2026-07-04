@@ -168,7 +168,7 @@ function SubmissionRow({
               className="flex items-center gap-1 truncate text-xs text-slate-600 hover:text-slate-900 hover:underline"
             >
               {submission.domain}
-              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              <ExternalLink className="h-3 w-3 shrink-0" />
             </a>
           ) : (
             <span className="truncate text-xs text-slate-600">{submission.domain}</span>
@@ -227,16 +227,15 @@ function shouldRefreshPointsBalance(
   next: BacklinkStats,
 ): boolean {
   if (!previous) return false;
-  if (next.totalPointsEarned > previous.totalPointsEarned) return true;
-  if (next.verifiedCount > previous.verifiedCount) return true;
+  if (next.totalPointsEarned !== previous.totalPointsEarned) return true;
+  if (next.verifiedCount !== previous.verifiedCount) return true;
 
   const previousById = new Map(previous.submissions.map((s) => [s._id, s]));
   return next.submissions.some((submission) => {
     const prior = previousById.get(submission._id);
     return (
-      submission.status === 'verified' &&
       prior != null &&
-      prior.status !== 'verified'
+      (submission.status === 'verified') !== (prior.status === 'verified')
     );
   });
 }
@@ -363,6 +362,10 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
     const targetUrl = (url ?? urlInput).trim();
     if (!targetUrl) {
       setSubmitError('Please enter a URL');
+      return;
+    }
+    if (!isSafeHttpUrl(targetUrl)) {
+      setSubmitError('Please enter a valid http(s) URL');
       return;
     }
 
@@ -547,7 +550,10 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
               className="shrink-0"
             >
               {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="sr-only">Submitting</span>
+                </>
               ) : (
                 'Submit'
               )}

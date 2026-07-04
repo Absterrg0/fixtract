@@ -91,6 +91,22 @@ const STATUS_LABELS: Record<string, string> = {
   '': 'All', pending_verification: 'Queued', verifying: 'Verifying', verified: 'Verified', rejected: 'Rejected', revoked: 'Revoked',
 };
 
+function normalizeAllowedDomain(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     pending_verification: 'bg-amber-100 text-amber-800',
@@ -277,7 +293,7 @@ export default function AdminBacklinksPage() {
 
   const addDomain = () => {
     if (!config || !domainInput.trim()) return;
-    const host = domainInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*/, '');
+    const host = normalizeAllowedDomain(domainInput);
     if (!host || config.allowedTargetDomains.includes(host)) return;
     setConfig({ ...config, allowedTargetDomains: [...config.allowedTargetDomains, host] });
     setDomainInput('');

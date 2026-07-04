@@ -651,7 +651,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => window.open('/admin/backlinks', '_blank')}
+                    onClick={() => window.open('/admin/backlinks', '_blank', 'noopener,noreferrer')}
                     className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800"
                   >
                     <Link2 className="h-4 w-4 mr-2" />
