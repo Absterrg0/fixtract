@@ -83,6 +83,15 @@ type ReferralData = {
   conversionRate?: number
 }
 
+function benefitsAuthHeaders(): Record<string, string> {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function benefitsEndpointForRole(role: "customer" | "professional"): string {
+  return role === "customer" ? "/api/user/loyalty/status" : "/api/user/professional-level"
+}
+
 export default function BenefitsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -100,13 +109,8 @@ export default function BenefitsPage() {
   const refreshBenefitsSummary = useCallback(async () => {
     if (!user || (user.role !== "customer" && user.role !== "professional")) return
 
-    const token = getAuthToken()
-    const headers: Record<string, string> = {}
-    if (token) headers.Authorization = `Bearer ${token}`
-    const benefitsEndpoint =
-      user.role === "customer"
-        ? "/api/user/loyalty/status"
-        : "/api/user/professional-level"
+    const headers = benefitsAuthHeaders()
+    const benefitsEndpoint = benefitsEndpointForRole(user.role)
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
@@ -138,13 +142,8 @@ export default function BenefitsPage() {
 
     const load = async () => {
       setPageLoading(true)
-      const token = getAuthToken()
-      const headers: Record<string, string> = {}
-      if (token) headers.Authorization = `Bearer ${token}`
-      const benefitsEndpoint =
-        user.role === "customer"
-          ? "/api/user/loyalty/status"
-          : "/api/user/professional-level"
+      const headers = benefitsAuthHeaders()
+      const benefitsEndpoint = benefitsEndpointForRole(user.role as "customer" | "professional")
 
       const readJsonSafely = async (response: Response) => {
         try {

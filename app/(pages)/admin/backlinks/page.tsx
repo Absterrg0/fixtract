@@ -76,6 +76,16 @@ function isInFlight(status: SubmissionStatus): boolean {
   return status === 'pending_verification' || status === 'verifying';
 }
 
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+
 const STATUS_FILTERS = ['', 'pending_verification', 'verifying', 'verified', 'rejected', 'revoked'] as const;
 const STATUS_LABELS: Record<string, string> = {
   '': 'All', pending_verification: 'Queued', verifying: 'Verifying', verified: 'Verified', rejected: 'Rejected', revoked: 'Revoked',
@@ -114,6 +124,7 @@ export default function AdminBacklinksPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [listRefreshError, setListRefreshError] = useState(false);
+  const [submissionsLoadError, setSubmissionsLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
@@ -162,6 +173,7 @@ export default function AdminBacklinksPage() {
 
   const fetchSubmissions = useCallback(async (p = 1, status = '', opts?: { silent?: boolean }): Promise<boolean> => {
     try {
+      setSubmissionsLoadError(false);
       if (opts?.silent) setListRefreshError(false);
       const params = new URLSearchParams({ page: String(p), limit: '20' });
       if (status) params.set('status', status);
@@ -173,10 +185,12 @@ export default function AdminBacklinksPage() {
         setTotal(d.data.pagination.total);
         return true;
       }
+      setSubmissionsLoadError(true);
       if (!opts?.silent) toast.error(d.msg ?? 'Failed to load submissions');
       else setListRefreshError(true);
       return false;
     } catch {
+      setSubmissionsLoadError(true);
       if (!opts?.silent) toast.error('Failed to load submissions');
       else setListRefreshError(true);
       return false;
@@ -226,13 +240,12 @@ export default function AdminBacklinksPage() {
     finally { setSaving(false); }
   };
 
-  const doAction = async (id: string, action: 'approve' | 'reprocess', reason?: string) => {
+  const doAction = async (id: string, action: 'approve' | 'reprocess') => {
     if (actionId) return;
     setActionId(id);
     try {
-      const body = reason ? JSON.stringify({ reason }) : undefined;
       const res = await fetch(`${BACKEND}/api/admin/backlinks/${id}/${action}`, {
-        method: 'POST', credentials: 'include', headers: authHeaders(), body,
+        method: 'POST', credentials: 'include', headers: authHeaders(),
       });
       const d = await res.json();
       if (d.success) {
@@ -390,13 +403,13 @@ export default function AdminBacklinksPage() {
                 <div className="space-y-2">
                   <Label>Crawl timeout (ms)</Label>
                   <Input type="number" min={5000} max={120000} value={config.crawlTimeoutMs}
-                    onChange={(e) => setConfig({ ...config, crawlTimeoutMs: Number(e.target.value) || 30000 })} />
+                    onChange={(e) => setConfig({ ...config, crawlTimeoutMs: Math.min(120000, Math.max(5000, Number(e.target.value) || 30000)) })} />
                   <p className="text-xs text-gray-500">5 000 – 120 000 ms</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Resubmit cooldown (hours)</Label>
                   <Input type="number" min={0} value={config.resubmitCooldownHours}
-                    onChange={(e) => setConfig({ ...config, resubmitCooldownHours: Number(e.target.value) || 0 })} />
+                    onChange={(e) => setConfig({ ...config, resubmitCooldownHours: Math.max(0, Number(e.target.value) || 0) })} />
                   <p className="text-xs text-gray-500">Hours a user must wait after rejection</p>
                 </div>
                 <div className="space-y-2">
@@ -429,7 +442,7 @@ export default function AdminBacklinksPage() {
                 { label: 'Total', value: analytics.total, sub: `${analytics.thisMonth} this month`, icon: List, color: 'text-blue-600' },
                 { label: 'Verified', value: analytics.verified, sub: 'Links rewarded', icon: CheckCircle, color: 'text-emerald-600' },
                 { label: 'Points Issued', value: analytics.totalPointsIssued, sub: 'Via backlinks', icon: Link2, color: 'text-indigo-600' },
-                { label: 'Unclaw\'d Pts', value: analytics.totalUnclawedPoints, sub: 'Could not recover', icon: AlertTriangle, color: 'text-amber-600' },
+                { label: 'Unrecovered Pts', value: analytics.totalUnclawedPoints, sub: 'Could not recover', icon: AlertTriangle, color: 'text-amber-600' },
               ].map((s) => (
                 <Card key={s.label}>
                   <CardContent className="pt-6">
@@ -491,7 +504,13 @@ export default function AdminBacklinksPage() {
         )}
 
         {/* ── SUBMISSIONS TAB ──────────────────────────────────────── */}
-        {tab === 'list' && (
+        {tab === 'list' && submissionsLoadError && submissions.length === 0 && (
+          <LoadErrorCard
+            label="Failed to load submissions."
+            onRetry={() => void fetchSubmissions(page, statusFilter)}
+          />
+        )}
+        {tab === 'list' && !(submissionsLoadError && submissions.length === 0) && (
           <div className="space-y-4">
             {/* Status filters */}
             <div className="flex gap-2 flex-wrap">
@@ -503,7 +522,7 @@ export default function AdminBacklinksPage() {
               ))}
             </div>
 
-            {listRefreshError && submissions.length > 0 && (
+            {listRefreshError && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm text-amber-800">Couldn&apos;t refresh the submission queue.</p>
                 <Button
@@ -534,10 +553,14 @@ export default function AdminBacklinksPage() {
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <StatusBadge status={sub.status} />
-                              <a href={sub.submittedUrl} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-sm text-indigo-600 hover:underline truncate max-w-xs">
-                                {sub.domain}<ExternalLink className="h-3 w-3 flex-shrink-0" />
-                              </a>
+                              {isSafeHttpUrl(sub.submittedUrl) ? (
+                                <a href={sub.submittedUrl} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-sm text-indigo-600 hover:underline truncate max-w-xs">
+                                  {sub.domain}<ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-600 truncate max-w-xs">{sub.domain}</span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-500">
                               {sub.userId?.name ?? 'Unknown'} &middot; {sub.userId?.email} &middot; <span className="capitalize">{sub.userId?.role}</span>

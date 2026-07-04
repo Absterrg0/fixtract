@@ -69,6 +69,16 @@ function authHeaders(): Record<string, string> {
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 const POLL_INTERVAL_MS = 8_000;
+const MAX_POLL_BACKOFF_MS = 60_000;
+
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 const STATUS_CONFIG: Record<
   BacklinkStatus,
@@ -130,10 +140,12 @@ function StatusBadge({ status }: { status: BacklinkStatus }) {
 function SubmissionRow({
   submission,
   cooldownHours,
+  submitting,
   onResubmit,
 }: {
   submission: BacklinkSubmission;
   cooldownHours: number;
+  submitting: boolean;
   onResubmit: (url: string) => void;
 }) {
   const cooldown =
@@ -141,22 +153,26 @@ function SubmissionRow({
       ? cooldownRemaining(submission.lastRejectedAt, cooldownHours)
       : null;
 
-  const canResubmit = submission.status === 'rejected' && cooldown === null;
+  const canResubmit = submission.status === 'rejected' && cooldown === null && !submitting;
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-slate-50/50 p-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={submission.status} />
-          <a
-            href={submission.submittedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 truncate text-xs text-slate-600 hover:text-slate-900 hover:underline"
-          >
-            {submission.domain}
-            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-          </a>
+          {isSafeHttpUrl(submission.submittedUrl) ? (
+            <a
+              href={submission.submittedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 truncate text-xs text-slate-600 hover:text-slate-900 hover:underline"
+            >
+              {submission.domain}
+              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+            </a>
+          ) : (
+            <span className="truncate text-xs text-slate-600">{submission.domain}</span>
+          )}
         </div>
 
         {submission.status === 'verified' && submission.rewardPoints != null && (
@@ -195,6 +211,7 @@ function SubmissionRow({
           size="sm"
           variant="outline"
           className="shrink-0 text-xs"
+          disabled={submitting}
           onClick={() => onResubmit(submission.submittedUrl)}
         >
           <RefreshCw className="mr-1 h-3 w-3" />
@@ -243,6 +260,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
   const [cooldownExpiresAt, setCooldownExpiresAt] = useState<Date | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollFailureCountRef = useRef(0);
   const mountedRef = useRef(true);
   const statsRef = useRef<BacklinkStats | null>(null);
 
@@ -297,15 +315,25 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
 
   const schedulePoll = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
+    const backoffMs = Math.min(
+      POLL_INTERVAL_MS * 2 ** pollFailureCountRef.current,
+      MAX_POLL_BACKOFF_MS,
+    );
     pollRef.current = setTimeout(async () => {
       const fresh = await fetchStats();
       const inFlight = fresh
         ? fresh.submissions.some((s) => isInFlight(s.status))
         : (statsRef.current?.submissions.some((s) => isInFlight(s.status)) ?? false);
-      if (mountedRef.current && inFlight) {
+      if (!mountedRef.current) return;
+      if (fresh) {
+        pollFailureCountRef.current = 0;
+      } else if (inFlight) {
+        pollFailureCountRef.current += 1;
+      }
+      if (inFlight) {
         schedulePoll();
       }
-    }, POLL_INTERVAL_MS);
+    }, backoffMs);
   }, [fetchStats]);
 
   useEffect(() => {
@@ -493,7 +521,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         )}
         {/* Submit form */}
         <div className="space-y-2">
-          <label className="text-xs font-medium text-slate-700">
+          <label htmlFor="backlink-url-input" className="text-xs font-medium text-slate-700">
             Submit a page URL where you&apos;ve linked to Fixera
           </label>
           <div className="flex gap-2">
@@ -571,6 +599,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
                   key={s._id}
                   submission={s}
                   cooldownHours={cooldownHours}
+                  submitting={submitting}
                   onResubmit={(url) => void handleSubmit(url)}
                 />
               ))}
