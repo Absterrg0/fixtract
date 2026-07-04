@@ -63,6 +63,15 @@ export interface PaymentInfo {
   vatAmount: number;
   vatRate: number;
   totalWithVat: number;
+  vatBreakdown?: Array<{
+    description: string;
+    netAmount: number;
+    vatRate: number;
+    vatAmount: number;
+    totalAmount: number;
+    vatCountry?: string;
+    vatLabel?: string;
+  }>;
   platformCommission?: number;
 
   // Timestamps

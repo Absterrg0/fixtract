@@ -97,6 +97,15 @@ interface BookingDetail {
     vatAmount?: number
     vatRate?: number
     reverseCharge?: boolean
+    vatBreakdown?: Array<{
+      description: string
+      netAmount: number
+      vatRate: number
+      vatAmount: number
+      totalAmount: number
+      vatCountry?: string
+      vatLabel?: string
+    }>
     platformCommission?: number
     professionalPayout?: number
     stripeFeeAmount?: number
@@ -1415,9 +1424,13 @@ export default function BookingDetailPage() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/vat-proceed-standard`,
         { method: "POST", headers, credentials: "include" }
       )
-      const { data } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; msg?: string; booking?: BookingDetail }>(response)
       if (response.ok && data?.success) {
         toast.success(data.msg || "You can now proceed at the standard VAT rate.")
+        if (data.booking?.status === "quote_accepted" && data.booking?._id) {
+          router.push(`/bookings/${data.booking._id}/payment`)
+          return
+        }
         await refreshBooking()
       } else {
         toast.error(data?.msg || "Unable to update VAT preference")

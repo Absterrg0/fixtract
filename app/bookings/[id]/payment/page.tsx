@@ -25,6 +25,14 @@ interface BookingPayment {
   vatAmount?: number;
   vatRate?: number;
   totalWithVat?: number;
+  vatBreakdown?: Array<{
+    description: string;
+    netAmount: number;
+    vatRate: number;
+    vatAmount: number;
+    totalAmount: number;
+    vatLabel?: string;
+  }>;
   reverseCharge?: boolean;
   invoiceNumber?: string;
   invoiceUrl?: string;
@@ -1559,9 +1567,28 @@ export default function BookingPaymentPage() {
                   {formatMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
                 </span>
               </div>
+              {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1 && (
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-700">VAT breakdown</p>
+                  {booking.payment.vatBreakdown.map((line, index) => (
+                    <div key={`${line.description}-${index}`} className="flex justify-between text-xs">
+                      <span className="text-gray-600">
+                        {line.description} ({line.vatLabel || `${line.vatRate}% VAT`})
+                      </span>
+                      <span className="text-gray-900">
+                        {formatMoney(line.vatAmount, paymentCurrency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(booking?.payment?.vatAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">VAT ({booking?.payment?.vatRate}%):</span>
+                  <span className="text-gray-600">
+                    VAT {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1
+                      ? '(total)'
+                      : `(${booking?.payment?.vatRate}%)`}:
+                  </span>
                   <span className="text-gray-900">
                     {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
                   </span>
