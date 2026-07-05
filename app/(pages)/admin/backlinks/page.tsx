@@ -3,18 +3,29 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Link2, Settings, BarChart3, List, Loader2, Save, CheckCircle,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  Link2, Settings, BarChart3, List, Loader2, Save, CheckCircle, Check,
   XCircle, AlertTriangle, Clock, RefreshCw, Ban, ThumbsUp, ExternalLink,
+  ChevronDown, Inbox, User, Globe, X, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAuthToken } from '@/lib/utils';
+import { cn, getAuthToken } from '@/lib/utils';
 
 // ------------------------------------------------------------------
 // Types
@@ -108,17 +119,522 @@ function normalizeAllowedDomain(input: string): string | null {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    pending_verification: 'bg-amber-100 text-amber-800',
-    verifying: 'bg-amber-100 text-amber-800',
-    verified: 'bg-emerald-100 text-emerald-800',
-    rejected: 'bg-red-100 text-red-800',
-    revoked: 'bg-slate-100 text-slate-700',
+  const config: Record<string, { className: string; icon: LucideIcon }> = {
+    pending_verification: { className: 'bg-amber-50 text-amber-800 ring-amber-200/60', icon: Clock },
+    verifying: { className: 'bg-amber-50 text-amber-800 ring-amber-200/60', icon: Loader2 },
+    verified: { className: 'bg-emerald-50 text-emerald-800 ring-emerald-200/60', icon: CheckCircle },
+    rejected: { className: 'bg-red-50 text-red-800 ring-red-200/60', icon: XCircle },
+    revoked: { className: 'bg-slate-50 text-slate-700 ring-slate-200/60', icon: Ban },
   };
+  const { className, icon: Icon } = config[status] ?? { className: 'bg-muted text-muted-foreground ring-border', icon: AlertTriangle };
+  const spinning = status === 'verifying';
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? 'bg-gray-100 text-gray-700'}`}>
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', className)}>
+      <Icon className={cn('h-3 w-3', spinning && 'animate-spin')} />
       {STATUS_LABELS[status] ?? status}
     </span>
+  );
+}
+
+const ROW_THEMES: Record<SubmissionStatus, string> = {
+  pending_verification: 'border-l-amber-400',
+  verifying: 'border-l-amber-400',
+  verified: 'border-l-emerald-400',
+  rejected: 'border-l-red-400',
+  revoked: 'border-l-slate-300',
+};
+
+function summarizeRejectionReason(reason: string): {
+  summary: string;
+  expandable: boolean;
+  full: string;
+} {
+  const full = reason.trim();
+  const noLinkMatch = full.match(/^No link to (.+) was found on the page$/i);
+  if (noLinkMatch) {
+    const domains = noLinkMatch[1].split(/\s+or\s+/i).map((d) => d.trim()).filter(Boolean);
+    if (domains.length > 1) {
+      return { summary: 'No Fixera link was found on this page', expandable: true, full };
+    }
+  }
+  if (full.length > 100) {
+    return { summary: `${full.slice(0, 97)}…`, expandable: true, full };
+  }
+  return { summary: full, expandable: false, full };
+}
+
+function RejectionReason({ reason }: { reason: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const { summary, expandable, full } = summarizeRejectionReason(reason);
+
+  return (
+    <div className="rounded-md border border-red-100 bg-red-50/60 px-2.5 py-1.5 text-xs text-red-800">
+      <div className="flex items-start gap-1.5">
+        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+        <div className="min-w-0 flex-1">
+          {expandable && !expanded ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="cursor-default">{summary}</p>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-sm text-left">
+                  {full}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <p className="break-words">{expanded ? full : summary}</p>
+          )}
+          {expandable && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-0.5 inline-flex items-center gap-0.5 font-medium text-red-600 hover:text-red-800"
+            >
+              {expanded ? 'Hide details' : 'Show details'}
+              <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatSubmissionDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function AdminSubmissionRow({
+  sub,
+  actionId,
+  onApprove,
+  onReject,
+  onRevoke,
+  onReprocess,
+}: {
+  sub: Submission;
+  actionId: string | null;
+  onApprove: () => void;
+  onReject: () => void;
+  onRevoke: () => void;
+  onReprocess: () => void;
+}) {
+  const busy = actionId === sub._id;
+  const inFlight = isInFlight(sub.status);
+  const showApprove = sub.status === 'pending_verification' || sub.status === 'rejected';
+  const showReject = showApprove;
+  const showRevoke = sub.status === 'verified';
+  const showReprocess = sub.status === 'rejected' || sub.status === 'pending_verification';
+  const hasActions = showApprove || showReject || showRevoke || showReprocess;
+
+  return (
+    <div className={cn('border-l-[3px] px-4 py-4 sm:px-6', ROW_THEMES[sub.status])}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {isSafeHttpUrl(sub.submittedUrl) ? (
+              <a
+                href={sub.submittedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground hover:text-indigo-600"
+              >
+                <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{sub.domain}</span>
+                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+              </a>
+            ) : (
+              <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{sub.domain}</span>
+              </span>
+            )}
+            <StatusBadge status={sub.status} />
+            <span className="text-xs text-muted-foreground sm:ml-auto">{formatSubmissionDate(sub.createdAt)}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <User className="h-3 w-3 shrink-0" />
+            <span className="font-medium text-foreground/80">{sub.userId?.name ?? 'Unknown'}</span>
+            <span aria-hidden>·</span>
+            <span className="truncate">{sub.userId?.email ?? '—'}</span>
+            {sub.userId?.role && (
+              <>
+                <span aria-hidden>·</span>
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal capitalize">
+                  {sub.userId.role}
+                </Badge>
+              </>
+            )}
+          </div>
+
+          {inFlight && (
+            <p className="text-xs text-amber-700">Crawling page — actions available when crawl completes</p>
+          )}
+
+          {sub.rejectionReason && <RejectionReason reason={sub.rejectionReason} />}
+
+          {sub.unclawedPoints != null && sub.unclawedPoints > 0 && (
+            <p className="inline-flex items-center gap-1 text-xs text-amber-700">
+              <AlertTriangle className="h-3 w-3" />
+              {sub.unclawedPoints} pts could not be clawed back
+            </p>
+          )}
+
+          {sub.rewardPoints != null && sub.status === 'verified' && (
+            <p className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              <CheckCircle className="h-3 w-3" />
+              +{sub.rewardPoints} pts awarded
+            </p>
+          )}
+        </div>
+
+        {hasActions && !inFlight && (
+          <div className="flex shrink-0 items-center gap-1 sm:flex-col sm:items-end lg:flex-row">
+            {showApprove && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+                disabled={busy}
+                onClick={onApprove}
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />}
+                <span className="sr-only sm:not-sr-only sm:ml-1.5">Approve</span>
+              </Button>
+            )}
+            {showReject && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-muted-foreground hover:bg-red-50 hover:text-red-700"
+                disabled={busy}
+                onClick={onReject}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:ml-1.5">Reject</span>
+              </Button>
+            )}
+            {showRevoke && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-muted-foreground hover:bg-red-50 hover:text-red-700"
+                disabled={busy}
+                onClick={onRevoke}
+              >
+                <Ban className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:ml-1.5">Revoke</span>
+              </Button>
+            )}
+            {showReprocess && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-muted-foreground hover:bg-muted"
+                disabled={busy}
+                onClick={onReprocess}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:ml-1.5">Reprocess</span>
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <p className="text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value.toLocaleString()}</p>
+        {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+const STATUS_BREAKDOWN = [
+  { key: 'pending' as const, label: 'Pending', dot: 'bg-amber-500', bar: 'bg-amber-500' },
+  { key: 'verified' as const, label: 'Verified', dot: 'bg-emerald-500', bar: 'bg-emerald-500' },
+  { key: 'rejected' as const, label: 'Rejected', dot: 'bg-red-500', bar: 'bg-red-500' },
+  { key: 'revoked' as const, label: 'Revoked', dot: 'bg-slate-400', bar: 'bg-slate-400' },
+] as const;
+
+function AllowedDomainsCombobox({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (domains: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      const id = requestAnimationFrame(() => searchRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+    setSearch('');
+  }, [open]);
+
+  const query = search.trim();
+  const normalizedQuery = query ? normalizeAllowedDomain(query) : null;
+  const queryLower = query.toLowerCase();
+
+  const sortedDomains = [...value].sort((a, b) => a.localeCompare(b));
+  const filteredDomains = query
+    ? sortedDomains.filter((d) => d.includes(queryLower))
+    : sortedDomains;
+
+  const canCreate = Boolean(normalizedQuery && !value.includes(normalizedQuery));
+  const showInvalidHint = Boolean(query && !normalizedQuery);
+
+  const toggleDomain = (domain: string) => {
+    if (value.includes(domain)) {
+      onChange(value.filter((d) => d !== domain));
+    } else {
+      onChange([...value, domain]);
+    }
+  };
+
+  const addDomain = (raw: string) => {
+    const host = normalizeAllowedDomain(raw);
+    if (!host) {
+      toast.error('Enter a valid hostname (e.g. fixera.com or https://fixera.com)');
+      return;
+    }
+    if (value.includes(host)) {
+      toast.error('Domain is already selected');
+      return;
+    }
+    onChange([...value, host]);
+    setSearch('');
+  };
+
+  const removeDomain = (domain: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    onChange(value.filter((d) => d !== domain));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative" ref={popoverRef}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className={cn(
+            'flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none',
+            'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+            open && 'border-ring ring-ring/50 ring-[3px]',
+          )}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            {value.length === 0 ? (
+              <span className="text-muted-foreground">Select or add domains…</span>
+            ) : value.length <= 2 ? (
+              value.map((d) => (
+                <Badge
+                  key={d}
+                  variant="secondary"
+                  className="h-6 max-w-full gap-1 rounded-md border-indigo-200/60 bg-indigo-50 px-2 text-xs font-normal text-indigo-800"
+                >
+                  <span className="truncate">{d}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => removeDomain(d, e)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        removeDomain(d, e as unknown as React.MouseEvent);
+                      }
+                    }}
+                    className="shrink-0 rounded-sm text-indigo-500 hover:text-indigo-800"
+                    aria-label={`Remove ${d}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                </Badge>
+              ))
+            ) : (
+              <span className="text-foreground">{value.length} domains selected</span>
+            )}
+          </div>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        </button>
+
+        {open && (
+          <div
+            role="listbox"
+            aria-label="Allowed target domains"
+            className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+          >
+            <div className="border-b p-2">
+              <Input
+                ref={searchRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search or add domain…"
+                className="h-8 border-0 bg-muted/50 shadow-none focus-visible:ring-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (canCreate && normalizedQuery) addDomain(query);
+                    else if (showInvalidHint) addDomain(query);
+                  }
+                  if (e.key === 'Escape') setOpen(false);
+                }}
+              />
+            </div>
+
+            <div className="max-h-60 overflow-y-auto p-1">
+              {filteredDomains.length > 0 ? (
+                filteredDomains.map((domain) => {
+                  const checked = value.includes(domain);
+                  return (
+                    <button
+                      key={domain}
+                      type="button"
+                      role="option"
+                      aria-selected={checked}
+                      onClick={() => toggleDomain(domain)}
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    >
+                      <Checkbox checked={checked} className="pointer-events-none" tabIndex={-1} />
+                      <span className="min-w-0 flex-1 truncate">{domain}</span>
+                      {checked && <Check className="h-4 w-4 shrink-0 text-indigo-600" aria-hidden />}
+                    </button>
+                  );
+                })
+              ) : !canCreate && !showInvalidHint ? (
+                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  No domains configured — type a hostname to add one.
+                </p>
+              ) : null}
+
+              {canCreate && normalizedQuery && (
+                <button
+                  type="button"
+                  onClick={() => addDomain(query)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-indigo-700 hover:bg-indigo-50"
+                >
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-dashed border-indigo-300 text-indigo-600">+</span>
+                  Add &ldquo;{normalizedQuery}&rdquo;
+                </button>
+              )}
+
+              {showInvalidHint && (
+                <p className="px-2 py-2 text-xs text-muted-foreground">
+                  Enter a valid hostname (http/https URL or domain only).
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {value.length === 0
+          ? 'No domains configured — only FRONTEND_URL will be matched at runtime.'
+          : `${value.length} domain${value.length === 1 ? '' : 's'} must be linked from submitted pages.`}
+      </p>
+    </div>
+  );
+}
+
+function StatusBreakdown({ analytics }: { analytics: BacklinkAnalytics }) {
+  const counts = {
+    pending: analytics.pending,
+    verified: analytics.verified,
+    rejected: analytics.rejected,
+    revoked: analytics.revoked,
+  };
+  const statusTotal = STATUS_BREAKDOWN.reduce((sum, s) => sum + counts[s.key], 0);
+  const pct = (n: number) => (statusTotal > 0 ? Math.round((n / statusTotal) * 100) : 0);
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>Status Breakdown</CardTitle>
+        <CardDescription>Share of submissions by current status</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6 pt-6">
+        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+          {STATUS_BREAKDOWN.map((s) => {
+            const count = counts[s.key];
+            if (count === 0) return null;
+            return (
+              <div
+                key={s.key}
+                className={`${s.bar} transition-all`}
+                style={{ width: `${pct(count)}%` }}
+                title={`${s.label}: ${count}`}
+              />
+            );
+          })}
+          {statusTotal === 0 && <div className="h-full w-full bg-muted" />}
+        </div>
+
+        <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
+          {STATUS_BREAKDOWN.map((s) => (
+            <div key={s.key} className="flex items-center justify-between bg-card px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${s.dot}`} aria-hidden />
+                <span className="text-sm text-muted-foreground">{s.label}</span>
+              </div>
+              <div className="flex items-baseline gap-2 tabular-nums">
+                <span className="text-lg font-semibold">{counts[s.key].toLocaleString()}</span>
+                <span className="text-xs text-muted-foreground">{pct(counts[s.key])}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -141,6 +657,7 @@ export default function AdminBacklinksPage() {
   const [loadError, setLoadError] = useState(false);
   const [listRefreshError, setListRefreshError] = useState(false);
   const [submissionsLoadError, setSubmissionsLoadError] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
@@ -148,9 +665,6 @@ export default function AdminBacklinksPage() {
   const statusFilterRef = useRef(statusFilter);
   pageRef.current = page;
   statusFilterRef.current = statusFilter;
-
-  // Domain tag editing
-  const [domainInput, setDomainInput] = useState('');
 
   // Reason modal state
   const [reasonModal, setReasonModal] = useState<{ id: string; action: 'reject' | 'revoke' } | null>(null);
@@ -191,6 +705,7 @@ export default function AdminBacklinksPage() {
     try {
       setSubmissionsLoadError(false);
       if (opts?.silent) setListRefreshError(false);
+      else setListLoading(true);
       const params = new URLSearchParams({ page: String(p), limit: '20' });
       if (status) params.set('status', status);
       const res = await fetch(`${BACKEND}/api/admin/backlinks/list?${params}`, { credentials: 'include', headers: authHeaders() });
@@ -210,6 +725,8 @@ export default function AdminBacklinksPage() {
       if (!opts?.silent) toast.error('Failed to load submissions');
       else setListRefreshError(true);
       return false;
+    } finally {
+      if (!opts?.silent) setListLoading(false);
     }
   }, []);
 
@@ -291,19 +808,6 @@ export default function AdminBacklinksPage() {
     finally { setActionId(null); setReasonInput(''); }
   };
 
-  const addDomain = () => {
-    if (!config || !domainInput.trim()) return;
-    const host = normalizeAllowedDomain(domainInput);
-    if (!host || config.allowedTargetDomains.includes(host)) return;
-    setConfig({ ...config, allowedTargetDomains: [...config.allowedTargetDomains, host] });
-    setDomainInput('');
-  };
-
-  const removeDomain = (d: string) => {
-    if (!config) return;
-    setConfig({ ...config, allowedTargetDomains: config.allowedTargetDomains.filter((x) => x !== d) });
-  };
-
   if (authLoading || loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -336,13 +840,19 @@ export default function AdminBacklinksPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="inline-flex rounded-lg border bg-card p-1 shadow-sm">
           {([
             { id: 'config' as const, label: 'Configuration', icon: Settings },
             { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
             { id: 'list' as const, label: 'Submissions', icon: List },
           ] as const).map((t) => (
-            <Button key={t.id} variant={tab === t.id ? 'default' : 'outline'} onClick={() => setTab(t.id)} className="flex items-center gap-2">
+            <Button
+              key={t.id}
+              variant={tab === t.id ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setTab(t.id)}
+              className="flex items-center gap-2"
+            >
               <t.icon className="h-4 w-4" />{t.label}
             </Button>
           ))}
@@ -357,21 +867,21 @@ export default function AdminBacklinksPage() {
 
             {/* Master toggle */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Program Status</span>
+              <CardHeader className="items-center">
+                <CardTitle>Program Status</CardTitle>
+                <CardDescription>Enable or disable the backlink rewards program globally.</CardDescription>
+                <CardAction className="self-center">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-normal text-gray-500">{config.isEnabled ? 'Active' : 'Inactive'}</span>
                     <Switch checked={config.isEnabled} onCheckedChange={(v) => setConfig({ ...config, isEnabled: v })} />
                   </div>
-                </CardTitle>
-                <CardDescription>Enable or disable the backlink rewards program globally.</CardDescription>
+                </CardAction>
               </CardHeader>
             </Card>
 
             {/* Rewards */}
             <Card>
-              <CardHeader><CardTitle>Reward Points</CardTitle><CardDescription>Points awarded per verified backlink, by role.</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Reward Points</CardTitle></CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Customer reward (pts)</Label>
@@ -388,27 +898,15 @@ export default function AdminBacklinksPage() {
 
             {/* Allowed domains */}
             <Card>
-              <CardHeader><CardTitle>Allowed Target Domains</CardTitle>
+              <CardHeader>
+                <CardTitle>Allowed Target Domains</CardTitle>
                 <CardDescription>Hostnames a submitted page must link TO. FRONTEND_URL is always included at runtime.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input placeholder="e.g. fixera.com" value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDomain(); } }} />
-                  <Button variant="outline" onClick={addDomain}>Add</Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {config.allowedTargetDomains.map((d) => (
-                    <span key={d} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs text-indigo-800">
-                      {d}
-                      <button onClick={() => removeDomain(d)} className="ml-1 text-indigo-400 hover:text-indigo-700">&times;</button>
-                    </span>
-                  ))}
-                  {config.allowedTargetDomains.length === 0 && (
-                    <p className="text-sm text-gray-400">No domains configured — only FRONTEND_URL will be matched.</p>
-                  )}
-                </div>
+              <CardContent>
+                <AllowedDomainsCombobox
+                  value={config.allowedTargetDomains}
+                  onChange={(allowedTargetDomains) => setConfig({ ...config, allowedTargetDomains })}
+                />
               </CardContent>
             </Card>
 
@@ -420,13 +918,11 @@ export default function AdminBacklinksPage() {
                   <Label>Crawl timeout (ms)</Label>
                   <Input type="number" min={5000} max={120000} value={config.crawlTimeoutMs}
                     onChange={(e) => setConfig({ ...config, crawlTimeoutMs: Math.min(120000, Math.max(5000, Number(e.target.value) || 30000)) })} />
-                  <p className="text-xs text-gray-500">5 000 – 120 000 ms</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Resubmit cooldown (hours)</Label>
                   <Input type="number" min={0} value={config.resubmitCooldownHours}
                     onChange={(e) => setConfig({ ...config, resubmitCooldownHours: Math.max(0, Number(e.target.value) || 0) })} />
-                  <p className="text-xs text-gray-500">Hours a user must wait after rejection</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Require follow link</Label>
@@ -453,62 +949,36 @@ export default function AdminBacklinksPage() {
         )}
         {tab === 'analytics' && analytics && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Total', value: analytics.total, sub: `${analytics.thisMonth} this month`, icon: List, color: 'text-blue-600' },
-                { label: 'Verified', value: analytics.verified, sub: 'Links rewarded', icon: CheckCircle, color: 'text-emerald-600' },
-                { label: 'Points Issued', value: analytics.totalPointsIssued, sub: 'Via backlinks', icon: Link2, color: 'text-indigo-600' },
-                { label: 'Unrecovered Pts', value: analytics.totalUnclawedPoints, sub: 'Could not recover', icon: AlertTriangle, color: 'text-amber-600' },
-              ].map((s) => (
-                <Card key={s.label}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <s.icon className={`h-4 w-4 ${s.color}`} />
-                      <p className="text-sm text-gray-500">{s.label}</p>
-                    </div>
-                    <p className="text-2xl font-bold">{s.value}</p>
-                    <p className="text-xs text-gray-400 mt-1">{s.sub}</p>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <MetricCard label="Total Submissions" value={analytics.total} sub={`${analytics.thisMonth.toLocaleString()} this month`} icon={List} />
+              <MetricCard label="Verified" value={analytics.verified} sub="Links rewarded" icon={CheckCircle} />
+              <MetricCard label="Points Issued" value={analytics.totalPointsIssued} sub="Via backlinks" icon={Link2} />
+              <MetricCard label="Unrecovered Pts" value={analytics.totalUnclawedPoints} sub="Could not recover" icon={AlertTriangle} />
             </div>
 
-            <Card>
-              <CardHeader><CardTitle>Status Breakdown</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: 'Pending', value: analytics.pending, bg: 'bg-amber-50', fg: 'text-amber-900', icon: Clock, ic: 'text-amber-600' },
-                  { label: 'Verified', value: analytics.verified, bg: 'bg-emerald-50', fg: 'text-emerald-900', icon: CheckCircle, ic: 'text-emerald-600' },
-                  { label: 'Rejected', value: analytics.rejected, bg: 'bg-red-50', fg: 'text-red-900', icon: XCircle, ic: 'text-red-500' },
-                  { label: 'Revoked', value: analytics.revoked, bg: 'bg-slate-50', fg: 'text-slate-900', icon: Ban, ic: 'text-slate-500' },
-                ].map((s) => (
-                  <div key={s.label} className={`text-center p-4 rounded-lg ${s.bg}`}>
-                    <s.icon className={`h-5 w-5 mx-auto mb-2 ${s.ic}`} />
-                    <p className={`text-2xl font-bold ${s.fg}`}>{s.value}</p>
-                    <p className="text-sm text-gray-600">{s.label}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <StatusBreakdown analytics={analytics} />
 
             {analytics.topSubmitters.length > 0 && (
               <Card>
-                <CardHeader><CardTitle>Top Submitters</CardTitle><CardDescription>Users with the most verified backlinks</CardDescription></CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
+                <CardHeader className="border-b">
+                  <CardTitle>Top Submitters</CardTitle>
+                  <CardDescription>Users with the most verified backlinks</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
                     {analytics.topSubmitters.map((s, i) => (
-                      <div key={s._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-gray-400 w-6">#{i + 1}</span>
-                          <div>
-                            <p className="font-medium">{s.name}</p>
-                            <p className="text-xs text-gray-500">{s.email}</p>
+                      <div key={s._id} className="flex items-center justify-between gap-4 px-6 py-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="w-6 shrink-0 text-sm font-medium tabular-nums text-muted-foreground">{i + 1}</span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{s.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{s.email}</p>
                           </div>
-                          <Badge variant="secondary" className="text-xs">{s.role}</Badge>
+                          <Badge variant="secondary" className="hidden shrink-0 text-xs sm:inline-flex">{s.role}</Badge>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-emerald-600">{s.verifiedCount} verified</p>
-                          <p className="text-xs text-gray-500">{s.totalPoints} pts total</p>
+                        <div className="shrink-0 text-right">
+                          <p className="font-semibold tabular-nums text-emerald-600">{s.verifiedCount} verified</p>
+                          <p className="text-xs text-muted-foreground">{s.totalPoints.toLocaleString()} pts total</p>
                         </div>
                       </div>
                     ))}
@@ -528,18 +998,8 @@ export default function AdminBacklinksPage() {
         )}
         {tab === 'list' && !(submissionsLoadError && submissions.length === 0) && (
           <div className="space-y-4">
-            {/* Status filters */}
-            <div className="flex gap-2 flex-wrap">
-              {STATUS_FILTERS.map((s) => (
-                <Button key={s || 'all'} variant={statusFilter === s ? 'default' : 'outline'} size="sm"
-                  onClick={() => { setStatusFilter(s); setPage(1); }}>
-                  {STATUS_LABELS[s]}
-                </Button>
-              ))}
-            </div>
-
             {listRefreshError && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 shadow-sm">
                 <p className="text-sm text-amber-800">Couldn&apos;t refresh the submission queue.</p>
                 <Button
                   variant="outline"
@@ -557,90 +1017,85 @@ export default function AdminBacklinksPage() {
             )}
 
             <Card>
-              <CardContent className="pt-4">
-                {submissions.length === 0 ? (
-                  <p className="text-center text-gray-500 py-10">No submissions found</p>
-                ) : (
-                  <div className="space-y-3">
-                    {submissions.map((sub) => (
-                      <div key={sub._id} className="border rounded-lg p-4 space-y-3">
-                        {/* Row 1: URL + status + user */}
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <StatusBadge status={sub.status} />
-                              {isSafeHttpUrl(sub.submittedUrl) ? (
-                                <a href={sub.submittedUrl} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-sm text-indigo-600 hover:underline truncate max-w-xs">
-                                  {sub.domain}<ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                </a>
-                              ) : (
-                                <span className="text-sm text-gray-600 truncate max-w-xs">{sub.domain}</span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500">
-                              {sub.userId?.name ?? 'Unknown'} &middot; {sub.userId?.email} &middot; <span className="capitalize">{sub.userId?.role}</span>
-                            </p>
-                            {sub.status === 'verifying' && (
-                              <p className="text-xs text-amber-600">Crawling page… — actions available when crawl completes</p>
-                            )}
-                            {sub.rejectionReason && (
-                              <p className="text-xs text-red-600">{sub.rejectionReason}</p>
-                            )}
-                            {sub.unclawedPoints != null && sub.unclawedPoints > 0 && (
-                              <p className="text-xs text-amber-600">⚠ {sub.unclawedPoints} pts could not be clawed back</p>
-                            )}
-                            {sub.rewardPoints != null && sub.status === 'verified' && (
-                              <p className="text-xs text-emerald-600">+{sub.rewardPoints} pts awarded</p>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-400 shrink-0">{new Date(sub.createdAt).toLocaleDateString()}</p>
-                        </div>
-
-                        {/* Row 2: Actions */}
-                        <div className="flex gap-2 flex-wrap">
-                          {(sub.status === 'pending_verification' || sub.status === 'rejected') && (
-                            <Button size="sm" variant="outline" className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                              disabled={actionId === sub._id}
-                              onClick={() => doAction(sub._id, 'approve')}>
-                              {actionId === sub._id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ThumbsUp className="h-3 w-3 mr-1" />}
-                              Approve
-                            </Button>
-                          )}
-                          {(sub.status === 'pending_verification' || sub.status === 'rejected') && (
-                            <Button size="sm" variant="outline" className="text-red-700 border-red-300 hover:bg-red-50"
-                              disabled={actionId === sub._id}
-                              onClick={() => { setReasonModal({ id: sub._id, action: 'reject' }); setReasonInput(''); }}>
-                              <XCircle className="h-3 w-3 mr-1" />Reject
-                            </Button>
-                          )}
-                          {sub.status === 'verified' && (
-                            <Button size="sm" variant="outline" className="text-red-700 border-red-300 hover:bg-red-50"
-                              disabled={actionId === sub._id}
-                              onClick={() => { setReasonModal({ id: sub._id, action: 'revoke' }); setReasonInput(''); }}>
-                              <Ban className="h-3 w-3 mr-1" />Revoke
-                            </Button>
-                          )}
-                          {(sub.status === 'rejected' || sub.status === 'pending_verification') && (
-                            <Button size="sm" variant="ghost" className="text-gray-600"
-                              disabled={actionId === sub._id}
-                              onClick={() => doAction(sub._id, 'reprocess')}>
-                              <RefreshCw className="h-3 w-3 mr-1" />Reprocess
-                            </Button>
-                          )}
-                        </div>
+              <CardHeader className="space-y-4 border-b pb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>Submission Queue</CardTitle>
+                    <CardDescription>
+                      {total > 0
+                        ? `${total.toLocaleString()} submission${total === 1 ? '' : 's'}`
+                        : 'Review and action backlink submissions'}
+                    </CardDescription>
+                  </div>
+                  <Select
+                    value={statusFilter || 'all'}
+                    onValueChange={(value) => {
+                      setPage(1);
+                      setStatusFilter(value === 'all' ? '' : value);
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_FILTERS.map((s) => (
+                        <SelectItem key={s || 'all'} value={s || 'all'}>
+                          {STATUS_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {listLoading && submissions.length === 0 ? (
+                  <div className="divide-y">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="space-y-2 px-6 py-4">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-64" />
+                        <Skeleton className="h-8 w-32" />
                       </div>
+                    ))}
+                  </div>
+                ) : submissions.length === 0 ? (
+                  <div className="flex flex-col items-center px-6 py-14 text-center">
+                    <Inbox className="mb-3 h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm font-medium text-foreground">No submissions found</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {statusFilter
+                        ? `No ${STATUS_LABELS[statusFilter]?.toLowerCase() ?? 'matching'} submissions in the queue`
+                        : 'Submissions will appear here when users submit backlink URLs'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className={cn('divide-y', listLoading && 'pointer-events-none opacity-60')}>
+                    {submissions.map((sub) => (
+                      <AdminSubmissionRow
+                        key={sub._id}
+                        sub={sub}
+                        actionId={actionId}
+                        onApprove={() => doAction(sub._id, 'approve')}
+                        onReject={() => { setReasonModal({ id: sub._id, action: 'reject' }); setReasonInput(''); }}
+                        onRevoke={() => { setReasonModal({ id: sub._id, action: 'revoke' }); setReasonInput(''); }}
+                        onReprocess={() => doAction(sub._id, 'reprocess')}
+                      />
                     ))}
                   </div>
                 )}
 
-                {/* Pagination */}
                 {total > 20 && (
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-500">Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, total)} of {total}</p>
+                  <div className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, total)} of {total.toLocaleString()}
+                    </p>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                      <Button variant="outline" size="sm" disabled={page * 20 >= total} onClick={() => setPage(page + 1)}>Next</Button>
+                      <Button variant="outline" size="sm" disabled={page === 1 || listLoading} onClick={() => setPage(page - 1)}>
+                        Previous
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={page * 20 >= total || listLoading} onClick={() => setPage(page + 1)}>
+                        Next
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -656,8 +1111,13 @@ export default function AdminBacklinksPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h2 className="text-lg font-semibold capitalize">{reasonModal.action} submission</h2>
             <p className="text-sm text-gray-500">Provide a reason — this will be sent to the user via push notification.</p>
-            <Input placeholder="Reason…" value={reasonInput} onChange={(e) => setReasonInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitReason(); }} autoFocus />
+            <Textarea
+              rows={4}
+              placeholder="Reason…"
+              value={reasonInput}
+              onChange={(e) => setReasonInput(e.target.value)}
+              autoFocus
+            />
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setReasonModal(null)}>Cancel</Button>
               <Button onClick={submitReason} disabled={!reasonInput.trim()}

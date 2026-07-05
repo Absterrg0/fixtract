@@ -6,13 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   AlertCircle,
   CheckCircle2,
   Clock,
   ExternalLink,
+  Globe,
+  Info,
   Link2,
   Loader2,
   RefreshCw,
+  Timer,
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -71,6 +80,9 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 const POLL_INTERVAL_MS = 8_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 
+const BACKLINK_VERIFICATION_TIP =
+  'Your page must contain a visible link to fixera.com. Verification runs automatically and usually completes in under a minute.';
+
 function isSafeHttpUrl(url: string): boolean {
   try {
     const { protocol } = new URL(url);
@@ -82,34 +94,99 @@ function isSafeHttpUrl(url: string): boolean {
 
 const STATUS_CONFIG: Record<
   BacklinkStatus,
-  { label: string; icon: React.ElementType; className: string }
+  {
+    label: string;
+    icon: React.ElementType;
+    badgeClassName: string;
+    rowClassName: string;
+    iconClassName: string;
+  }
 > = {
   pending_verification: {
     label: 'Verifying',
-    icon: Clock,
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: Loader2,
+    badgeClassName: 'bg-amber-100 text-amber-800 ring-amber-200/60',
+    rowClassName: 'border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-white',
+    iconClassName: 'bg-amber-100 text-amber-600',
   },
   verifying: {
     label: 'Verifying',
-    icon: Clock,
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: Loader2,
+    badgeClassName: 'bg-amber-100 text-amber-800 ring-amber-200/60',
+    rowClassName: 'border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-white',
+    iconClassName: 'bg-amber-100 text-amber-600',
   },
   verified: {
     label: 'Verified',
     icon: CheckCircle2,
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    badgeClassName: 'bg-emerald-100 text-emerald-800 ring-emerald-200/60',
+    rowClassName: 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/60 to-white',
+    iconClassName: 'bg-emerald-100 text-emerald-600',
   },
   rejected: {
     label: 'Rejected',
     icon: XCircle,
-    className: 'bg-red-50 text-red-700 border-red-200',
+    badgeClassName: 'bg-red-100 text-red-800 ring-red-200/60',
+    rowClassName: 'border-red-200/80 bg-gradient-to-r from-red-50/50 to-white',
+    iconClassName: 'bg-red-100 text-red-600',
   },
   revoked: {
     label: 'Revoked',
     icon: AlertCircle,
-    className: 'bg-slate-50 text-slate-600 border-slate-200',
+    badgeClassName: 'bg-slate-100 text-slate-700 ring-slate-200/60',
+    rowClassName: 'border-slate-200 bg-gradient-to-r from-slate-50/80 to-white',
+    iconClassName: 'bg-slate-100 text-slate-500',
   },
 };
+
+function notifyNewRejections(
+  previous: BacklinkStats | null,
+  next: BacklinkStats,
+): void {
+  if (!previous) return;
+
+  const prevById = new Map(previous.submissions.map((s) => [s._id, s]));
+
+  for (const submission of next.submissions) {
+    if (submission.status !== 'rejected') continue;
+
+    const prior = prevById.get(submission._id);
+    if (!prior || prior.status === 'rejected') continue;
+
+    const rawRejection =
+      submission.rejectionReason ??
+      submission.adminReviewReason ??
+      'Link not found on page';
+    const rejection = summarizeRejectionReason(rawRejection);
+
+    toast.error(rejection.summary, {
+      description: rejection.expandable ? rejection.full : undefined,
+    });
+  }
+}
+
+function summarizeRejectionReason(reason: string): {
+  summary: string;
+  expandable: boolean;
+  full: string;
+} {
+  const full = reason.trim();
+  const noLinkMatch = full.match(/^No link to (.+) was found on the page$/i);
+  if (noLinkMatch) {
+    const domains = noLinkMatch[1].split(/\s+or\s+/i).map((d) => d.trim()).filter(Boolean);
+    if (domains.length > 1) {
+      return {
+        summary: 'No Fixera link was found on this page',
+        expandable: true,
+        full,
+      };
+    }
+  }
+  if (full.length > 100) {
+    return { summary: `${full.slice(0, 97)}…`, expandable: true, full };
+  }
+  return { summary: full, expandable: false, full };
+}
 
 function cooldownRemaining(lastRejectedAt: string, cooldownHours: number): string | null {
   const expiresAt = new Date(lastRejectedAt).getTime() + cooldownHours * 60 * 60 * 1000;
@@ -120,21 +197,112 @@ function cooldownRemaining(lastRejectedAt: string, cooldownHours: number): strin
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function formatRemainingMs(ms: number): string {
+  if (ms <= 0) return '';
+  const h = Math.floor(ms / (1000 * 60 * 60));
+  const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((ms % (1000 * 60)) / 1000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function formatIsoDatesInMessage(message: string): string {
+  return message.replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z?/g, (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  });
+}
+
 // ------------------------------------------------------------------
 // Sub-components
 // ------------------------------------------------------------------
 
+function ResubmitCooldownHint({
+  expiresAt,
+  onExpired,
+}: {
+  expiresAt: Date;
+  onExpired: () => void;
+}) {
+  const [remaining, setRemaining] = useState(() =>
+    formatRemainingMs(expiresAt.getTime() - Date.now()),
+  );
+
+  useEffect(() => {
+    const tick = () => {
+      const ms = expiresAt.getTime() - Date.now();
+      if (ms <= 0) {
+        setRemaining('');
+        onExpired();
+        return;
+      }
+      setRemaining(formatRemainingMs(ms));
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt, onExpired]);
+
+  if (!remaining) return null;
+
+  return (
+    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
+        <Clock className="h-3 w-3 shrink-0" />
+        Resubmit available in{' '}
+        <span className="font-medium tabular-nums">{remaining}</span>
+      </span>
+    </p>
+  );
+}
+
 function StatusBadge({ status }: { status: BacklinkStatus }) {
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
+  const inFlight = isInFlight(status);
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${cfg.className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${cfg.badgeClassName}`}
     >
-      <Icon className="h-3 w-3" />
+      <Icon className={`h-3 w-3 ${inFlight ? 'animate-spin' : ''}`} />
       {cfg.label}
     </span>
   );
+}
+
+function DomainLink({ submission }: { submission: BacklinkSubmission }) {
+  const content = (
+    <>
+      <Globe className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <span className="truncate font-medium text-slate-900">{submission.domain}</span>
+      {isSafeHttpUrl(submission.submittedUrl) && (
+        <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
+      )}
+    </>
+  );
+
+  if (isSafeHttpUrl(submission.submittedUrl)) {
+    return (
+      <a
+        href={submission.submittedUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex min-w-0 items-center gap-1.5 text-sm hover:text-indigo-700"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return <div className="flex min-w-0 items-center gap-1.5 text-sm">{content}</div>;
 }
 
 function SubmissionRow({
@@ -148,6 +316,9 @@ function SubmissionRow({
   submitting: boolean;
   onResubmit: (url: string) => void;
 }) {
+  const theme = STATUS_CONFIG[submission.status];
+  const inFlight = isInFlight(submission.status);
+
   const cooldown =
     submission.status === 'rejected' && submission.lastRejectedAt
       ? cooldownRemaining(submission.lastRejectedAt, cooldownHours)
@@ -156,68 +327,81 @@ function SubmissionRow({
   const canResubmit = submission.status === 'rejected' && cooldown === null && !submitting;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-slate-50/50 p-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={submission.status} />
-          {isSafeHttpUrl(submission.submittedUrl) ? (
-            <a
-              href={submission.submittedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 truncate text-xs text-slate-600 hover:text-slate-900 hover:underline"
-            >
-              {submission.domain}
-              <ExternalLink className="h-3 w-3 shrink-0" />
-            </a>
+    <div
+      className={`overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md ${theme.rowClassName}`}
+    >
+      <div className="flex gap-3 p-3.5 sm:gap-4 sm:p-4">
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${theme.iconClassName}`}
+        >
+          {inFlight ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <span className="truncate text-xs text-slate-600">{submission.domain}</span>
+            <theme.icon className="h-4 w-4" />
           )}
         </div>
 
-        {submission.status === 'verified' && submission.rewardPoints != null && (
-          <p className="text-xs text-emerald-600">
-            +{submission.rewardPoints} pts earned
-          </p>
-        )}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <DomainLink submission={submission} />
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={submission.status} />
+              {submission.status === 'rejected' && cooldown && (
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                  <Timer className="h-3 w-3" />
+                  Resubmit in {cooldown}
+                </div>
+              )}
+            </div>
+          </div>
 
-        {submission.status === 'rejected' && (
-          <p className="text-xs text-red-600">
-            {submission.rejectionReason ?? submission.adminReviewReason ?? 'Link not found on page'}
-          </p>
-        )}
+          {submission.status === 'verified' && submission.rewardPoints != null && (
+            <div className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100/80 px-2.5 py-1 text-xs font-medium text-emerald-800">
+              <CheckCircle2 className="h-3 w-3" />
+              +{submission.rewardPoints} points earned
+            </div>
+          )}
 
-        {submission.status === 'rejected' && cooldown && (
-          <p className="text-xs text-slate-500">
-            Resubmit available in {cooldown}
-          </p>
-        )}
+          {inFlight && (
+            <div className="space-y-2">
+              <p className="text-xs leading-relaxed text-amber-800">
+                Crawling your page — usually completes in under a minute
+              </p>
+              <div className="h-1 overflow-hidden rounded-full bg-amber-100">
+                <div className="h-full w-full origin-left animate-pulse rounded-full bg-gradient-to-r from-amber-300 via-amber-500 to-amber-300" />
+              </div>
+            </div>
+          )}
 
-        {submission.status === 'revoked' && (
-          <p className="text-xs text-slate-500">
-            Revoked {submission.revokedAt ? new Date(submission.revokedAt).toLocaleDateString() : ''}
-          </p>
-        )}
+          {submission.status === 'revoked' && (
+            <p className="text-xs text-slate-600">
+              This link was revoked
+              {submission.revokedAt
+                ? ` on ${new Date(submission.revokedAt).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}`
+                : ''}
+              .
+            </p>
+          )}
 
-        {isInFlight(submission.status) && (
-          <p className="text-xs text-amber-600">
-            Crawling your page — this usually takes under a minute
-          </p>
+        </div>
+
+        {canResubmit && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 self-start border-slate-200 bg-white text-xs shadow-sm hover:bg-slate-50"
+            disabled={submitting}
+            onClick={() => onResubmit(submission.submittedUrl)}
+          >
+            <RefreshCw className="mr-1.5 h-3 w-3" />
+            Resubmit
+          </Button>
         )}
       </div>
-
-      {canResubmit && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 text-xs"
-          disabled={submitting}
-          onClick={() => onResubmit(submission.submittedUrl)}
-        >
-          <RefreshCw className="mr-1 h-3 w-3" />
-          Resubmit
-        </Button>
-      )}
     </div>
   );
 }
@@ -255,8 +439,11 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
   const [refreshError, setRefreshError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [urlInput, setUrlInput] = useState('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [cooldownExpiresAt, setCooldownExpiresAt] = useState<Date | null>(null);
+
+  const clearCooldown = useCallback(() => setCooldownExpiresAt(null), []);
+  const isOnCooldown =
+    cooldownExpiresAt != null && cooldownExpiresAt.getTime() > Date.now();
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailureCountRef = useRef(0);
@@ -288,6 +475,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (shouldRefreshPointsBalance(previous, data)) {
           onPointsBalanceChange?.();
         }
+        notifyNewRejections(previous, data);
         statsRef.current = data;
         setStats(data);
         return data;
@@ -361,16 +549,15 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
   const handleSubmit = async (url?: string) => {
     const targetUrl = (url ?? urlInput).trim();
     if (!targetUrl) {
-      setSubmitError('Please enter a URL');
+      toast.error('Please enter a URL');
       return;
     }
     if (!isSafeHttpUrl(targetUrl)) {
-      setSubmitError('Please enter a valid http(s) URL');
+      toast.error('Please enter a valid http(s) URL');
       return;
     }
 
     setSubmitting(true);
-    setSubmitError(null);
     setCooldownExpiresAt(null);
 
     try {
@@ -387,7 +574,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (res.status === 429 && json.cooldownExpiresAt) {
           setCooldownExpiresAt(new Date(json.cooldownExpiresAt));
         }
-        setSubmitError(json.msg ?? 'Submission failed');
+        toast.error(formatIsoDatesInMessage(json.msg ?? 'Submission failed'));
         return;
       }
 
@@ -395,7 +582,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
       toast.success('Submission received! We\'ll verify your link shortly.');
       await fetchStats();
     } catch {
-      setSubmitError('Network error — please try again');
+      toast.error('Network error — please try again');
     } finally {
       setSubmitting(false);
     }
@@ -489,6 +676,22 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
             Backlink Rewards
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
+                    aria-label="Backlink verification info"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  {BACKLINK_VERIFICATION_TIP}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {hasPending && (
               <Badge variant="secondary" className="ml-1 gap-1 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -523,7 +726,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           </div>
         )}
         {/* Submit form */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           <label htmlFor="backlink-url-input" className="text-xs font-medium text-slate-700">
             Submit a page URL where you&apos;ve linked to Fixera
           </label>
@@ -532,20 +735,17 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
               id="backlink-url-input"
               placeholder="https://yourblog.com/my-post"
               value={urlInput}
-              onChange={(e) => {
-                setUrlInput(e.target.value);
-                setSubmitError(null);
-              }}
+              onChange={(e) => setUrlInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSubmit();
               }}
-              disabled={submitting}
+              disabled={submitting || isOnCooldown}
               className="text-sm"
             />
             <Button
               id="backlink-submit-btn"
               onClick={() => void handleSubmit()}
-              disabled={submitting || !urlInput.trim()}
+              disabled={submitting || !urlInput.trim() || isOnCooldown}
               size="sm"
               className="shrink-0"
             >
@@ -560,22 +760,11 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
             </Button>
           </div>
 
-          {submitError && (
-            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-              <div>
-                <p>{submitError}</p>
-                {cooldownExpiresAt && (
-                  <p className="mt-0.5 text-red-500">
-                    Resubmit available after{' '}
-                    {cooldownExpiresAt.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
+          {isOnCooldown && cooldownExpiresAt && (
+            <ResubmitCooldownHint
+              expiresAt={cooldownExpiresAt}
+              onExpired={clearCooldown}
+            />
           )}
         </div>
 
@@ -599,7 +788,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Your submissions
             </p>
-            <div className="max-h-72 space-y-2 overflow-y-auto">
+            <div className="max-h-72 space-y-2.5 overflow-y-auto pr-0.5">
               {submissions.map((s) => (
                 <SubmissionRow
                   key={s._id}
@@ -623,9 +812,6 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           </div>
         )}
 
-        <p className="text-xs text-slate-400">
-          Tip: your page must contain a visible link to fixera.com. Verification runs automatically and usually completes in under a minute.
-        </p>
       </CardContent>
     </Card>
   );
