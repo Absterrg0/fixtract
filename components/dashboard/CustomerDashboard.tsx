@@ -807,20 +807,20 @@ export default function CustomerDashboard() {
                 <CardDescription>Open the pages you use most without cluttering the main dashboard.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                  <Button onClick={() => router.push("/")} className="flex items-center gap-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Button onClick={() => router.push("/")} className="flex w-full items-center justify-center gap-2">
                     <Plus className="h-4 w-4" />
                     Book Another Project
                   </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex w-full items-center justify-center gap-2">
                     <CreditCard className="h-4 w-4" />
                     Benefits Program
                   </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/favorites")} className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => router.push("/dashboard/favorites")} className="flex w-full items-center justify-center gap-2">
                     <Heart className="h-4 w-4" />
                     Favorites
                   </Button>
-                  <Button variant="outline" onClick={() => router.push("/profile")} className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => router.push("/profile")} className="flex w-full items-center justify-center gap-2">
                     <Briefcase className="h-4 w-4" />
                     Profile
                   </Button>
