@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +25,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getAuthToken } from '@/lib/utils';
+import { RejectionTooltipBody } from '@/lib/backlink-rejection';
 
 // ------------------------------------------------------------------
 // Types
@@ -118,7 +118,7 @@ function normalizeAllowedDomain(input: string): string | null {
   }
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, tooltip }: { status: string; tooltip?: string }) {
   const config: Record<string, { className: string; icon: LucideIcon }> = {
     pending_verification: { className: 'bg-amber-50 text-amber-800 ring-amber-200/60', icon: Clock },
     verifying: { className: 'bg-amber-50 text-amber-800 ring-amber-200/60', icon: Loader2 },
@@ -128,11 +128,34 @@ function StatusBadge({ status }: { status: string }) {
   };
   const { className, icon: Icon } = config[status] ?? { className: 'bg-muted text-muted-foreground ring-border', icon: AlertTriangle };
   const spinning = status === 'verifying';
-  return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset', className)}>
+  const badge = (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+        className,
+        tooltip && 'cursor-help underline decoration-red-300/60 decoration-dotted underline-offset-2',
+      )}
+    >
       <Icon className={cn('h-3 w-3', spinning && 'animate-spin')} />
       {STATUS_LABELS[status] ?? status}
     </span>
+  );
+
+  if (!tooltip?.trim()) return badge;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{badge}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={6}
+          className="max-w-xs border border-red-100 bg-white px-3 py-2.5 text-foreground shadow-lg [&>svg:last-child]:hidden"
+        >
+          <RejectionTooltipBody reason={tooltip.trim()} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -143,64 +166,6 @@ const ROW_THEMES: Record<SubmissionStatus, string> = {
   rejected: 'border-l-red-400',
   revoked: 'border-l-slate-300',
 };
-
-function summarizeRejectionReason(reason: string): {
-  summary: string;
-  expandable: boolean;
-  full: string;
-} {
-  const full = reason.trim();
-  const noLinkMatch = full.match(/^No link to (.+) was found on the page$/i);
-  if (noLinkMatch) {
-    const domains = noLinkMatch[1].split(/\s+or\s+/i).map((d) => d.trim()).filter(Boolean);
-    if (domains.length > 1) {
-      return { summary: 'No Fixera link was found on this page', expandable: true, full };
-    }
-  }
-  if (full.length > 100) {
-    return { summary: `${full.slice(0, 97)}…`, expandable: true, full };
-  }
-  return { summary: full, expandable: false, full };
-}
-
-function RejectionReason({ reason }: { reason: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const { summary, expandable, full } = summarizeRejectionReason(reason);
-
-  return (
-    <div className="rounded-md border border-red-100 bg-red-50/60 px-2.5 py-1.5 text-xs text-red-800">
-      <div className="flex items-start gap-1.5">
-        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-        <div className="min-w-0 flex-1">
-          {expandable && !expanded ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p className="cursor-default">{summary}</p>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-sm text-left">
-                  {full}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <p className="break-words">{expanded ? full : summary}</p>
-          )}
-          {expandable && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-0.5 inline-flex items-center gap-0.5 font-medium text-red-600 hover:text-red-800"
-            >
-              {expanded ? 'Hide details' : 'Show details'}
-              <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function formatSubmissionDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -231,7 +196,7 @@ function AdminSubmissionRow({
 
   return (
     <div className={cn('border-l-[3px] px-4 py-4 sm:px-6', ROW_THEMES[sub.status])}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {isSafeHttpUrl(sub.submittedUrl) ? (
@@ -251,8 +216,10 @@ function AdminSubmissionRow({
                 <span className="truncate">{sub.domain}</span>
               </span>
             )}
-            <StatusBadge status={sub.status} />
-            <span className="text-xs text-muted-foreground sm:ml-auto">{formatSubmissionDate(sub.createdAt)}</span>
+            <StatusBadge
+              status={sub.status}
+              tooltip={sub.status === 'rejected' ? sub.rejectionReason : undefined}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -274,8 +241,6 @@ function AdminSubmissionRow({
             <p className="text-xs text-amber-700">Crawling page — actions available when crawl completes</p>
           )}
 
-          {sub.rejectionReason && <RejectionReason reason={sub.rejectionReason} />}
-
           {sub.unclawedPoints != null && sub.unclawedPoints > 0 && (
             <p className="inline-flex items-center gap-1 text-xs text-amber-700">
               <AlertTriangle className="h-3 w-3" />
@@ -291,8 +256,12 @@ function AdminSubmissionRow({
           )}
         </div>
 
-        {hasActions && !inFlight && (
-          <div className="flex shrink-0 items-center gap-1 sm:flex-col sm:items-end lg:flex-row">
+        <div className="flex shrink-0 items-center gap-3 self-end sm:self-auto">
+          <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+            {formatSubmissionDate(sub.createdAt)}
+          </span>
+          {hasActions && !inFlight && (
+          <div className="flex items-center gap-1">
             {showApprove && (
               <Button
                 size="sm"
@@ -342,7 +311,8 @@ function AdminSubmissionRow({
               </Button>
             )}
           </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -376,10 +346,42 @@ function MetricCard({
 }
 
 const STATUS_BREAKDOWN = [
-  { key: 'pending' as const, label: 'Pending', dot: 'bg-amber-500', bar: 'bg-amber-500' },
-  { key: 'verified' as const, label: 'Verified', dot: 'bg-emerald-500', bar: 'bg-emerald-500' },
-  { key: 'rejected' as const, label: 'Rejected', dot: 'bg-red-500', bar: 'bg-red-500' },
-  { key: 'revoked' as const, label: 'Revoked', dot: 'bg-slate-400', bar: 'bg-slate-400' },
+  {
+    key: 'pending' as const,
+    label: 'Pending',
+    dot: 'bg-amber-500',
+    bar: 'bg-amber-500',
+    surface: 'bg-amber-50/60 border-amber-100/80',
+    text: 'text-amber-900',
+    muted: 'text-amber-700/80',
+  },
+  {
+    key: 'verified' as const,
+    label: 'Verified',
+    dot: 'bg-emerald-500',
+    bar: 'bg-emerald-500',
+    surface: 'bg-emerald-50/60 border-emerald-100/80',
+    text: 'text-emerald-900',
+    muted: 'text-emerald-700/80',
+  },
+  {
+    key: 'rejected' as const,
+    label: 'Rejected',
+    dot: 'bg-red-500',
+    bar: 'bg-red-500',
+    surface: 'bg-red-50/60 border-red-100/80',
+    text: 'text-red-900',
+    muted: 'text-red-700/80',
+  },
+  {
+    key: 'revoked' as const,
+    label: 'Revoked',
+    dot: 'bg-slate-400',
+    bar: 'bg-slate-400',
+    surface: 'bg-slate-50/80 border-slate-200/80',
+    text: 'text-slate-900',
+    muted: 'text-slate-600/80',
+  },
 ] as const;
 
 function AllowedDomainsCombobox({
@@ -537,18 +539,31 @@ function AllowedDomainsCombobox({
                 filteredDomains.map((domain) => {
                   const checked = value.includes(domain);
                   return (
-                    <button
+                    <div
                       key={domain}
-                      type="button"
                       role="option"
                       aria-selected={checked}
+                      tabIndex={0}
                       onClick={() => toggleDomain(domain)}
-                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleDomain(domain);
+                        }
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
                     >
-                      <Checkbox checked={checked} className="pointer-events-none" tabIndex={-1} />
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs',
+                          checked && 'border-primary bg-primary text-primary-foreground',
+                        )}
+                      >
+                        {checked && <Check className="size-3.5" />}
+                      </span>
                       <span className="min-w-0 flex-1 truncate">{domain}</span>
-                      {checked && <Check className="h-4 w-4 shrink-0 text-indigo-600" aria-hidden />}
-                    </button>
+                    </div>
                   );
                 })
               ) : !canCreate && !showInvalidHint ? (
@@ -577,11 +592,6 @@ function AllowedDomainsCombobox({
           </div>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {value.length === 0
-          ? 'No domains configured — only FRONTEND_URL will be matched at runtime.'
-          : `${value.length} domain${value.length === 1 ? '' : 's'} must be linked from submitted pages.`}
-      </p>
     </div>
   );
 }
@@ -598,40 +608,112 @@ function StatusBreakdown({ analytics }: { analytics: BacklinkAnalytics }) {
 
   return (
     <Card>
-      <CardHeader className="border-b">
-        <CardTitle>Status Breakdown</CardTitle>
-        <CardDescription>Share of submissions by current status</CardDescription>
+      <CardHeader className="border-b pb-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <CardTitle>Status Breakdown</CardTitle>
+            <CardDescription>Share of submissions by current status</CardDescription>
+          </div>
+          <p className="text-sm tabular-nums text-muted-foreground">
+            <span className="font-semibold text-foreground">{statusTotal.toLocaleString()}</span> total
+          </p>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-6 pt-6">
-        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+      <CardContent className="space-y-5 pt-6">
+        <div className="space-y-3">
+          <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/80 shadow-inner">
+            {statusTotal > 0 ? (
+              STATUS_BREAKDOWN.map((s) => {
+                const count = counts[s.key];
+                if (count === 0) return null;
+                return (
+                  <div
+                    key={s.key}
+                    className={cn(s.bar, 'relative min-w-0 transition-all first:rounded-l-full last:rounded-r-full')}
+                    style={{ width: `${pct(count)}%` }}
+                    title={`${s.label}: ${count} (${pct(count)}%)`}
+                  />
+                );
+              })
+            ) : (
+              <div className="h-full w-full rounded-full bg-muted" />
+            )}
+          </div>
+
+          {statusTotal > 0 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {STATUS_BREAKDOWN.map((s) => {
+                const count = counts[s.key];
+                if (count === 0) return null;
+                return (
+                  <div key={s.key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className={cn('h-2 w-2 rounded-full', s.dot)} aria-hidden />
+                    <span>{s.label}</span>
+                    <span className="font-medium tabular-nums text-foreground">{pct(count)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {STATUS_BREAKDOWN.map((s) => {
             const count = counts[s.key];
-            if (count === 0) return null;
+            const share = pct(count);
+            const isEmpty = count === 0;
+
             return (
               <div
                 key={s.key}
-                className={`${s.bar} transition-all`}
-                style={{ width: `${pct(count)}%` }}
-                title={`${s.label}: ${count}`}
-              />
+                className={cn(
+                  'flex overflow-hidden rounded-xl border',
+                  isEmpty ? 'border-border/60 bg-muted/20' : s.surface,
+                )}
+              >
+                <div
+                  className={cn('w-1 shrink-0', isEmpty ? 'bg-muted-foreground/20' : s.bar)}
+                  aria-hidden
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={cn('h-2 w-2 shrink-0 rounded-full', isEmpty ? 'bg-muted-foreground/30' : s.dot)}
+                        aria-hidden
+                      />
+                      <span className={cn('truncate text-sm font-medium', isEmpty ? 'text-muted-foreground' : s.text)}>
+                        {s.label}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        'shrink-0 text-xs font-medium tabular-nums',
+                        isEmpty ? 'text-muted-foreground' : s.muted,
+                      )}
+                    >
+                      {share}%
+                    </span>
+                  </div>
+
+                  <p
+                    className={cn(
+                      'text-3xl font-semibold tracking-tight tabular-nums',
+                      isEmpty ? 'text-muted-foreground/50' : s.text,
+                    )}
+                  >
+                    {count.toLocaleString()}
+                  </p>
+
+                  {!isEmpty && statusTotal > 0 && (
+                    <p className={cn('text-xs tabular-nums', s.muted)}>
+                      {count.toLocaleString()} of {statusTotal.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
             );
           })}
-          {statusTotal === 0 && <div className="h-full w-full bg-muted" />}
-        </div>
-
-        <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
-          {STATUS_BREAKDOWN.map((s) => (
-            <div key={s.key} className="flex items-center justify-between bg-card px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${s.dot}`} aria-hidden />
-                <span className="text-sm text-muted-foreground">{s.label}</span>
-              </div>
-              <div className="flex items-baseline gap-2 tabular-nums">
-                <span className="text-lg font-semibold">{counts[s.key].toLocaleString()}</span>
-                <span className="text-xs text-muted-foreground">{pct(counts[s.key])}%</span>
-              </div>
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>

@@ -25,7 +25,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAuthToken } from '@/lib/utils';
+import { cn, getAuthToken } from '@/lib/utils';
+import {
+  formatIsoDatesInMessage,
+  RejectionTooltipBody,
+  summarizeRejectionReason,
+} from '@/lib/backlink-rejection';
 
 // ------------------------------------------------------------------
 // Types
@@ -80,8 +85,29 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 const POLL_INTERVAL_MS = 8_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 
-const BACKLINK_VERIFICATION_TIP =
-  'Your page must contain a visible link to fixera.com. Verification runs automatically and usually completes in under a minute.';
+function BacklinkVerificationTooltip() {
+  return (
+    <div className="space-y-2.5">
+      <p className="text-xs font-semibold text-slate-900">How verification works</p>
+      <ul className="space-y-2">
+        <li className="flex gap-2">
+          <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />
+          <span className="text-[11px] leading-snug text-muted-foreground">
+            Your page must include a{' '}
+            <span className="font-medium text-foreground">visible link to fixera.com</span>
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />
+          <span className="text-[11px] leading-snug text-muted-foreground">
+            Verification runs automatically — usually done in{' '}
+            <span className="font-medium text-foreground">under a minute</span>
+          </span>
+        </li>
+      </ul>
+    </div>
+  );
+}
 
 function isSafeHttpUrl(url: string): boolean {
   try {
@@ -165,29 +191,6 @@ function notifyNewRejections(
   }
 }
 
-function summarizeRejectionReason(reason: string): {
-  summary: string;
-  expandable: boolean;
-  full: string;
-} {
-  const full = reason.trim();
-  const noLinkMatch = full.match(/^No link to (.+) was found on the page$/i);
-  if (noLinkMatch) {
-    const domains = noLinkMatch[1].split(/\s+or\s+/i).map((d) => d.trim()).filter(Boolean);
-    if (domains.length > 1) {
-      return {
-        summary: 'No Fixera link was found on this page',
-        expandable: true,
-        full,
-      };
-    }
-  }
-  if (full.length > 100) {
-    return { summary: `${full.slice(0, 97)}…`, expandable: true, full };
-  }
-  return { summary: full, expandable: false, full };
-}
-
 function cooldownRemaining(lastRejectedAt: string, cooldownHours: number): string | null {
   const expiresAt = new Date(lastRejectedAt).getTime() + cooldownHours * 60 * 60 * 1000;
   const remaining = expiresAt - Date.now();
@@ -205,19 +208,6 @@ function formatRemainingMs(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
-}
-
-function formatIsoDatesInMessage(message: string): string {
-  return message.replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z?/g, (iso) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  });
 }
 
 // ------------------------------------------------------------------
@@ -264,17 +254,38 @@ function ResubmitCooldownHint({
   );
 }
 
-function StatusBadge({ status }: { status: BacklinkStatus }) {
+function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: string }) {
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
   const inFlight = isInFlight(status);
-  return (
+  const badge = (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${cfg.badgeClassName}`}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset',
+        cfg.badgeClassName,
+        tooltip && 'cursor-help underline decoration-red-300/60 decoration-dotted underline-offset-2',
+      )}
     >
-      <Icon className={`h-3 w-3 ${inFlight ? 'animate-spin' : ''}`} />
+      <Icon className={cn('h-3 w-3', inFlight && 'animate-spin')} />
       {cfg.label}
     </span>
+  );
+
+  if (!tooltip?.trim()) return badge;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{badge}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={6}
+          className="max-w-xs border border-red-100 bg-white px-3 py-2.5 text-foreground shadow-lg [&>svg:last-child]:hidden"
+        >
+          <RejectionTooltipBody reason={tooltip.trim()} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -326,11 +337,18 @@ function SubmissionRow({
 
   const canResubmit = submission.status === 'rejected' && cooldown === null && !submitting;
 
+  const hasExtraContent = inFlight || submission.status === 'revoked';
+
   return (
     <div
-      className={`overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md ${theme.rowClassName}`}
+      className={`overflow-hidden rounded-xl border shadow-sm ${theme.rowClassName}`}
     >
-      <div className="flex gap-3 p-3.5 sm:gap-4 sm:p-4">
+      <div
+        className={cn(
+          'flex gap-3 p-3.5 sm:gap-4 sm:p-4',
+          hasExtraContent ? 'items-start' : 'items-center',
+        )}
+      >
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${theme.iconClassName}`}
         >
@@ -342,10 +360,22 @@ function SubmissionRow({
         </div>
 
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
             <DomainLink submission={submission} />
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={submission.status} />
+              <StatusBadge
+                status={submission.status}
+                tooltip={
+                  submission.status === 'rejected'
+                    ? (submission.rejectionReason ?? submission.adminReviewReason)
+                    : undefined
+                }
+              />
+              {submission.status === 'verified' && submission.rewardPoints != null && (
+                <span className="text-[11px] font-semibold tabular-nums text-emerald-700">
+                  +{submission.rewardPoints}
+                </span>
+              )}
               {submission.status === 'rejected' && cooldown && (
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                   <Timer className="h-3 w-3" />
@@ -355,22 +385,10 @@ function SubmissionRow({
             </div>
           </div>
 
-          {submission.status === 'verified' && submission.rewardPoints != null && (
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100/80 px-2.5 py-1 text-xs font-medium text-emerald-800">
-              <CheckCircle2 className="h-3 w-3" />
-              +{submission.rewardPoints} points earned
-            </div>
-          )}
-
           {inFlight && (
-            <div className="space-y-2">
-              <p className="text-xs leading-relaxed text-amber-800">
-                Crawling your page — usually completes in under a minute
-              </p>
-              <div className="h-1 overflow-hidden rounded-full bg-amber-100">
-                <div className="h-full w-full origin-left animate-pulse rounded-full bg-gradient-to-r from-amber-300 via-amber-500 to-amber-300" />
-              </div>
-            </div>
+            <p className="text-xs leading-relaxed text-amber-800">
+              Crawling your page — usually completes in under a minute
+            </p>
           )}
 
           {submission.status === 'revoked' && (
@@ -393,7 +411,7 @@ function SubmissionRow({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 shrink-0 self-start border-slate-200 bg-white text-xs shadow-sm hover:bg-slate-50"
+            className="h-8 shrink-0 border-slate-200 bg-white text-xs shadow-sm hover:bg-slate-50"
             disabled={submitting}
             onClick={() => onResubmit(submission.submittedUrl)}
           >
@@ -676,7 +694,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
             Backlink Rewards
-            <TooltipProvider>
+            <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -687,8 +705,12 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
                     <Info className="h-3.5 w-3.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  {BACKLINK_VERIFICATION_TIP}
+                <TooltipContent
+                  side="top"
+                  sideOffset={6}
+                  className="max-w-xs border border-indigo-100 bg-white px-3 py-2.5 text-foreground shadow-lg [&>svg:last-child]:hidden"
+                >
+                  <BacklinkVerificationTooltip />
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -730,7 +752,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           <label htmlFor="backlink-url-input" className="text-xs font-medium text-slate-700">
             Submit a page URL where you&apos;ve linked to Fixera
           </label>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Input
               id="backlink-url-input"
               placeholder="https://yourblog.com/my-post"
@@ -746,8 +768,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
               id="backlink-submit-btn"
               onClick={() => void handleSubmit()}
               disabled={submitting || !urlInput.trim() || isOnCooldown}
-              size="sm"
-              className="shrink-0"
+              className="h-9 shrink-0 px-4"
             >
               {submitting ? (
                 <>
@@ -767,20 +788,6 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
             />
           )}
         </div>
-
-        {/* Stats row */}
-        {stats && stats.verifiedCount > 0 && (
-          <div className="flex gap-4 rounded-lg border bg-emerald-50/50 px-4 py-3 text-sm">
-            <div>
-              <p className="text-xs text-slate-500">Verified links</p>
-              <p className="font-semibold text-slate-900">{stats.verifiedCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Total earned</p>
-              <p className="font-semibold text-emerald-600">{stats.totalPointsEarned} pts</p>
-            </div>
-          </div>
-        )}
 
         {/* Submission history */}
         {submissions.length > 0 && (
