@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2, Plus, Trash2, Package, Clock, Shield, FileText, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
-import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationWizardFormData } from '@/types/quotation'
+import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
+import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
 
 interface QuotationWizardProps {
   bookingId: string
@@ -22,7 +23,21 @@ interface QuotationWizardProps {
   onCancel: () => void
 }
 
+interface VatRateOption {
+  rate: number
+  country: string
+  label: string
+  reverseCharge: boolean
+  source: 'standard' | 'reduced' | 'b2b_exempt'
+}
+
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
+const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE'): QuotationPricingLine => ({
+  description: '',
+  price: 0,
+  vatRate,
+  vatCountry,
+})
 const EMPTY_MILESTONE: QuotationMilestone = {
   title: '',
   amount: 0,
@@ -42,6 +57,15 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
   'on_milestone_completion',
   'custom_date',
 ] as const satisfies ReadonlyArray<QuotationMilestone['dueCondition']>
+
+const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [0, 5, 5.5, 6, 8.1, 9, 9.5, 10, 12, 13.5, 19, 20, 21, 22, 23, 24, 25, 25.5, 27]
+  .map(rate => ({
+    rate,
+    country: 'BE',
+    label: `${rate}% VAT`,
+    reverseCharge: rate === 0,
+    source: rate === 0 ? 'b2b_exempt' : 'standard',
+  }))
 
 const coerceNonFirstDueCondition = (
   value: unknown
@@ -93,6 +117,9 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
       materialsIncluded: existing.materialsIncluded,
       materials: existing.materials?.length ? [...existing.materials] : [{ ...EMPTY_MATERIAL }],
       description: existing.description,
+      pricingLines: existing.pricingLines?.length
+        ? existing.pricingLines.map(line => ({ ...line }))
+        : [{ description: existing.description || existing.scope, price: existing.totalAmount, vatRate: 21, vatCountry: 'BE' }],
       totalAmount: existing.totalAmount,
       currency: existing.currency || 'EUR',
       useMilestones: (existing.milestones?.length || 0) > 0,
@@ -132,6 +159,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
     materialsIncluded: null,
     materials: [{ ...EMPTY_MATERIAL }],
     description: '',
+    pricingLines: [createEmptyPricingLine()],
     totalAmount: 0,
     currency: 'EUR',
     useMilestones: false,
@@ -148,6 +176,63 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
+  const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
+
+  const effectiveVatRateOptions = useMemo(
+    () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
+    [vatRateOptions],
+  )
+
+  const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadVatRateOptions = async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token) headers.Authorization = `Bearer ${token}`
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/vat-rates`,
+          {
+            method: 'GET',
+            headers,
+            credentials: 'include',
+          },
+        )
+        const data = await response.json()
+        if (!response.ok || !data?.success || !Array.isArray(data.data?.options)) {
+          return
+        }
+
+        if (!cancelled) {
+          setVatRateOptions(data.data.options)
+          const firstOption = data.data.options[0] as VatRateOption | undefined
+          if (!existingVersion && firstOption) {
+            setForm(prev => ({
+              ...prev,
+              pricingLines: prev.pricingLines.map(line => ({
+                ...line,
+                vatRate: firstOption.rate,
+                vatCountry: firstOption.country,
+                vatLabel: firstOption.label,
+              })),
+            }))
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load quotation VAT options:', error)
+      }
+    }
+
+    void loadVatRateOptions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [bookingId, existingVersion])
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -160,6 +245,35 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     const updated = [...form.materials]
     updated[index] = { ...updated[index], [field]: value }
     updateForm('materials', updated)
+  }
+
+  const pricingTotal = Math.round(form.pricingLines.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100
+  const pricingVatTotals = useMemo(
+    () => calculateVatTotalsFromPricingLines(form.pricingLines),
+    [form.pricingLines]
+  )
+
+  const addPricingLine = () => updateForm('pricingLines', [
+    ...form.pricingLines,
+    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country),
+  ])
+  const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
+  const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
+    const updated = [...form.pricingLines]
+    updated[index] = { ...updated[index], [field]: value }
+    updateForm('pricingLines', updated)
+    updateForm('totalAmount', Math.round(updated.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100)
+  }
+
+  const updatePricingLineVat = (index: number, option: VatRateOption) => {
+    const updated = [...form.pricingLines]
+    updated[index] = {
+      ...updated[index],
+      vatRate: option.rate,
+      vatCountry: option.country,
+      vatLabel: option.label,
+    }
+    updateForm('pricingLines', updated)
   }
 
   // Milestones helpers
@@ -182,7 +296,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const milestoneSum = form.milestones.reduce((sum, m) => sum + (m.amount || 0), 0)
-  const milestoneSumMatches = !form.useMilestones || Math.abs(milestoneSum - form.totalAmount) < 0.01
+  const milestoneSumMatches = !form.useMilestones || Math.abs(milestoneSum - pricingTotal) < 0.01
 
   const handleSubmit = async () => {
     // Validation
@@ -198,7 +312,16 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error('Please specify whether materials are included')
       return
     }
-    if (!form.totalAmount || form.totalAmount <= 0) {
+    const validPricingLines = form.pricingLines.filter(line => line.description.trim())
+    if (validPricingLines.length === 0) {
+      toast.error('Add at least one pricing line')
+      return
+    }
+    if (validPricingLines.some(line => !line.price || line.price <= 0)) {
+      toast.error('Each pricing line needs a price greater than 0')
+      return
+    }
+    if (!pricingTotal || pricingTotal <= 0) {
       toast.error('Total amount must be greater than 0')
       return
     }
@@ -209,7 +332,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     if (form.useMilestones) {
       const validMilestones = form.milestones.filter(m => m.title.trim())
       const validSum = validMilestones.reduce((sum, m) => sum + (m.amount || 0), 0)
-      if (Math.abs(validSum - form.totalAmount) >= 0.01) {
+      if (Math.abs(validSum - pricingTotal) >= 0.01) {
         toast.error('Sum of milestone amounts must equal the total amount')
         return
       }
@@ -241,7 +364,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         materialsIncluded: form.materialsIncluded,
         materials: form.materialsIncluded ? form.materials.filter(m => m.name.trim()) : [],
         description: form.description,
-        totalAmount: form.totalAmount,
+        pricingLines: validPricingLines,
+        totalAmount: pricingTotal,
         currency: form.currency,
         milestones: form.useMilestones ? form.milestones.filter(m => m.title.trim()) : [],
         preparationDuration: form.preparationDuration,
@@ -400,21 +524,70 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Price */}
         <div>
           <Label className="text-sm font-medium flex items-center gap-1">
-            <CreditCard className="h-4 w-4" /> Total Amount (EUR) *
+            <CreditCard className="h-4 w-4" /> Pricing Lines *
           </Label>
-          <Input
-            type="number"
-            min={0}
-            step={0.01}
-            value={form.totalAmount || ''}
-            onChange={e => updateForm('totalAmount', parseFloat(e.target.value) || 0)}
-            placeholder="1500.00"
-            className="mt-1"
-          />
+          <div className="mt-2 space-y-3">
+            {form.pricingLines.map((line, index) => (
+              <div key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_40px] gap-2 items-start">
+                <Input
+                  value={line.description}
+                  onChange={e => updatePricingLine(index, 'description', e.target.value)}
+                  placeholder="Description"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={line.price || ''}
+                  onChange={e => updatePricingLine(index, 'price', parseFloat(e.target.value) || 0)}
+                  placeholder="1500.00"
+                />
+                <Select
+                  value={`${line.vatCountry || defaultVatOption.country}:${line.vatRate}`}
+                  onValueChange={v => {
+                    const option = effectiveVatRateOptions.find(candidate => `${candidate.country}:${candidate.rate}` === v)
+                    if (option) updatePricingLineVat(index, option)
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {effectiveVatRateOptions.map(option => (
+                      <SelectItem
+                        key={`${option.country}:${option.rate}:${option.source}`}
+                        value={`${option.country}:${option.rate}`}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="ghost" size="icon" onClick={() => removePricingLine(index)} disabled={form.pricingLines.length === 1} className="text-red-500 hover:text-red-700">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={addPricingLine}>
+              <Plus className="h-4 w-4 mr-1" /> Add Pricing Line
+            </Button>
+          </div>
 
-          {form.totalAmount > 0 && typeof commissionPercent === 'number' && commissionPercent > 0 && (
+          <div className="mt-2 space-y-1">
+            <p className="text-sm text-gray-600">
+              Net total: <span className="font-medium text-gray-800">EUR {pricingTotal.toFixed(2)}</span>
+            </p>
+            <p className="text-sm text-gray-600">
+              VAT: <span className="font-medium text-gray-800">EUR {pricingVatTotals.vatAmount.toFixed(2)}</span>
+            </p>
+            <p className="text-sm font-medium text-gray-700">
+              Total (incl. VAT): <span className="font-semibold text-gray-900">EUR {pricingVatTotals.total.toFixed(2)}</span>
+            </p>
+          </div>
+
+          {pricingVatTotals.total > 0 && typeof commissionPercent === 'number' && commissionPercent > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Price shown to customer: <span className="font-semibold text-gray-700">EUR {(form.totalAmount * (1 + commissionPercent / 100)).toFixed(2)}</span>
+              Price shown to customer: <span className="font-semibold text-gray-700">EUR {(pricingVatTotals.total * (1 + commissionPercent / 100)).toFixed(2)}</span>
               <span className="text-gray-400 ml-1">({commissionPercent}% commission included)</span>
             </p>
           )}
@@ -495,7 +668,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 <Plus className="h-4 w-4 mr-1" /> Add Milestone
               </Button>
               <div className={`text-xs font-medium ${milestoneSumMatches ? 'text-green-600' : 'text-red-600'}`}>
-                Milestone total: EUR {milestoneSum.toFixed(2)} / {form.totalAmount.toFixed(2)}
+                Milestone total: EUR {milestoneSum.toFixed(2)} / {pricingTotal.toFixed(2)}
                 {!milestoneSumMatches && ' (must match)'}
               </div>
             </div>
