@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Loader2, RefreshCw, Search, ShieldCheck, CalendarClock, ArrowRightLeft, Undo2 } from "lucide-react"
+import { Loader2, RefreshCw, Search, ShieldCheck, CalendarClock, ArrowRightLeft, Undo2, FileText, FileMinus } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -54,6 +54,12 @@ interface PaymentRecord {
   authorizedAt?: string
   capturedAt?: string
   transferredAt?: string
+  invoiceNumber?: string
+  invoiceUrl?: string
+  invoiceUblUrl?: string
+  creditNoteNumber?: string
+  creditNoteUrl?: string
+  peppolDispatchStatus?: string
   refunds?: Array<{
     amount: number
     reason?: string
@@ -210,6 +216,55 @@ export default function AdminPaymentsPage() {
     }
   }
 
+  // ─── Invoice / Credit Note ──────────────────────────────────────────────
+
+  const [invoiceActionPaymentIds, setInvoiceActionPaymentIds] = useState<Set<string>>(() => new Set())
+
+  const startInvoiceAction = (paymentId: string) => {
+    setInvoiceActionPaymentIds((current) => new Set(current).add(paymentId))
+  }
+
+  const finishInvoiceAction = (paymentId: string) => {
+    setInvoiceActionPaymentIds((current) => {
+      const next = new Set(current)
+      next.delete(paymentId)
+      return next
+    })
+  }
+
+  const runInvoiceArtifactAction = async (
+    payment: PaymentRecord,
+    action: "invoice" | "credit-note",
+    successLabel: string,
+    failureLabel: string
+  ) => {
+    startInvoiceAction(payment._id)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/payments/${payment._id}/${action}`,
+        { method: "POST", credentials: "include" }
+      )
+      const payload = await response.json()
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.msg || failureLabel)
+      }
+      const artifactNumber =
+        action === "invoice" ? payload.data?.invoiceNumber : payload.data?.creditNoteNumber
+      toast.success(`${successLabel} ${artifactNumber || ""}`.trim())
+      fetchPayments()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : failureLabel)
+    } finally {
+      finishInvoiceAction(payment._id)
+    }
+  }
+
+  const handleGenerateInvoice = (payment: PaymentRecord) =>
+    runInvoiceArtifactAction(payment, "invoice", "Invoice", "Failed to generate invoice")
+
+  const handleGenerateCreditNote = (payment: PaymentRecord) =>
+    runInvoiceArtifactAction(payment, "credit-note", "Credit note", "Failed to generate credit note")
+
   // ─── Refund ─────────────────────────────────────────────────────────────
 
   const openRefundDialog = (payment: PaymentRecord) => {
@@ -276,6 +331,12 @@ export default function AdminPaymentsPage() {
 
   const canCapture = (p: PaymentRecord) => p.status === "authorized"
   const canRefund = (p: PaymentRecord) => p.status === "authorized" || p.status === "completed"
+  const canGenerateInvoice = (p: PaymentRecord) =>
+    !p.invoiceUrl && (p.status === "authorized" || p.status === "completed")
+  const canGenerateCreditNote = (p: PaymentRecord) =>
+    Boolean(p.invoiceNumber) &&
+    !p.creditNoteUrl &&
+    ["completed", "refunded", "partially_refunded"].includes(p.status)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-10 px-4">
@@ -509,7 +570,68 @@ export default function AdminPaymentsPage() {
                                 Refund
                               </Button>
                             )}
-                            {!canCapture(payment) && !canRefund(payment) && (
+                            {canGenerateInvoice(payment) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                                disabled={invoiceActionPaymentIds.has(payment._id)}
+                                onClick={() => handleGenerateInvoice(payment)}
+                              >
+                                {invoiceActionPaymentIds.has(payment._id)
+                                  ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  : <FileText className="h-3 w-3 mr-1" />}
+                                Generate Invoice
+                              </Button>
+                            )}
+                            {payment.invoiceUrl && (
+                              <a
+                                href={payment.invoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                {payment.invoiceNumber || "Invoice"} (PDF)
+                              </a>
+                            )}
+                            {payment.invoiceUblUrl && (
+                              <a
+                                href={payment.invoiceUblUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                UBL (Peppol{payment.peppolDispatchStatus ? `: ${payment.peppolDispatchStatus}` : ""})
+                              </a>
+                            )}
+                            {canGenerateCreditNote(payment) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                disabled={invoiceActionPaymentIds.has(payment._id)}
+                                onClick={() => handleGenerateCreditNote(payment)}
+                              >
+                                {invoiceActionPaymentIds.has(payment._id)
+                                  ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  : <FileMinus className="h-3 w-3 mr-1" />}
+                                Credit Note
+                              </Button>
+                            )}
+                            {payment.creditNoteUrl && (
+                              <a
+                                href={payment.creditNoteUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileMinus className="h-3 w-3" />
+                                {payment.creditNoteNumber || "Credit note"} (PDF)
+                              </a>
+                            )}
+                            {!canCapture(payment) && !canRefund(payment) && !canGenerateInvoice(payment) && !canGenerateCreditNote(payment) && !payment.invoiceUrl && (
                               <span className="text-xs text-gray-400">No actions</span>
                             )}
                           </div>
