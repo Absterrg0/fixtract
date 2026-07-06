@@ -11,6 +11,75 @@ import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 
+const DEFAULT_COMPANY_ADDRESS = {
+  name: 'Fixera',
+  street: '',
+  city: '',
+  postalCode: '',
+  country: 'Belgium',
+}
+
+const DEFAULT_E_INVOICING = {
+  peppolEnabled: false,
+  provider: 'manual',
+  peppolParticipantId: '',
+}
+
+type CompanyAddressState = typeof DEFAULT_COMPANY_ADDRESS
+type EInvoicingState = typeof DEFAULT_E_INVOICING
+
+type PlatformSettingsFormState = {
+  commissionPercent: number
+  companyVatNumber: string
+  companyAddress: CompanyAddressState
+  eInvoicing: EInvoicingState
+  lastModified: string | null
+  version: number
+}
+
+const hydrateSettingsResponse = (data: {
+  commissionPercent?: number
+  companyVatNumber?: string
+  companyAddress?: Partial<CompanyAddressState>
+  eInvoicing?: Partial<EInvoicingState>
+  lastModified?: string
+  version?: number
+}): PlatformSettingsFormState => ({
+  commissionPercent: data.commissionPercent ?? 0,
+  companyVatNumber: data.companyVatNumber || '',
+  companyAddress: {
+    ...DEFAULT_COMPANY_ADDRESS,
+    ...(data.companyAddress || {}),
+  },
+  eInvoicing: {
+    ...DEFAULT_E_INVOICING,
+    peppolEnabled: Boolean(data.eInvoicing?.peppolEnabled),
+    provider: data.eInvoicing?.provider || DEFAULT_E_INVOICING.provider,
+    peppolParticipantId: data.eInvoicing?.peppolParticipantId || '',
+  },
+  lastModified: data.lastModified ?? null,
+  version: data.version ?? 0,
+})
+
+const applySettingsState = (
+  settings: PlatformSettingsFormState,
+  setters: {
+    setCommissionPercent: (value: number) => void
+    setCompanyVatNumber: (value: string) => void
+    setCompanyAddress: (value: CompanyAddressState) => void
+    setEInvoicing: (value: EInvoicingState) => void
+    setLastModified: (value: string | null) => void
+    setVersion: (value: number) => void
+  }
+) => {
+  setters.setCommissionPercent(settings.commissionPercent)
+  setters.setCompanyVatNumber(settings.companyVatNumber)
+  setters.setCompanyAddress(settings.companyAddress)
+  setters.setEInvoicing(settings.eInvoicing)
+  setters.setLastModified(settings.lastModified)
+  setters.setVersion(settings.version)
+}
+
 export default function AdminSettingsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -19,18 +88,8 @@ export default function AdminSettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [commissionPercent, setCommissionPercent] = useState<number>(0)
   const [companyVatNumber, setCompanyVatNumber] = useState('')
-  const [companyAddress, setCompanyAddress] = useState({
-    name: 'Fixera',
-    street: '',
-    city: '',
-    postalCode: '',
-    country: 'Belgium',
-  })
-  const [eInvoicing, setEInvoicing] = useState({
-    peppolEnabled: false,
-    provider: 'manual',
-    peppolParticipantId: '',
-  })
+  const [companyAddress, setCompanyAddress] = useState({ ...DEFAULT_COMPANY_ADDRESS })
+  const [eInvoicing, setEInvoicing] = useState({ ...DEFAULT_E_INVOICING })
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [version, setVersion] = useState<number>(0)
 
@@ -52,22 +111,14 @@ export default function AdminSettingsPage() {
           toast.error('Unexpected response from server')
           return
         }
-        setCommissionPercent(data.data.commissionPercent)
-        setCompanyVatNumber(data.data.companyVatNumber || '')
-        setCompanyAddress({
-          name: data.data.companyAddress?.name || 'Fixera',
-          street: data.data.companyAddress?.street || '',
-          city: data.data.companyAddress?.city || '',
-          postalCode: data.data.companyAddress?.postalCode || '',
-          country: data.data.companyAddress?.country || 'Belgium',
+        applySettingsState(hydrateSettingsResponse(data.data), {
+          setCommissionPercent,
+          setCompanyVatNumber,
+          setCompanyAddress,
+          setEInvoicing,
+          setLastModified,
+          setVersion,
         })
-        setEInvoicing({
-          peppolEnabled: Boolean(data.data.eInvoicing?.peppolEnabled),
-          provider: data.data.eInvoicing?.provider || 'manual',
-          peppolParticipantId: data.data.eInvoicing?.peppolParticipantId || '',
-        })
-        setLastModified(data.data.lastModified)
-        setVersion(data.data.version)
       } else {
         toast.error('Failed to load platform settings')
       }
@@ -106,22 +157,14 @@ export default function AdminSettingsPage() {
           toast.error('Unexpected response from server')
           return
         }
-        setCommissionPercent(data.data.commissionPercent)
-        setCompanyVatNumber(data.data.companyVatNumber || '')
-        setCompanyAddress({
-          name: data.data.companyAddress?.name || 'Fixera',
-          street: data.data.companyAddress?.street || '',
-          city: data.data.companyAddress?.city || '',
-          postalCode: data.data.companyAddress?.postalCode || '',
-          country: data.data.companyAddress?.country || 'Belgium',
+        applySettingsState(hydrateSettingsResponse(data.data), {
+          setCommissionPercent,
+          setCompanyVatNumber,
+          setCompanyAddress,
+          setEInvoicing,
+          setLastModified,
+          setVersion,
         })
-        setEInvoicing({
-          peppolEnabled: Boolean(data.data.eInvoicing?.peppolEnabled),
-          provider: data.data.eInvoicing?.provider || 'manual',
-          peppolParticipantId: data.data.eInvoicing?.peppolParticipantId || '',
-        })
-        setLastModified(data.data.lastModified)
-        setVersion(data.data.version)
         toast.success('Platform settings updated successfully')
       } else {
         const errorData = await response.json().catch(() => null)
