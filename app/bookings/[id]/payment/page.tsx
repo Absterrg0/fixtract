@@ -249,12 +249,16 @@ export default function BookingPaymentPage() {
   }, []);
 
   const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
+  const hasUsableQuoteTotal = useMemo(() => {
+    const total = Number(currentQuoteVersion?.totalAmount);
+    return Number.isFinite(total) && total > 0;
+  }, [currentQuoteVersion?.totalAmount]);
   const currentQuoteTotals = useMemo(() => {
-    if (!currentQuoteVersion?.totalAmount) return null;
+    if (!hasUsableQuoteTotal || !currentQuoteVersion) return null;
     return calculateQuoteVersionVatTotals(currentQuoteVersion, customerPricingReady ? customerPrice : undefined);
-  }, [currentQuoteVersion, customerPricingReady, customerPrice]);
+  }, [currentQuoteVersion, customerPricingReady, customerPrice, hasUsableQuoteTotal]);
   const milestoneGrossAmounts = useMemo(() => {
-    if (!currentQuoteVersion || !booking?.milestonePayments?.length) return [];
+    if (!currentQuoteVersion || !booking?.milestonePayments?.length || !hasUsableQuoteTotal) return [];
     return calculateMilestoneGrossAmounts(
       {
         ...currentQuoteVersion,
@@ -268,7 +272,13 @@ export default function BookingPaymentPage() {
       },
       customerPricingReady ? customerPrice : undefined
     );
-  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice]);
+  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal]);
+
+  const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
+    const grossAmount = milestoneGrossAmounts[index];
+    if (grossAmount != null && grossAmount > 0) return grossAmount;
+    return customerPrice(netAmount);
+  }, [milestoneGrossAmounts, customerPrice]);
 
   const getQuotedDurations = (b: Booking | null) => {
     const version = getCurrentQuoteVersion(b);
@@ -1059,7 +1069,7 @@ export default function BookingPaymentPage() {
                           <span className="text-gray-900">
                             {customerPricingReady
                               ? formatMoney(
-                                  milestoneGrossAmounts[i] ?? customerPrice(m.amount ?? 0),
+                                  getMilestoneDisplayAmount(i, m.amount ?? 0),
                                   booking?.quote?.currency?.toUpperCase() || 'EUR'
                                 )
                               : '...'}

@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback } from "react"
 import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatVATNumber, validateVATFormat } from "@/lib/vatValidation"
 
 const DEFAULT_COMPANY_ADDRESS = {
   name: 'Fixera',
@@ -142,13 +143,42 @@ export default function AdminSettingsPage() {
       return
     }
 
+    const trimmedVatNumber = companyVatNumber.trim()
+    if (trimmedVatNumber) {
+      const vatCheck = validateVATFormat(trimmedVatNumber)
+      if (!vatCheck.valid) {
+        toast.error(vatCheck.error || 'Invalid company VAT number')
+        return
+      }
+    }
+
+    const trimmedParticipantId = eInvoicing.peppolParticipantId.trim()
+    if (eInvoicing.peppolEnabled) {
+      if (!trimmedParticipantId) {
+        toast.error('Peppol participant ID is required when Peppol e-invoicing is enabled')
+        return
+      }
+      if (!/^[^:]+:\S+$/.test(trimmedParticipantId)) {
+        toast.error('Peppol participant ID should use scheme:identifier format (e.g. 0208:BE0123456789)')
+        return
+      }
+    }
+
     setIsSaving(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commissionPercent, companyVatNumber, companyAddress, eInvoicing })
+        body: JSON.stringify({
+          commissionPercent,
+          companyVatNumber: trimmedVatNumber ? formatVATNumber(trimmedVatNumber) : '',
+          companyAddress,
+          eInvoicing: {
+            ...eInvoicing,
+            peppolParticipantId: trimmedParticipantId,
+          },
+        })
       })
 
       if (response.ok) {
