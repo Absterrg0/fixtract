@@ -115,6 +115,16 @@ interface VatAnswer {
   value: string | number | boolean | string[];
 }
 
+interface VatPreviewDecision {
+  action: 'standard_rate' | 'reduced_rate' | 'rfq';
+  country: string;
+  standardRate: number;
+  appliedRate: number;
+  reducedRate?: number;
+  reverseCharge: boolean;
+  explanation?: string;
+}
+
 interface BlockedRange {
   startDate: string;
   endDate: string;
@@ -304,6 +314,7 @@ export default function ProjectBookingForm({
   const [loadingScheduleWindow, setLoadingScheduleWindow] = useState(false);
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
   const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>({});
+  const [vatPreview, setVatPreview] = useState<VatPreviewDecision | null>(null);
   const [uploadingQuestionIndexes, setUploadingQuestionIndexes] = useState<Set<number>>(new Set());
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
     []
@@ -319,6 +330,39 @@ export default function ProjectBookingForm({
       ? project.subprojects[selectedPackageIndex]
       : null;
   const isRfqPackage = selectedPackage?.pricing?.type === 'rfq';
+
+  // Best-effort VAT preview for the review step. Checkout always uses the
+  // backend-computed decision, so failures here are silently ignored.
+  useEffect(() => {
+    if (currentStep !== 4) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/vat-preview`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: project._id,
+              serviceConfigurationId: project.serviceConfigurationId,
+              vatAnswers: Object.values(vatAnswers),
+            }),
+          }
+        );
+        const payload = await response.json();
+        if (!cancelled && response.ok && payload.success && payload.data) {
+          setVatPreview(payload.data);
+        }
+      } catch {
+        if (!cancelled) setVatPreview(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers]);
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
   const isUnitPricing =
@@ -2251,7 +2295,11 @@ export default function ProjectBookingForm({
 
           if (returnedVatDecision?.action === 'rfq' && !returnedVatDecision?.reverseCharge) {
             toast.info(returnedVatDecision.explanation || 'This VAT case requires quotation review. You can chat with the professional or proceed at the standard rate from your booking.');
-            trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
+            // Only count as an RFQ completion when the package itself is RFQ;
+            // fixed-price bookings routed here are just pending VAT review.
+            if (selectedPackage?.pricing?.type === 'rfq') {
+              trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
+            }
             if (data.booking?._id) {
               router.replace(`/bookings/${data.booking._id}`);
             } else {
@@ -4344,7 +4392,7 @@ export default function ProjectBookingForm({
                       {finalDisplayTotal > 0 && (
                         <div className='flex justify-between items-center'>
                           <span className='text-lg font-bold text-gray-900'>
-                            Grand Total:
+                            Grand Total{vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq' ? ' (excl. VAT)' : ''}:
                           </span>
                           <span className='text-2xl font-bold text-blue-600'>
                             {customerPricingReady ? (
@@ -4353,6 +4401,51 @@ export default function ProjectBookingForm({
                               <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
                             )}
                           </span>
+                        </div>
+                      )}
+
+                      {/* Estimated VAT */}
+                      {finalDisplayTotal > 0 && vatPreview && !isRfqPackage && (
+                        <div className='space-y-1 pt-2 border-t border-blue-200 text-sm'>
+                          {vatPreview.action === 'rfq' && !vatPreview.reverseCharge ? (
+                            <p className='text-amber-700'>
+                              {vatPreview.explanation ||
+                                'Your answers require a VAT review. After submitting you can chat with the professional or proceed at the standard VAT rate.'}
+                            </p>
+                          ) : vatPreview.reverseCharge ? (
+                            <>
+                              <div className='flex justify-between text-gray-700'>
+                                <span>VAT (0% — reverse charge)</span>
+                                <span>{formatCurrency(0)}</span>
+                              </div>
+                              <p className='text-xs text-gray-600'>
+                                Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <div className='flex justify-between text-gray-700'>
+                                <span>
+                                  Estimated VAT ({vatPreview.appliedRate}%
+                                  {vatPreview.action === 'reduced_rate' ? ' reduced rate' : ''})
+                                </span>
+                                <span>
+                                  {formatCurrency(Math.round(finalDisplayTotal * vatPreview.appliedRate) / 100)}
+                                </span>
+                              </div>
+                              <div className='flex justify-between font-semibold text-gray-900'>
+                                <span>Estimated total incl. VAT</span>
+                                <span>
+                                  {formatCurrency(
+                                    Math.round(finalDisplayTotal * (100 + vatPreview.appliedRate)) / 100
+                                  )}
+                                </span>
+                              </div>
+                              {vatPreview.action === 'reduced_rate' && vatPreview.explanation && (
+                                <p className='text-xs text-green-700'>{vatPreview.explanation}</p>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
 

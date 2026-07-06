@@ -193,9 +193,14 @@ interface BookingDetail {
   selectedSubprojectIndex?: number
   vatDecision?: {
     action?: 'standard_rate' | 'reduced_rate' | 'rfq'
+    country?: string
+    standardRate?: number
+    appliedRate?: number
+    reducedRate?: number
     reverseCharge?: boolean
     explanation?: string
     matchedRuleText?: string
+    answers?: { fieldName: string; value: string | number | boolean | string[] }[]
   }
   scheduledStartDate?: string
   scheduledStartTime?: string
@@ -2772,6 +2777,59 @@ export default function BookingDetailPage() {
                         Proceed at standard VAT rate
                       </Button>
                     </div>
+                  </div>
+                )}
+
+                {/* Professional: customer's answers triggered a VAT review */}
+                {user?.role === "professional" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review requested</h3>
+                    <p className="text-xs text-amber-800">
+                      {booking.vatDecision.explanation ||
+                        "The customer's answers may qualify for a reduced VAT rate. Review their VAT answers below and reflect the correct rate in your quotation, or advise them via chat."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Reduced VAT rate confirmed */}
+                {booking.vatDecision?.action === "reduced_rate" && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-green-900 mb-1">
+                          Reduced VAT rate applied
+                          {typeof booking.vatDecision.appliedRate === "number" ? ` (${booking.vatDecision.appliedRate}%)` : ""}
+                        </h3>
+                        <p className="text-xs text-green-800">
+                          {booking.vatDecision.explanation || booking.vatDecision.matchedRuleText ||
+                            "This booking qualifies for a reduced VAT rate based on the answers provided."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* VAT answers provided by the customer (visible to professional/admin) */}
+                {(user?.role === "professional" || user?.role === "admin") &&
+                  Array.isArray(booking.vatDecision?.answers) &&
+                  booking.vatDecision.answers.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer VAT answers</h3>
+                    <dl className="space-y-1">
+                      {booking.vatDecision.answers.map((answer) => (
+                        <div key={answer.fieldName} className="flex justify-between gap-4 text-xs">
+                          <dt className="text-gray-600 capitalize">{answer.fieldName.replace(/[_-]+/g, " ")}</dt>
+                          <dd className="font-medium text-gray-900 text-right">
+                            {Array.isArray(answer.value)
+                              ? answer.value.join(", ")
+                              : typeof answer.value === "boolean"
+                                ? answer.value ? "Yes" : "No"
+                                : String(answer.value ?? "—")}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
                   </div>
                 )}
 
