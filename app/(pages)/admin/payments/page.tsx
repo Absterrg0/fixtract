@@ -218,47 +218,52 @@ export default function AdminPaymentsPage() {
 
   // ─── Invoice / Credit Note ──────────────────────────────────────────────
 
-  const [invoiceActionPaymentId, setInvoiceActionPaymentId] = useState<string | null>(null)
+  const [invoiceActionPaymentIds, setInvoiceActionPaymentIds] = useState<Set<string>>(() => new Set())
 
-  const handleGenerateInvoice = async (payment: PaymentRecord) => {
-    setInvoiceActionPaymentId(payment._id)
+  const startInvoiceAction = (paymentId: string) => {
+    setInvoiceActionPaymentIds((current) => new Set(current).add(paymentId))
+  }
+
+  const finishInvoiceAction = (paymentId: string) => {
+    setInvoiceActionPaymentIds((current) => {
+      const next = new Set(current)
+      next.delete(paymentId)
+      return next
+    })
+  }
+
+  const runInvoiceArtifactAction = async (
+    payment: PaymentRecord,
+    action: "invoice" | "credit-note",
+    successLabel: string,
+    failureLabel: string
+  ) => {
+    startInvoiceAction(payment._id)
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/payments/${payment._id}/invoice`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/payments/${payment._id}/${action}`,
         { method: "POST", credentials: "include" }
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to generate invoice")
+        throw new Error(payload.msg || failureLabel)
       }
-      toast.success(`Invoice ${payload.data?.invoiceNumber || ""} generated`)
+      const artifactNumber =
+        action === "invoice" ? payload.data?.invoiceNumber : payload.data?.creditNoteNumber
+      toast.success(`${successLabel} ${artifactNumber || ""}`.trim())
       fetchPayments()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate invoice")
+      toast.error(err instanceof Error ? err.message : failureLabel)
     } finally {
-      setInvoiceActionPaymentId(null)
+      finishInvoiceAction(payment._id)
     }
   }
 
-  const handleGenerateCreditNote = async (payment: PaymentRecord) => {
-    setInvoiceActionPaymentId(payment._id)
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/payments/${payment._id}/credit-note`,
-        { method: "POST", credentials: "include" }
-      )
-      const payload = await response.json()
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to generate credit note")
-      }
-      toast.success(`Credit note ${payload.data?.creditNoteNumber || ""} generated`)
-      fetchPayments()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate credit note")
-    } finally {
-      setInvoiceActionPaymentId(null)
-    }
-  }
+  const handleGenerateInvoice = (payment: PaymentRecord) =>
+    runInvoiceArtifactAction(payment, "invoice", "Invoice", "Failed to generate invoice")
+
+  const handleGenerateCreditNote = (payment: PaymentRecord) =>
+    runInvoiceArtifactAction(payment, "credit-note", "Credit note", "Failed to generate credit note")
 
   // ─── Refund ─────────────────────────────────────────────────────────────
 
@@ -570,10 +575,10 @@ export default function AdminPaymentsPage() {
                                 size="sm"
                                 variant="outline"
                                 className="text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                                disabled={invoiceActionPaymentId === payment._id}
+                                disabled={invoiceActionPaymentIds.has(payment._id)}
                                 onClick={() => handleGenerateInvoice(payment)}
                               >
-                                {invoiceActionPaymentId === payment._id
+                                {invoiceActionPaymentIds.has(payment._id)
                                   ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                                   : <FileText className="h-3 w-3 mr-1" />}
                                 Generate Invoice
@@ -606,10 +611,10 @@ export default function AdminPaymentsPage() {
                                 size="sm"
                                 variant="outline"
                                 className="text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
-                                disabled={invoiceActionPaymentId === payment._id}
+                                disabled={invoiceActionPaymentIds.has(payment._id)}
                                 onClick={() => handleGenerateCreditNote(payment)}
                               >
-                                {invoiceActionPaymentId === payment._id
+                                {invoiceActionPaymentIds.has(payment._id)
                                   ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                                   : <FileMinus className="h-3 w-3 mr-1" />}
                                 Credit Note

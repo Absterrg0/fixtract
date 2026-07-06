@@ -1644,7 +1644,7 @@ export default function BookingPaymentPage() {
                   <span className="text-gray-600">
                     VAT {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1
                       ? '(total)'
-                      : `(${booking?.payment?.vatRate}%)`}:
+                      : `(${booking?.payment?.vatRate ?? 0}%)`}:
                   </span>
                   <span className="text-gray-900">
                     {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
