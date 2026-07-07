@@ -17,6 +17,11 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { trackBeginCheckout, trackEvent } from '@/lib/analytics';
+import {
+  calculateMilestoneGrossAmounts,
+  calculateQuoteVersionVatTotals,
+} from '@/lib/vatPricing';
+import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
   stripeClientSecret?: string;
@@ -25,6 +30,18 @@ interface BookingPayment {
   vatAmount?: number;
   vatRate?: number;
   totalWithVat?: number;
+  vatBreakdown?: Array<{
+    description: string;
+    netAmount: number;
+    vatRate: number;
+    vatAmount: number;
+    totalAmount: number;
+    vatLabel?: string;
+  }>;
+  reverseCharge?: boolean;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  invoiceUblUrl?: string;
   status?: string;
   discount?: {
     loyaltyTier?: string;
@@ -77,6 +94,10 @@ interface QuoteVersionDuration {
 
 interface QuoteVersion {
   version?: number;
+  scope?: string;
+  description?: string;
+  totalAmount?: number;
+  pricingLines?: QuotationPricingLine[];
   preparationDuration?: QuoteVersionDuration;
   executionDuration?: QuoteVersionDuration;
   bufferDuration?: QuoteVersionDuration;
@@ -220,11 +241,47 @@ export default function BookingPaymentPage() {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
+  const getCurrentQuoteVersion = useCallback((b: Booking | null): QuoteVersion | null => {
+    if (!b?.quoteVersions?.length) return null;
+    return b.currentQuoteVersion != null
+      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion) ?? b.quoteVersions[b.quoteVersions.length - 1] ?? null
+      : b.quoteVersions[b.quoteVersions.length - 1] ?? null;
+  }, []);
+
+  const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
+  const hasUsableQuoteTotal = useMemo(() => {
+    const total = Number(currentQuoteVersion?.totalAmount);
+    return Number.isFinite(total) && total > 0;
+  }, [currentQuoteVersion?.totalAmount]);
+  const currentQuoteTotals = useMemo(() => {
+    if (!hasUsableQuoteTotal || !currentQuoteVersion) return null;
+    return calculateQuoteVersionVatTotals(currentQuoteVersion, customerPricingReady ? customerPrice : undefined);
+  }, [currentQuoteVersion, customerPricingReady, customerPrice, hasUsableQuoteTotal]);
+  const milestoneGrossAmounts = useMemo(() => {
+    if (!currentQuoteVersion || !booking?.milestonePayments?.length || !hasUsableQuoteTotal) return [];
+    return calculateMilestoneGrossAmounts(
+      {
+        ...currentQuoteVersion,
+        milestones: booking.milestonePayments.map((milestone, index) => ({
+          title: milestone.title || `Milestone ${index + 1}`,
+          amount: milestone.amount ?? 0,
+          dueCondition: 'on_start',
+          order: index,
+          status: 'pending',
+        })),
+      },
+      customerPricingReady ? customerPrice : undefined
+    );
+  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal]);
+
+  const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
+    const grossAmount = milestoneGrossAmounts[index];
+    if (grossAmount != null && grossAmount > 0) return grossAmount;
+    return customerPrice(netAmount);
+  }, [milestoneGrossAmounts, customerPrice]);
+
   const getQuotedDurations = (b: Booking | null) => {
-    if (!b?.quoteVersions?.length) return { execution: null, preparation: null, buffer: null };
-    const version = b.currentQuoteVersion != null
-      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion)
-      : b.quoteVersions[b.quoteVersions.length - 1];
+    const version = getCurrentQuoteVersion(b);
     if (!version) return { execution: null, preparation: null, buffer: null };
     return {
       execution: version.executionDuration ?? null,
@@ -980,21 +1037,43 @@ export default function BookingPaymentPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Quote Amount:</span>
+                  <span className="text-gray-600">
+                    {currentQuoteTotals ? 'Quote Total (incl. VAT):' : 'Quote Amount:'}
+                  </span>
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
-                      ? formatMoney(customerPrice(booking?.quote?.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                      ? formatMoney(
+                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0),
+                          booking?.quote?.currency?.toUpperCase() || 'EUR'
+                        )
                       : '...'}
                   </span>
                 </div>
+                {currentQuoteTotals && customerPricingReady && currentQuoteTotals.vatAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">VAT included:</span>
+                    <span className="text-gray-700">
+                      {formatMoney(currentQuoteTotals.vatAmount, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                    </span>
+                  </div>
+                )}
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Milestones:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Milestones{milestoneGrossAmounts.length > 0 ? ' (incl. VAT):' : ':'}
+                    </p>
                     <div className="space-y-1">
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
-                          <span className="text-gray-900">{customerPricingReady ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
+                          <span className="text-gray-900">
+                            {customerPricingReady
+                              ? formatMoney(
+                                  getMilestoneDisplayAmount(i, m.amount ?? 0),
+                                  booking?.quote?.currency?.toUpperCase() || 'EUR'
+                                )
+                              : '...'}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -1555,12 +1634,36 @@ export default function BookingPaymentPage() {
                   {formatMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
                 </span>
               </div>
+              {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1 && (
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-700">VAT breakdown</p>
+                  {booking.payment.vatBreakdown.map((line, index) => (
+                    <div key={`${line.description}-${index}`} className="flex justify-between text-xs">
+                      <span className="text-gray-600">
+                        {line.description} ({line.vatLabel || `${line.vatRate}% VAT`})
+                      </span>
+                      <span className="text-gray-900">
+                        {formatMoney(line.vatAmount, paymentCurrency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(booking?.payment?.vatAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">VAT ({booking?.payment?.vatRate}%):</span>
+                  <span className="text-gray-600">
+                    VAT {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1
+                      ? '(total)'
+                      : `(${booking?.payment?.vatRate ?? 0}%)`}:
+                  </span>
                   <span className="text-gray-900">
                     {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
                   </span>
+                </div>
+              )}
+              {booking?.payment?.reverseCharge && (
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  0% VAT applied: Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t">
