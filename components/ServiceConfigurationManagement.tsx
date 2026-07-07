@@ -65,6 +65,7 @@ interface PricingOption {
 }
 
 interface VatQuestion {
+  clientKey?: string
   question: string
   fieldName: string
   answerType: 'number' | 'yes_no' | 'checkboxes'
@@ -74,6 +75,7 @@ interface VatQuestion {
 }
 
 interface VatLogicCondition {
+  clientKey?: string
   fieldName: string
   operator: 'equals' | 'not_equals' | 'greater_than' | 'greater_than_or_equal' | 'less_than' | 'less_than_or_equal' | 'includes'
   value: string | number | boolean
@@ -81,6 +83,7 @@ interface VatLogicCondition {
 }
 
 interface VatLogicRule {
+  clientKey?: string
   country: string
   standardRate: number
   reducedRate: number
@@ -491,8 +494,8 @@ export default function ServiceConfigurationManagement() {
           toast.error('Each VAT logic rule needs a country')
           return
         }
-        if (!Number.isFinite(Number(rule.standardRate)) || !Number.isFinite(Number(rule.reducedRate))) {
-          toast.error('Each VAT logic rule needs standard and reduced VAT rates')
+        if (rule.standardRate <= 0 || rule.standardRate > 100 || rule.reducedRate < 0 || rule.reducedRate > rule.standardRate) {
+          toast.error('Each VAT logic rule needs a positive standard rate and a reduced rate between 0 and the standard rate')
           return
         }
       }
@@ -637,11 +640,23 @@ export default function ServiceConfigurationManagement() {
     }))
   }
 
+  const makeClientKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+
   const ensureVatManagement = (vat?: VatManagement): VatManagement => ({
     enabled: vat?.enabled ?? false,
     rateRuleGroup: vat?.rateRuleGroup || '',
-    reducedVatQuestions: vat?.reducedVatQuestions || [],
-    logicRules: vat?.logicRules || [],
+    reducedVatQuestions: (vat?.reducedVatQuestions || []).map((question) => ({
+      ...question,
+      clientKey: question.clientKey || makeClientKey('vat-question'),
+    })),
+    logicRules: (vat?.logicRules || []).map((rule) => ({
+      ...rule,
+      clientKey: rule.clientKey || makeClientKey('vat-rule'),
+      conditions: (rule.conditions || []).map((condition) => ({
+        ...condition,
+        clientKey: condition.clientKey || makeClientKey('vat-condition'),
+      })),
+    })),
   })
 
   const updateVatManagement = (patch: Partial<VatManagement>) => {
@@ -656,7 +671,7 @@ export default function ServiceConfigurationManagement() {
     updateVatManagement({
       reducedVatQuestions: [
         ...vat.reducedVatQuestions,
-        { question: '', fieldName: '', answerType: 'yes_no', unit: '', options: [], isRequired: true }
+        { question: '', fieldName: '', answerType: 'yes_no', unit: '', options: [], isRequired: true, clientKey: makeClientKey('vat-question') }
       ]
     })
   }
@@ -691,6 +706,7 @@ export default function ServiceConfigurationManagement() {
           customText: '',
           priority: vat.logicRules.length,
           isActive: true,
+          clientKey: makeClientKey('vat-rule'),
         }
       ]
     })
@@ -718,7 +734,7 @@ export default function ServiceConfigurationManagement() {
               ...rule,
               conditions: [
                 ...rule.conditions,
-                { fieldName, operator: 'equals', value: true, connector: rule.conditions.length === 0 ? 'AND' : 'AND' }
+                { fieldName, operator: 'equals', value: true, connector: rule.conditions.length === 0 ? 'AND' : 'AND', clientKey: makeClientKey('vat-condition') }
               ]
             }
           : rule
@@ -1354,7 +1370,7 @@ export default function ServiceConfigurationManagement() {
                       </Button>
                     </div>
                     {(formData.vatManagement.reducedVatQuestions || []).map((question, index) => (
-                      <div key={index} className="p-3 border rounded-lg bg-gray-50 space-y-2">
+                      <div key={question.clientKey || question.fieldName || `vat-question-${index}`} className="p-3 border rounded-lg bg-gray-50 space-y-2">
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_150px_100px_40px] gap-2">
                           <Input
                             value={question.question}
@@ -1418,7 +1434,7 @@ export default function ServiceConfigurationManagement() {
                       </Button>
                     </div>
                     {(formData.vatManagement.logicRules || []).map((rule, ruleIndex) => (
-                      <div key={ruleIndex} className="p-3 border rounded-lg bg-gray-50 space-y-3">
+                      <div key={rule.clientKey || `${rule.country}-${rule.priority}-${ruleIndex}`} className="p-3 border rounded-lg bg-gray-50 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-[100px_120px_120px_150px_90px_40px] gap-2">
                           <Input value={rule.country} onChange={(e) => updateVatLogicRule(ruleIndex, { country: e.target.value.toUpperCase() })} placeholder="BE" className="bg-white" />
                           <Input type="number" step={0.1} value={rule.standardRate} onChange={(e) => updateVatLogicRule(ruleIndex, { standardRate: parseFloat(e.target.value) || 0 })} placeholder="Standard %" className="bg-white" />
@@ -1456,7 +1472,7 @@ export default function ServiceConfigurationManagement() {
                             </Button>
                           </div>
                           {rule.conditions.map((condition, conditionIndex) => (
-                            <div key={conditionIndex} className="grid grid-cols-1 md:grid-cols-[80px_1fr_180px_1fr_40px] gap-2">
+                            <div key={condition.clientKey || `${condition.fieldName}-${condition.operator}-${conditionIndex}`} className="grid grid-cols-1 md:grid-cols-[80px_1fr_180px_1fr_40px] gap-2">
                               <select
                                 className="border rounded-md px-2 py-2 bg-white text-sm"
                                 value={condition.connector || 'AND'}

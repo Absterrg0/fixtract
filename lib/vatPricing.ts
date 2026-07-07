@@ -66,13 +66,20 @@ export const calculateVatTotalsFromPricingLines = (
   }
 }
 
+/** Legacy quotes without granular pricingLines use a single synthetic line at 0% VAT. */
 export const getQuoteVersionPricingLines = (
   version: VatQuoteVersionLike | null | undefined
 ): Array<Pick<QuotationPricingLine, 'description' | 'price' | 'vatRate'>> => {
   if (!version) return []
-  return version.pricingLines?.length
-    ? version.pricingLines
-    : [{ description: version.description || version.scope || 'Quote', price: version.totalAmount || 0, vatRate: 0 }]
+  if (version.pricingLines?.length) {
+    return version.pricingLines
+  }
+  // Backward compatibility: pre-line-item quotes only expose totalAmount.
+  return [{
+    description: version.description || version.scope || 'Quote',
+    price: version.totalAmount || 0,
+    vatRate: 0,
+  }]
 }
 
 export const calculateQuoteVersionVatTotals = (

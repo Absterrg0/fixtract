@@ -1,3 +1,9 @@
+export interface QuotationPricingLine {
+  description: string
+  price: number
+  vatRate: number
+}
+
 export interface QuotationMilestone {
   title: string
   amount: number
