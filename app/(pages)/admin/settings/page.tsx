@@ -11,6 +11,7 @@ import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatVATNumber, validateVATFormat } from "@/lib/vatValidation"
+import { getAuthToken } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -20,6 +21,19 @@ const normalizeCountryCode = (value?: string): string => {
   if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase()
   const match = EU_COUNTRIES.find((country) => country.name.toLowerCase() === trimmed.toLowerCase())
   return match?.code ?? trimmed.toUpperCase()
+}
+
+const adminRequestInit = (init: RequestInit = {}): RequestInit => {
+  const token = getAuthToken()
+  const headers = new Headers(init.headers)
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  return {
+    ...init,
+    credentials: 'include',
+    headers,
+  }
 }
 
 const DEFAULT_COMPANY_ADDRESS = {
@@ -39,6 +53,8 @@ const DEFAULT_E_INVOICING = {
 type CompanyAddressState = typeof DEFAULT_COMPANY_ADDRESS
 type EInvoicingState = typeof DEFAULT_E_INVOICING
 
+type EInvoicingResponse = Partial<EInvoicingState>
+
 type PlatformSettingsFormState = {
   commissionPercent: number
   companyVatNumber: string
@@ -52,7 +68,7 @@ const hydrateSettingsResponse = (data: {
   commissionPercent?: number
   companyVatNumber?: string
   companyAddress?: Partial<CompanyAddressState>
-  eInvoicing?: Partial<EInvoicingState>
+  eInvoicing?: EInvoicingResponse
   lastModified?: string
   version?: number
 }): PlatformSettingsFormState => ({
@@ -66,7 +82,7 @@ const hydrateSettingsResponse = (data: {
   eInvoicing: {
     ...DEFAULT_E_INVOICING,
     peppolEnabled: Boolean(data.eInvoicing?.peppolEnabled),
-    provider: data.eInvoicing?.provider || DEFAULT_E_INVOICING.provider,
+    provider: data.eInvoicing?.provider === 'odoo' ? 'odoo' : DEFAULT_E_INVOICING.provider,
     peppolParticipantId: data.eInvoicing?.peppolParticipantId || '',
   },
   lastModified: data.lastModified ?? null,
@@ -114,9 +130,7 @@ export default function AdminSettingsPage() {
   const fetchSettings = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, {
-        credentials: 'include'
-      })
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, adminRequestInit())
       if (response.ok) {
         const data = await response.json()
         if (!data?.data) {
@@ -193,9 +207,8 @@ export default function AdminSettingsPage() {
 
     setIsSaving(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, adminRequestInit({
         method: 'PUT',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           commissionPercent,
@@ -205,8 +218,8 @@ export default function AdminSettingsPage() {
             ...eInvoicing,
             peppolParticipantId: trimmedParticipantId,
           },
-        })
-      })
+        }),
+      }))
 
       if (response.ok) {
         const data = await response.json()
@@ -403,13 +416,21 @@ export default function AdminSettingsPage() {
                     </Select>
                   </div>
                 </div>
+                {eInvoicing.provider === 'odoo' && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    Odoo connection credentials are read from server environment variables
+                    (<code className="text-xs">ODOO_API_URL</code>, <code className="text-xs">ODOO_API_KEY</code>).
+                    Income accounts, taxes, and journals are discovered automatically from your Odoo company chart.
+                  </div>
+                )}
               </div>
 
               <div className="border-t pt-6 space-y-4">
                 <div>
                   <h2 className="text-base font-semibold text-gray-900">E-invoicing</h2>
                   <p className="text-sm text-gray-500">
-                    Generate UBL artifacts now and store provider metadata for Belgian Peppol delivery.
+                    Generate UBL artifacts and sync Belgian B2B invoices to Odoo Accounting for Peppol delivery.
+                    When Odoo is selected, accounting IDs are resolved automatically from your Odoo company.
                   </p>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
@@ -431,8 +452,7 @@ export default function AdminSettingsPage() {
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
                     >
                       <option value="manual">Manual upload/export</option>
-                      <option value="odoo">Odoo</option>
-                      <option value="billit">Billit</option>
+                      <option value="odoo">Odoo Accounting</option>
                     </select>
                   </div>
                   <div className="space-y-2">
