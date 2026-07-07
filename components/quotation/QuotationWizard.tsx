@@ -58,14 +58,13 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
   'custom_date',
 ] as const satisfies ReadonlyArray<QuotationMilestone['dueCondition']>
 
-const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [0, 5, 5.5, 6, 8.1, 9, 9.5, 10, 12, 13.5, 19, 20, 21, 22, 23, 24, 25, 25.5, 27]
-  .map(rate => ({
-    rate,
-    country: 'BE',
-    label: `${rate}% VAT`,
-    reverseCharge: rate === 0,
-    source: rate === 0 ? 'b2b_exempt' : 'standard',
-  }))
+const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
+  rate: 21,
+  country: 'BE',
+  label: '21% standard VAT',
+  reverseCharge: false,
+  source: 'standard',
+}]
 
 const coerceNonFirstDueCondition = (
   value: unknown
@@ -247,10 +246,16 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     updateForm('materials', updated)
   }
 
-  const pricingTotal = Math.round(form.pricingLines.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100
+  const validPricingLinesForTotal = useMemo(
+    () => form.pricingLines.filter(line => line.description.trim()),
+    [form.pricingLines],
+  )
+  const pricingTotal = Math.round(
+    validPricingLinesForTotal.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100
+  ) / 100
   const pricingVatTotals = useMemo(
-    () => calculateVatTotalsFromPricingLines(form.pricingLines),
-    [form.pricingLines]
+    () => calculateVatTotalsFromPricingLines(validPricingLinesForTotal),
+    [validPricingLinesForTotal],
   )
 
   const addPricingLine = () => updateForm('pricingLines', [
@@ -262,7 +267,12 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     const updated = [...form.pricingLines]
     updated[index] = { ...updated[index], [field]: value }
     updateForm('pricingLines', updated)
-    updateForm('totalAmount', Math.round(updated.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100) / 100)
+    const nextValidTotal = Math.round(
+      updated
+        .filter(line => line.description.trim())
+        .reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100
+    ) / 100
+    updateForm('totalAmount', nextValidTotal)
   }
 
   const updatePricingLineVat = (index: number, option: VatRateOption) => {
@@ -312,7 +322,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error('Please specify whether materials are included')
       return
     }
-    const validPricingLines = form.pricingLines.filter(line => line.description.trim())
+    const validPricingLines = validPricingLinesForTotal
     if (validPricingLines.length === 0) {
       toast.error('Add at least one pricing line')
       return

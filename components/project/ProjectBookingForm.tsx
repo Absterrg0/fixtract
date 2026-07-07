@@ -334,7 +334,11 @@ export default function ProjectBookingForm({
   // Best-effort VAT preview for the review step. Checkout always uses the
   // backend-computed decision, so failures here are silently ignored.
   useEffect(() => {
-    if (currentStep !== 4) return;
+    if (currentStep !== 4) {
+      setVatPreview(null);
+      return;
+    }
+    setVatPreview(null);
     let cancelled = false;
     (async () => {
       try {
@@ -3896,7 +3900,7 @@ export default function ProjectBookingForm({
                 ))}
                 </>)}
 
-                {project.vatManagement?.enabled && project.vatManagement.reducedVatQuestions.length > 0 && (
+                {project.vatManagement?.enabled && (project.vatManagement.reducedVatQuestions?.length ?? 0) > 0 && (
                   <div className='space-y-4 pt-4 border-t'>
                     <div>
                       <h2 className='text-xl font-semibold mb-2'>Reduced VAT questions</h2>
@@ -3905,7 +3909,7 @@ export default function ProjectBookingForm({
                       </p>
                     </div>
 
-                    {project.vatManagement.reducedVatQuestions.map((question) => {
+                    {(project.vatManagement.reducedVatQuestions || []).map((question) => {
                       const value = vatAnswers[question.fieldName]?.value;
                       return (
                         <div key={question.fieldName} className='space-y-2'>
