@@ -37,9 +37,11 @@ export const calculateVatTotalsFromPricingLines = (
   lines: Array<Pick<QuotationPricingLine, 'price' | 'vatRate'>>,
   mapNetAmount?: (netAmount: number) => number
 ): VatPricingTotals => {
-  const validLines = lines.filter(
-    (line) => Number.isFinite(Number(line.price)) && Number(line.price) > 0
-  )
+  const validLines = lines.filter((line) => {
+    const price = Number(line.price)
+    const vatRate = Number(line.vatRate)
+    return Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+  })
 
   if (validLines.length === 0) {
     return { netAmount: 0, vatAmount: 0, total: 0 }
@@ -51,7 +53,7 @@ export const calculateVatTotalsFromPricingLines = (
   for (const line of validLines) {
     const rawNet = Number(line.price)
     const lineNet = mapNetAmount ? mapNetAmount(rawNet) : rawNet
-    const lineVat = (lineNet * (Number(line.vatRate) || 0)) / 100
+    const lineVat = (lineNet * Number(line.vatRate)) / 100
     netAmount += lineNet
     vatAmount += lineVat
   }

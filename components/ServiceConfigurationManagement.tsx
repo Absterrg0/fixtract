@@ -479,11 +479,18 @@ export default function ServiceConfigurationManagement() {
 
     const vat = ensureVatManagement(formData.vatManagement)
     if (vat.enabled) {
+      const seenFieldNames = new Set<string>()
       for (const question of vat.reducedVatQuestions) {
         if (!question.question.trim() || !question.fieldName.trim()) {
           toast.error('Each VAT question needs a question and field name')
           return
         }
+        const fieldName = question.fieldName.trim()
+        if (seenFieldNames.has(fieldName)) {
+          toast.error(`Duplicate VAT question field name "${fieldName}"`)
+          return
+        }
+        seenFieldNames.add(fieldName)
         if (question.answerType === 'checkboxes' && (!question.options || question.options.length === 0)) {
           toast.error(`VAT question "${question.question}" needs checkbox options`)
           return
@@ -497,6 +504,12 @@ export default function ServiceConfigurationManagement() {
         if (rule.standardRate <= 0 || rule.standardRate > 100 || rule.reducedRate < 0 || rule.reducedRate > rule.standardRate) {
           toast.error('Each VAT logic rule needs a positive standard rate and a reduced rate between 0 and the standard rate')
           return
+        }
+        for (const condition of rule.conditions) {
+          if (!condition.fieldName?.trim()) {
+            toast.error('Each VAT logic condition needs a field name')
+            return
+          }
         }
       }
     }
