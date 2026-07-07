@@ -158,10 +158,22 @@ export default function AdminSettingsPage() {
         toast.error('Peppol participant ID is required when Peppol e-invoicing is enabled')
         return
       }
-      if (!/^[^:]+:\S+$/.test(trimmedParticipantId)) {
+      if (!/^[^\s:]+:[^\s]+$/.test(trimmedParticipantId)) {
         toast.error('Peppol participant ID should use scheme:identifier format (e.g. 0208:BE0123456789)')
         return
       }
+    }
+
+    const trimmedAddress = {
+      name: companyAddress.name.trim(),
+      street: companyAddress.street.trim(),
+      city: companyAddress.city.trim(),
+      postalCode: companyAddress.postalCode.trim(),
+      country: companyAddress.country.trim(),
+    }
+    if (!trimmedVatNumber || !trimmedAddress.name || !trimmedAddress.street || !trimmedAddress.city || !trimmedAddress.postalCode || !trimmedAddress.country) {
+      toast.error('Company VAT number and full invoice issuer address are required')
+      return
     }
 
     setIsSaving(true)
@@ -173,7 +185,7 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({
           commissionPercent,
           companyVatNumber: trimmedVatNumber ? formatVATNumber(trimmedVatNumber) : '',
-          companyAddress,
+          companyAddress: trimmedAddress,
           eInvoicing: {
             ...eInvoicing,
             peppolParticipantId: trimmedParticipantId,

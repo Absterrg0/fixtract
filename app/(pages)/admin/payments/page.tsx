@@ -251,7 +251,7 @@ export default function AdminPaymentsPage() {
       const artifactNumber =
         action === "invoice" ? payload.data?.invoiceNumber : payload.data?.creditNoteNumber
       toast.success(`${successLabel} ${artifactNumber || ""}`.trim())
-      fetchPayments()
+      await fetchPayments()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : failureLabel)
     } finally {
@@ -343,7 +343,7 @@ export default function AdminPaymentsPage() {
   const canGenerateCreditNote = (p: PaymentRecord) =>
     Boolean(p.invoiceNumber) &&
     !hasCreditNoteArtifact(p) &&
-    ["completed", "refunded", "partially_refunded"].includes(p.status)
+    ["refunded", "partially_refunded"].includes(p.status)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-10 px-4">

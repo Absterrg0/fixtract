@@ -32,11 +32,14 @@ interface VatRateOption {
 }
 
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
-const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE'): QuotationPricingLine => ({
+const makePricingLineKey = () => `pricing-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE', vatLabel = '21% standard VAT'): QuotationPricingLine => ({
+  clientKey: makePricingLineKey(),
   description: '',
   price: 0,
   vatRate,
   vatCountry,
+  vatLabel,
 })
 const EMPTY_MILESTONE: QuotationMilestone = {
   title: '',
@@ -117,8 +120,11 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
       materials: existing.materials?.length ? [...existing.materials] : [{ ...EMPTY_MATERIAL }],
       description: existing.description,
       pricingLines: existing.pricingLines?.length
-        ? existing.pricingLines.map(line => ({ ...line }))
-        : [{ description: existing.description || existing.scope, price: existing.totalAmount, vatRate: 21, vatCountry: 'BE' }],
+        ? existing.pricingLines.map(line => ({
+            ...line,
+            clientKey: line.clientKey || makePricingLineKey(),
+          }))
+        : [{ clientKey: makePricingLineKey(), description: existing.description || existing.scope, price: existing.totalAmount, vatRate: 21, vatCountry: 'BE' }],
       totalAmount: existing.totalAmount,
       currency: existing.currency || 'EUR',
       useMilestones: (existing.milestones?.length || 0) > 0,
@@ -210,15 +216,21 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           setVatRateOptions(data.data.options)
           const firstOption = data.data.options[0] as VatRateOption | undefined
           if (!existingVersion && firstOption) {
-            setForm(prev => ({
-              ...prev,
-              pricingLines: prev.pricingLines.map(line => ({
-                ...line,
-                vatRate: firstOption.rate,
-                vatCountry: firstOption.country,
-                vatLabel: firstOption.label,
-              })),
-            }))
+            setForm(prev => {
+              const isPristine = prev.pricingLines.every((line) =>
+                !line.description.trim() && Number(line.price) === 0
+              )
+              if (!isPristine) return prev
+              return {
+                ...prev,
+                pricingLines: prev.pricingLines.map(line => ({
+                  ...line,
+                  vatRate: firstOption.rate,
+                  vatCountry: firstOption.country,
+                  vatLabel: firstOption.label,
+                })),
+              }
+            })
           }
         }
       } catch (error) {
@@ -247,32 +259,28 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const validPricingLinesForTotal = useMemo(
-    () => form.pricingLines.filter(line => line.description.trim()),
+    () => form.pricingLines.filter((line) => {
+      const price = Number(line.price)
+      const vatRate = Number(line.vatRate)
+      return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+    }),
     [form.pricingLines],
   )
-  const pricingTotal = Math.round(
-    validPricingLinesForTotal.reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100
-  ) / 100
   const pricingVatTotals = useMemo(
     () => calculateVatTotalsFromPricingLines(validPricingLinesForTotal),
     [validPricingLinesForTotal],
   )
+  const pricingTotal = pricingVatTotals.netAmount
 
   const addPricingLine = () => updateForm('pricingLines', [
     ...form.pricingLines,
-    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country),
+    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country, defaultVatOption.label),
   ])
   const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
   const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
     const updated = [...form.pricingLines]
     updated[index] = { ...updated[index], [field]: value }
     updateForm('pricingLines', updated)
-    const nextValidTotal = Math.round(
-      updated
-        .filter(line => line.description.trim())
-        .reduce((sum, line) => sum + (Number(line.price) || 0), 0) * 100
-    ) / 100
-    updateForm('totalAmount', nextValidTotal)
   }
 
   const updatePricingLineVat = (index: number, option: VatRateOption) => {
@@ -374,7 +382,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         materialsIncluded: form.materialsIncluded,
         materials: form.materialsIncluded ? form.materials.filter(m => m.name.trim()) : [],
         description: form.description,
-        pricingLines: validPricingLines,
+        pricingLines: validPricingLines.map(({ clientKey: _clientKey, ...line }) => line),
         totalAmount: pricingTotal,
         currency: form.currency,
         milestones: form.useMilestones ? form.milestones.filter(m => m.title.trim()) : [],
@@ -538,7 +546,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           </Label>
           <div className="mt-2 space-y-3">
             {form.pricingLines.map((line, index) => (
-              <div key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_40px] gap-2 items-start">
+              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_40px] gap-2 items-start">
                 <Input
                   value={line.description}
                   onChange={e => updatePricingLine(index, 'description', e.target.value)}

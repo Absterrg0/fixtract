@@ -1,7 +1,10 @@
 export interface QuotationPricingLine {
+  clientKey?: string
   description: string
   price: number
   vatRate: number
+  vatCountry?: string
+  vatLabel?: string
 }
 
 export interface QuotationMilestone {
@@ -28,14 +31,6 @@ export interface QuoteMaterial {
   quantity?: number
   unit?: string
   description?: string
-}
-
-export interface QuotationPricingLine {
-  description: string
-  price: number
-  vatRate: number
-  vatCountry?: string
-  vatLabel?: string
 }
 
 export interface QuoteVersion {
