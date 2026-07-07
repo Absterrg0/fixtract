@@ -3298,22 +3298,20 @@ export default function BookingDetailPage() {
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
-                      const total = booking.milestonePayments!.reduce((s, m) => s + m.amount, 0)
-                      const paid = booking.milestonePayments!.filter(m => m.status === 'paid').reduce((s, m) => s + m.amount, 0)
-                      const completed = booking.milestonePayments!.filter(m => (m.workStatus || 'pending') === 'completed').reduce((s, m) => s + m.amount, 0)
                       const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
                         isCustomerView && customerPricingReady
-                          ? bookingMilestoneGrossAmounts[index] ?? 0
+                          ? bookingMilestoneGrossAmounts[index] ?? customerPrice(milestone.amount)
                           : milestone.amount
                       )
+                      const displayTotal = displayAmounts.reduce((sum, amount) => sum + amount, 0)
                       const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
                         milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
                       , 0)
                       const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
                         (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
                       , 0)
-                      const paymentPct = total > 0 ? Math.round((paid / total) * 100) : 0
-                      const workPct = total > 0 ? Math.round((completed / total) * 100) : 0
+                      const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
+                      const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
                       const showAmounts = !isCustomerView || customerPricingReady
                       const amountLabel = isCustomerView ? 'incl. VAT' : 'net'
                       return (
@@ -3394,7 +3392,7 @@ export default function BookingDetailPage() {
                                   <p className="text-xs text-gray-500">
                                     {booking.quote?.currency || 'EUR'}{' '}
                                     {user?.role === 'customer'
-                                      ? (customerPricingReady ? (bookingMilestoneGrossAmounts[i] ?? 0).toFixed(2) : '...')
+                                      ? (customerPricingReady ? (bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount)).toFixed(2) : '...')
                                       : ms.amount.toFixed(2)}
                                     {user?.role === 'customer' ? ' incl. VAT' : ' net'}
                                   </p>

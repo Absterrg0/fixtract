@@ -340,10 +340,14 @@ export default function AdminPaymentsPage() {
   const canRefund = (p: PaymentRecord) => p.status === "authorized" || p.status === "completed"
   const canGenerateInvoice = (p: PaymentRecord) =>
     !hasInvoiceArtifact(p) && (p.status === "authorized" || p.status === "completed")
+  const hasRefundForCreditNote = (p: PaymentRecord) =>
+    p.status === "refunded" ||
+    p.status === "partially_refunded" ||
+    (p.refunds?.length ?? 0) > 0
   const canGenerateCreditNote = (p: PaymentRecord) =>
-    Boolean(p.invoiceNumber) &&
+    hasInvoiceArtifact(p) &&
     !hasCreditNoteArtifact(p) &&
-    ["refunded", "partially_refunded"].includes(p.status)
+    hasRefundForCreditNote(p)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-10 px-4">

@@ -11,13 +11,23 @@ import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatVATNumber, validateVATFormat } from "@/lib/vatValidation"
+import { EU_COUNTRIES } from "@/lib/countries"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const normalizeCountryCode = (value?: string): string => {
+  const trimmed = (value || '').trim()
+  if (!trimmed) return 'BE'
+  if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase()
+  const match = EU_COUNTRIES.find((country) => country.name.toLowerCase() === trimmed.toLowerCase())
+  return match?.code ?? trimmed.toUpperCase()
+}
 
 const DEFAULT_COMPANY_ADDRESS = {
   name: 'Fixera',
   street: '',
   city: '',
   postalCode: '',
-  country: 'Belgium',
+  country: 'BE',
 }
 
 const DEFAULT_E_INVOICING = {
@@ -51,6 +61,7 @@ const hydrateSettingsResponse = (data: {
   companyAddress: {
     ...DEFAULT_COMPANY_ADDRESS,
     ...(data.companyAddress || {}),
+    country: normalizeCountryCode(data.companyAddress?.country ?? DEFAULT_COMPANY_ADDRESS.country),
   },
   eInvoicing: {
     ...DEFAULT_E_INVOICING,
@@ -169,7 +180,11 @@ export default function AdminSettingsPage() {
       street: companyAddress.street.trim(),
       city: companyAddress.city.trim(),
       postalCode: companyAddress.postalCode.trim(),
-      country: companyAddress.country.trim(),
+      country: normalizeCountryCode(companyAddress.country),
+    }
+    if (!/^[A-Z]{2}$/.test(trimmedAddress.country)) {
+      toast.error('Country must be an ISO 3166-1 alpha-2 code (e.g. BE)')
+      return
     }
     if (!trimmedVatNumber || !trimmedAddress.name || !trimmedAddress.street || !trimmedAddress.city || !trimmedAddress.postalCode || !trimmedAddress.country) {
       toast.error('Company VAT number and full invoice issuer address are required')
@@ -370,12 +385,22 @@ export default function AdminSettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="company-country">Country</Label>
-                    <Input
-                      id="company-country"
+                    <Label htmlFor="company-country">Country (ISO code)</Label>
+                    <Select
                       value={companyAddress.country}
-                      onChange={(e) => setCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
-                    />
+                      onValueChange={(value) => setCompanyAddress(prev => ({ ...prev, country: value }))}
+                    >
+                      <SelectTrigger id="company-country">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EU_COUNTRIES.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {country.flag} {country.name} ({country.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
