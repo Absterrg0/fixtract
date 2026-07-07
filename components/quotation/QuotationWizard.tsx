@@ -69,6 +69,9 @@ const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
   source: 'standard',
 }]
 
+const getVatOptionValue = (option: VatRateOption) =>
+  `${option.country}:${option.rate}:${option.source}:${option.label}`
+
 const coerceNonFirstDueCondition = (
   value: unknown
 ): QuotationMilestone['dueCondition'] =>
@@ -124,7 +127,14 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
             ...line,
             clientKey: line.clientKey || makePricingLineKey(),
           }))
-        : [{ clientKey: makePricingLineKey(), description: existing.description || existing.scope, price: existing.totalAmount, vatRate: 21, vatCountry: 'BE' }],
+        : [{
+            clientKey: makePricingLineKey(),
+            description: existing.description || existing.scope,
+            price: existing.totalAmount,
+            vatRate: 0,
+            vatCountry: 'BE',
+            vatLabel: '0% VAT (legacy quote)',
+          }],
       totalAmount: existing.totalAmount,
       currency: existing.currency || 'EUR',
       useMilestones: (existing.milestones?.length || 0) > 0,
@@ -561,9 +571,15 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   placeholder="1500.00"
                 />
                 <Select
-                  value={`${line.vatCountry || defaultVatOption.country}:${line.vatRate}`}
+                  value={getVatOptionValue(
+                    effectiveVatRateOptions.find((option) =>
+                      option.country === (line.vatCountry || defaultVatOption.country)
+                      && option.rate === line.vatRate
+                      && option.label === (line.vatLabel || defaultVatOption.label)
+                    ) || defaultVatOption
+                  )}
                   onValueChange={v => {
-                    const option = effectiveVatRateOptions.find(candidate => `${candidate.country}:${candidate.rate}` === v)
+                    const option = effectiveVatRateOptions.find(candidate => getVatOptionValue(candidate) === v)
                     if (option) updatePricingLineVat(index, option)
                   }}
                 >
@@ -573,8 +589,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   <SelectContent>
                     {effectiveVatRateOptions.map(option => (
                       <SelectItem
-                        key={`${option.country}:${option.rate}:${option.source}`}
-                        value={`${option.country}:${option.rate}`}
+                        key={getVatOptionValue(option)}
+                        value={getVatOptionValue(option)}
                       >
                         {option.label}
                       </SelectItem>

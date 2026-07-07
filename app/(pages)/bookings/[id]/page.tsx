@@ -4820,7 +4820,10 @@ export default function BookingDetailPage() {
                     </Card>
                   )}
 
-                  {booking.payment?.invoiceUrl && (
+                  {(booking.payment?.invoiceUrl ||
+                    booking.payment?.invoiceUblUrl ||
+                    booking.payment?.creditNoteUrl ||
+                    booking.payment?.creditNoteUblUrl) && (
                     <Card className="bg-slate-50/60 border border-slate-100">
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-xs">
@@ -4834,9 +4837,11 @@ export default function BookingDetailPage() {
                           <span>{booking.payment.invoiceNumber || 'Generated'}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                            <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
-                          </Button>
+                          {booking.payment.invoiceUrl && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
+                            </Button>
+                          )}
                           {booking.payment.invoiceUblUrl && (
                             <Button asChild size="sm" variant="outline" className="h-8 text-xs">
                               <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">Download UBL</a>
@@ -4848,16 +4853,18 @@ export default function BookingDetailPage() {
                             Peppol status: {booking.payment.peppolDispatchStatus}
                           </p>
                         )}
-                        {booking.payment.creditNoteUrl && (
+                        {(booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
                           <div className="border-t border-gray-200 pt-2 space-y-2">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Credit note #</span>
                               <span>{booking.payment.creditNoteNumber}</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">Credit note PDF</a>
-                              </Button>
+                              {booking.payment.creditNoteUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">Credit note PDF</a>
+                                </Button>
+                              )}
                               {booking.payment.creditNoteUblUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
                                   <a href={booking.payment.creditNoteUblUrl} target="_blank" rel="noreferrer">Credit note UBL</a>

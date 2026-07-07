@@ -169,7 +169,7 @@ export default function AdminSettingsPage() {
         toast.error('Peppol participant ID is required when Peppol e-invoicing is enabled')
         return
       }
-      if (!/^[^\s:]+:[^\s]+$/.test(trimmedParticipantId)) {
+      if (!/^[^\s:]+:[^\s:]+$/.test(trimmedParticipantId)) {
         toast.error('Peppol participant ID should use scheme:identifier format (e.g. 0208:BE0123456789)')
         return
       }

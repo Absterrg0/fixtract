@@ -407,7 +407,12 @@ export default function ServiceConfigurationManagement() {
       ? service.activeCountries
       : legacyCountry ? [legacyCountry] : []
     const resolvedPricingOptions = migratePricingOptions(service)
-    setFormData({ ...service, activeCountries: resolvedActiveCountries, pricingOptions: resolvedPricingOptions })
+    setFormData({
+      ...service,
+      activeCountries: resolvedActiveCountries,
+      pricingOptions: resolvedPricingOptions,
+      vatManagement: ensureVatManagement(service.vatManagement),
+    })
     setEditingId(service._id || null)
     setEditDialogOpen(true)
     console.log('✏️ Edit dialog state set to:', true)
@@ -496,18 +501,33 @@ export default function ServiceConfigurationManagement() {
           return
         }
       }
+      const validVatQuestionFields = new Set(
+        vat.reducedVatQuestions.map((question) => question.fieldName.trim())
+      )
       for (const rule of vat.logicRules) {
         if (!rule.country.trim()) {
           toast.error('Each VAT logic rule needs a country')
           return
         }
-        if (rule.standardRate <= 0 || rule.standardRate > 100 || rule.reducedRate < 0 || rule.reducedRate > rule.standardRate) {
+        if (
+          !Number.isFinite(rule.standardRate) ||
+          rule.standardRate <= 0 ||
+          rule.standardRate > 100 ||
+          !Number.isFinite(rule.reducedRate) ||
+          rule.reducedRate < 0 ||
+          rule.reducedRate > rule.standardRate
+        ) {
           toast.error('Each VAT logic rule needs a positive standard rate and a reduced rate between 0 and the standard rate')
           return
         }
         for (const condition of rule.conditions) {
-          if (!condition.fieldName?.trim()) {
+          const conditionFieldName = condition.fieldName?.trim()
+          if (!conditionFieldName) {
             toast.error('Each VAT logic condition needs a field name')
+            return
+          }
+          if (!validVatQuestionFields.has(conditionFieldName)) {
+            toast.error(`VAT logic condition references unknown field "${conditionFieldName}"`)
             return
           }
         }

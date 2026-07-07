@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,6 +59,7 @@ interface PaymentRecord {
   invoiceUblUrl?: string
   creditNoteNumber?: string
   creditNoteUrl?: string
+  creditNoteUblUrl?: string
   peppolDispatchStatus?: string
   refunds?: Array<{
     amount: number
@@ -219,12 +220,15 @@ export default function AdminPaymentsPage() {
   // ─── Invoice / Credit Note ──────────────────────────────────────────────
 
   const [invoiceActionPaymentIds, setInvoiceActionPaymentIds] = useState<Set<string>>(() => new Set())
+  const invoiceActionPaymentIdsRef = useRef<Set<string>>(new Set())
 
   const startInvoiceAction = (paymentId: string) => {
+    invoiceActionPaymentIdsRef.current.add(paymentId)
     setInvoiceActionPaymentIds((current) => new Set(current).add(paymentId))
   }
 
   const finishInvoiceAction = (paymentId: string) => {
+    invoiceActionPaymentIdsRef.current.delete(paymentId)
     setInvoiceActionPaymentIds((current) => {
       const next = new Set(current)
       next.delete(paymentId)
@@ -238,6 +242,7 @@ export default function AdminPaymentsPage() {
     successLabel: string,
     failureLabel: string
   ) => {
+    if (invoiceActionPaymentIdsRef.current.has(payment._id)) return
     startInvoiceAction(payment._id)
     try {
       const response = await fetch(
@@ -334,7 +339,7 @@ export default function AdminPaymentsPage() {
   const hasCreditNoteArtifact = (p: PaymentRecord) =>
     Boolean(p.creditNoteUrl || p.creditNoteNumber)
   const hasArtifactLinks = (p: PaymentRecord) =>
-    Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl)
+    Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl || p.creditNoteUblUrl)
 
   const canCapture = (p: PaymentRecord) => p.status === "authorized"
   const canRefund = (p: PaymentRecord) => p.status === "authorized" || p.status === "completed"
@@ -640,6 +645,17 @@ export default function AdminPaymentsPage() {
                               >
                                 <FileMinus className="h-3 w-3" />
                                 {payment.creditNoteNumber || "Credit note"} (PDF)
+                              </a>
+                            )}
+                            {payment.creditNoteUblUrl && (
+                              <a
+                                href={payment.creditNoteUblUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileMinus className="h-3 w-3" />
+                                {payment.creditNoteNumber || "Credit note"} (UBL)
                               </a>
                             )}
                             {!canCapture(payment) && !canRefund(payment) && !canGenerateInvoice(payment) && !canGenerateCreditNote(payment) && !hasArtifactLinks(payment) && (
