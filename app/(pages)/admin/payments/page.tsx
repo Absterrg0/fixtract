@@ -329,13 +329,20 @@ export default function AdminPaymentsPage() {
     )
   }
 
+  const hasInvoiceArtifact = (p: PaymentRecord) =>
+    Boolean(p.invoiceUrl || p.invoiceNumber || p.invoiceUblUrl)
+  const hasCreditNoteArtifact = (p: PaymentRecord) =>
+    Boolean(p.creditNoteUrl || p.creditNoteNumber)
+  const hasArtifactLinks = (p: PaymentRecord) =>
+    Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl)
+
   const canCapture = (p: PaymentRecord) => p.status === "authorized"
   const canRefund = (p: PaymentRecord) => p.status === "authorized" || p.status === "completed"
   const canGenerateInvoice = (p: PaymentRecord) =>
-    !p.invoiceUrl && (p.status === "authorized" || p.status === "completed")
+    !hasInvoiceArtifact(p) && (p.status === "authorized" || p.status === "completed")
   const canGenerateCreditNote = (p: PaymentRecord) =>
     Boolean(p.invoiceNumber) &&
-    !p.creditNoteUrl &&
+    !hasCreditNoteArtifact(p) &&
     ["completed", "refunded", "partially_refunded"].includes(p.status)
 
   return (
@@ -631,7 +638,7 @@ export default function AdminPaymentsPage() {
                                 {payment.creditNoteNumber || "Credit note"} (PDF)
                               </a>
                             )}
-                            {!canCapture(payment) && !canRefund(payment) && !canGenerateInvoice(payment) && !canGenerateCreditNote(payment) && !payment.invoiceUrl && (
+                            {!canCapture(payment) && !canRefund(payment) && !canGenerateInvoice(payment) && !canGenerateCreditNote(payment) && !hasArtifactLinks(payment) && (
                               <span className="text-xs text-gray-400">No actions</span>
                             )}
                           </div>
