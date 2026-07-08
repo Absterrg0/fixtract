@@ -28,7 +28,7 @@ interface VatRateOption {
   country: string
   label: string
   reverseCharge: boolean
-  source: 'standard' | 'reduced' | 'b2b_exempt'
+  source: 'standard' | 'reduced' | 'b2b_exempt' | 'legacy'
 }
 
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
@@ -68,6 +68,17 @@ const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
   reverseCharge: false,
   source: 'standard',
 }]
+
+const LEGACY_VAT_RATE_OPTION: VatRateOption = {
+  rate: 0,
+  country: 'BE',
+  label: '0% VAT (legacy quote)',
+  reverseCharge: false,
+  source: 'legacy',
+}
+
+const isLegacyVatPricingLine = (line: Pick<QuotationPricingLine, 'vatRate' | 'vatLabel'>) =>
+  Number(line.vatRate) === 0 && line.vatLabel === LEGACY_VAT_RATE_OPTION.label
 
 const getVatOptionValue = (option: VatRateOption) =>
   `${option.country}:${option.rate}:${option.source}:${option.label}`
@@ -199,6 +210,32 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   )
 
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
+
+  const selectVatRateOptions = useMemo(() => {
+    const hasLegacyLine = form.pricingLines.some(isLegacyVatPricingLine)
+    if (!hasLegacyLine) return effectiveVatRateOptions
+    const legacyValue = getVatOptionValue(LEGACY_VAT_RATE_OPTION)
+    const alreadyIncluded = effectiveVatRateOptions.some(
+      (option) => getVatOptionValue(option) === legacyValue
+    )
+    return alreadyIncluded
+      ? effectiveVatRateOptions
+      : [...effectiveVatRateOptions, LEGACY_VAT_RATE_OPTION]
+  }, [effectiveVatRateOptions, form.pricingLines])
+
+  const findVatOptionForPricingLine = (line: QuotationPricingLine) => {
+    if (isLegacyVatPricingLine(line)) {
+      return LEGACY_VAT_RATE_OPTION
+    }
+    return selectVatRateOptions.find((option) =>
+      option.country === (line.vatCountry || defaultVatOption.country)
+      && option.rate === line.vatRate
+      && option.label === (line.vatLabel || defaultVatOption.label)
+    ) || selectVatRateOptions.find((option) =>
+      option.country === (line.vatCountry || defaultVatOption.country)
+      && option.rate === line.vatRate
+    ) || defaultVatOption
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -571,15 +608,9 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   placeholder="1500.00"
                 />
                 <Select
-                  value={getVatOptionValue(
-                    effectiveVatRateOptions.find((option) =>
-                      option.country === (line.vatCountry || defaultVatOption.country)
-                      && option.rate === line.vatRate
-                      && option.label === (line.vatLabel || defaultVatOption.label)
-                    ) || defaultVatOption
-                  )}
+                  value={getVatOptionValue(findVatOptionForPricingLine(line))}
                   onValueChange={v => {
-                    const option = effectiveVatRateOptions.find(candidate => getVatOptionValue(candidate) === v)
+                    const option = selectVatRateOptions.find(candidate => getVatOptionValue(candidate) === v)
                     if (option) updatePricingLineVat(index, option)
                   }}
                 >
@@ -587,7 +618,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {effectiveVatRateOptions.map(option => (
+                    {selectVatRateOptions.map(option => (
                       <SelectItem
                         key={getVatOptionValue(option)}
                         value={getVatOptionValue(option)}

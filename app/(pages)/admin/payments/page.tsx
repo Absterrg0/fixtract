@@ -337,7 +337,7 @@ export default function AdminPaymentsPage() {
   const hasInvoiceArtifact = (p: PaymentRecord) =>
     Boolean(p.invoiceUrl || p.invoiceNumber || p.invoiceUblUrl)
   const hasCreditNoteArtifact = (p: PaymentRecord) =>
-    Boolean(p.creditNoteUrl || p.creditNoteNumber)
+    Boolean(p.creditNoteUrl || p.creditNoteNumber || p.creditNoteUblUrl)
   const hasArtifactLinks = (p: PaymentRecord) =>
     Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl || p.creditNoteUblUrl)
 
