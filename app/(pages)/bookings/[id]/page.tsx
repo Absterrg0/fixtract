@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -30,6 +30,10 @@ import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
+import {
+  calculateMilestoneGrossAmounts,
+  calculateQuoteVersionVatTotals,
+} from "@/lib/vatPricing"
 
 const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((status) =>
   [
@@ -96,6 +100,16 @@ interface BookingDetail {
     netAmount?: number
     vatAmount?: number
     vatRate?: number
+    reverseCharge?: boolean
+    vatBreakdown?: Array<{
+      description: string
+      netAmount: number
+      vatRate: number
+      vatAmount: number
+      totalAmount: number
+      vatCountry?: string
+      vatLabel?: string
+    }>
     platformCommission?: number
     professionalPayout?: number
     stripeFeeAmount?: number
@@ -109,6 +123,15 @@ interface BookingDetail {
     paidAt?: string
     refundedAt?: string
     refundReason?: string
+    invoiceNumber?: string
+    invoiceUrl?: string
+    invoiceUblUrl?: string
+    invoiceGeneratedAt?: string
+    creditNoteNumber?: string
+    creditNoteUrl?: string
+    creditNoteUblUrl?: string
+    creditNoteGeneratedAt?: string
+    peppolDispatchStatus?: string
     discount?: {
       loyaltyTier?: string
       loyaltyAmount?: number
@@ -168,6 +191,17 @@ interface BookingDetail {
   customerRejectionReason?: string
   milestonePayments?: BookingMilestone[]
   selectedSubprojectIndex?: number
+  vatDecision?: {
+    action?: 'standard_rate' | 'reduced_rate' | 'rfq'
+    country?: string
+    standardRate?: number
+    appliedRate?: number
+    reducedRate?: number
+    reverseCharge?: boolean
+    explanation?: string
+    matchedRuleText?: string
+    answers?: { fieldName: string; value: string | number | boolean | string[] }[]
+  }
   scheduledStartDate?: string
   scheduledStartTime?: string
   scheduledEndTime?: string
@@ -541,6 +575,7 @@ export default function BookingDetailPage() {
   const [showRejectionModal, setShowRejectionModal] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [respondingToQuotation, setRespondingToQuotation] = useState(false)
+  const [proceedingAtStandardVat, setProceedingAtStandardVat] = useState(false)
   const [showQuoteRejectionModal, setShowQuoteRejectionModal] = useState(false)
   const [quoteRejectionReason, setQuoteRejectionReason] = useState("")
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false)
@@ -1387,6 +1422,37 @@ export default function BookingDetailPage() {
     }
   }
 
+  const handleProceedAtStandardVat = async () => {
+    if (!bookingId) return
+    setProceedingAtStandardVat(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers.Authorization = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/vat-proceed-standard`,
+        { method: "POST", headers, credentials: "include" }
+      )
+      const { data } = await parseResponseBody<{ success?: boolean; msg?: string; booking?: BookingDetail }>(response)
+      if (response.ok && data?.success) {
+        toast.success(data.msg || "You can now proceed at the standard VAT rate.")
+        if (data.booking?.status === "quote_accepted" && data.booking?._id) {
+          router.push(`/bookings/${data.booking._id}/payment`)
+          return
+        }
+        await refreshBooking()
+      } else {
+        toast.error(data?.msg || "Unable to update VAT preference")
+      }
+    } catch (error) {
+      console.error("Proceed at standard VAT error:", error)
+      toast.error("Unable to update VAT preference")
+    } finally {
+      setProceedingAtStandardVat(false)
+    }
+  }
+
   const handleRespondToQuotation = async (action: 'accepted' | 'rejected') => {
     if (!bookingId) return
     if (action === 'rejected' && !quoteRejectionReason.trim()) {
@@ -1503,6 +1569,37 @@ export default function BookingDetailPage() {
   const currentVersion = hasQuotationVersions
     ? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
     : null
+  const currentVersionQuoteTotals = useMemo(
+    () => calculateQuoteVersionVatTotals(
+      currentVersion,
+      customerPricingReady ? customerPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, customerPrice]
+  )
+  const currentVersionMilestoneGrossAmounts = useMemo(
+    () => calculateMilestoneGrossAmounts(
+      currentVersion,
+      customerPricingReady ? customerPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, customerPrice]
+  )
+  const currentVersionOriginalQuoteTotals = useMemo(
+    () => calculateQuoteVersionVatTotals(
+      currentVersion,
+      customerPricingReady ? originalPrice : undefined
+    ),
+    [currentVersion, customerPricingReady, originalPrice]
+  )
+  const bookingMilestoneGrossAmounts = useMemo(() => {
+    if (!booking?.milestonePayments?.length || !currentVersion) return []
+    return calculateMilestoneGrossAmounts(
+      {
+        ...currentVersion,
+        milestones: booking.milestonePayments,
+      },
+      user?.role === 'customer' && customerPricingReady ? customerPrice : undefined
+    )
+  }, [booking?.milestonePayments, currentVersion, user?.role, customerPricingReady, customerPrice])
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -2650,6 +2747,92 @@ export default function BookingDetailPage() {
                   </div>
                 )}
 
+                {user?.role === "customer" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review required</h3>
+                      <p className="text-xs text-amber-800">
+                        {booking.vatDecision.explanation || "Your answers suggest this booking may qualify for reduced VAT or needs a custom quotation review."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {booking.professional?._id && (
+                        <StartChatButton
+                          professionalId={booking.professional._id}
+                          className="bg-white border-amber-200 hover:border-amber-300"
+                        />
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                        onClick={handleProceedAtStandardVat}
+                        disabled={proceedingAtStandardVat}
+                      >
+                        {proceedingAtStandardVat ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                        )}
+                        Proceed at standard VAT rate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Professional: customer's answers triggered a VAT review */}
+                {user?.role === "professional" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review requested</h3>
+                    <p className="text-xs text-amber-800">
+                      {booking.vatDecision.explanation ||
+                        "The customer's answers may qualify for a reduced VAT rate. Review their VAT answers below and reflect the correct rate in your quotation, or advise them via chat."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Reduced VAT rate confirmed */}
+                {booking.vatDecision?.action === "reduced_rate" && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-green-900 mb-1">
+                          Reduced VAT rate applied
+                          {typeof booking.vatDecision.appliedRate === "number" ? ` (${booking.vatDecision.appliedRate}%)` : ""}
+                        </h3>
+                        <p className="text-xs text-green-800">
+                          {booking.vatDecision.explanation || booking.vatDecision.matchedRuleText ||
+                            "This booking qualifies for a reduced VAT rate based on the answers provided."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* VAT answers provided by the customer (visible to professional/admin) */}
+                {(user?.role === "professional" || user?.role === "admin") &&
+                  Array.isArray(booking.vatDecision?.answers) &&
+                  booking.vatDecision.answers.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer VAT answers</h3>
+                    <dl className="space-y-1">
+                      {booking.vatDecision.answers.map((answer) => (
+                        <div key={answer.fieldName} className="flex justify-between gap-4 text-xs">
+                          <dt className="text-gray-600 capitalize">{answer.fieldName.replace(/[_-]+/g, " ")}</dt>
+                          <dd className="font-medium text-gray-900 text-right">
+                            {Array.isArray(answer.value)
+                              ? answer.value.join(", ")
+                              : typeof answer.value === "boolean"
+                                ? answer.value ? "Yes" : "No"
+                                : String(answer.value ?? "—")}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
+
                 {/* Professional: Quote Accepted - Waiting for Payment */}
                 {user?.role === "professional" && (booking.status === "quote_accepted" || booking.status === "payment_pending") && (
                   <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4">
@@ -2913,23 +3096,74 @@ export default function BookingDetailPage() {
                             {currentVersion.milestones.map((ms, i) => (
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
-                                <span className="font-medium">{customerPricingReady ? formatMoney(customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...'}</span>
+                                <span className="font-medium">
+                                  {customerPricingReady
+                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, booking.quote?.currency || 'EUR')
+                                    : '...'}
+                                </span>
                               </div>
                             ))}
+                          </div>
+                          {customerPricingReady && (
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              Milestones are shown incl. VAT and allocated from the quotation gross total.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium mb-2">Pricing breakdown</p>
+                          <div className="rounded-md border overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50 text-gray-600">
+                                <tr>
+                                  <th className="text-left px-3 py-2 font-medium">Description</th>
+                                  <th className="text-right px-3 py-2 font-medium">Net</th>
+                                  <th className="text-right px-3 py-2 font-medium">VAT</th>
+                                  <th className="text-right px-3 py-2 font-medium">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {currentVersion.pricingLines.map((line, index) => {
+                                  const net = customerPricingReady ? customerPrice(line.price) : line.price
+                                  const vatAmount = net * ((line.vatRate || 0) / 100)
+                                  const total = net + vatAmount
+                                  return (
+                                    <tr key={index} className="border-t">
+                                      <td className="px-3 py-2 text-gray-800">
+                                        <div>{line.description}</div>
+                                        <div className="text-[10px] text-gray-500">
+                                          {line.vatLabel || `${line.vatRate}% VAT`}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right font-medium">{customerPricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm font-semibold text-gray-900">Total</span>
-                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR') : '...'}</span>
+                        <span className="text-sm font-semibold text-gray-900">Total (incl. VAT)</span>
+                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') : '...'}</span>
                       </div>
+                      {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
+                        <p className="text-xs text-gray-500 text-right">
+                          Net {formatMoney(currentVersionQuoteTotals.netAmount, booking.quote?.currency || 'EUR')} + VAT {formatMoney(currentVersionQuoteTotals.vatAmount, booking.quote?.currency || 'EUR')}
+                        </p>
+                      )}
                       {customerPricingReady && loyalty && loyalty.percentage > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <div className="text-xs text-amber-800">
                             <span className="font-semibold">{loyalty.level} Member</span> · {loyalty.percentage}% loyalty discount applied
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            You save {formatMoney(originalPrice(currentVersion.totalAmount) - customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR')}
+                            You save {formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR')}
                           </div>
                         </div>
                       )}
@@ -2956,7 +3190,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(customerPrice(v.totalAmount), booking.quote?.currency || 'EUR') : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}
@@ -3001,7 +3235,14 @@ export default function BookingDetailPage() {
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
                       <p><span className="text-gray-500">Scope:</span> {currentVersion.scope}</p>
-                      <p><span className="text-gray-500">Total:</span> <strong>{booking.quote?.currency || 'EUR'} {currentVersion.totalAmount.toFixed(2)}</strong></p>
+                      <p>
+                        <span className="text-gray-500">Net total:</span>{' '}
+                        <strong>{formatMoney(currentVersion.totalAmount, booking.quote?.currency || 'EUR')}</strong>
+                      </p>
+                      <p>
+                        <span className="text-gray-500">Total incl. VAT:</span>{' '}
+                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, booking.quote?.currency || 'EUR')}</strong>
+                      </p>
                       <p><span className="text-gray-500">Valid until:</span> {formatValidUntilLabel(currentVersion?.validUntil)}</p>
                       <p className="text-xs text-gray-500">Waiting for customer response...</p>
                     </div>
@@ -3057,13 +3298,22 @@ export default function BookingDetailPage() {
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
-                      const displayAmount = (n: number) => isCustomerView && customerPricingReady ? customerPrice(n) : n
-                      const total = booking.milestonePayments!.reduce((s, m) => s + m.amount, 0)
-                      const paid = booking.milestonePayments!.filter(m => m.status === 'paid').reduce((s, m) => s + m.amount, 0)
-                      const completed = booking.milestonePayments!.filter(m => (m.workStatus || 'pending') === 'completed').reduce((s, m) => s + m.amount, 0)
-                      const paymentPct = total > 0 ? Math.round((paid / total) * 100) : 0
-                      const workPct = total > 0 ? Math.round((completed / total) * 100) : 0
+                      const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
+                        isCustomerView && customerPricingReady
+                          ? bookingMilestoneGrossAmounts[index] ?? customerPrice(milestone.amount)
+                          : milestone.amount
+                      )
+                      const displayTotal = displayAmounts.reduce((sum, amount) => sum + amount, 0)
+                      const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
+                        milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
+                      , 0)
+                      const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
+                        (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
+                      , 0)
+                      const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
+                      const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
                       const showAmounts = !isCustomerView || customerPricingReady
+                      const amountLabel = isCustomerView ? 'incl. VAT' : 'net'
                       return (
                         <div className="mb-4 space-y-3">
                           <div>
@@ -3085,8 +3335,8 @@ export default function BookingDetailPage() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(completed).toFixed(2) : '...'} completed</span>
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayAmount(paid).toFixed(2) : '...'} paid</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayCompleted.toFixed(2) : '...'} completed ({amountLabel})</span>
+                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayPaid.toFixed(2) : '...'} paid ({amountLabel})</span>
                           </div>
                         </div>
                       )
@@ -3142,8 +3392,9 @@ export default function BookingDetailPage() {
                                   <p className="text-xs text-gray-500">
                                     {booking.quote?.currency || 'EUR'}{' '}
                                     {user?.role === 'customer'
-                                      ? (customerPricingReady ? customerPrice(ms.amount).toFixed(2) : '...')
+                                      ? (customerPricingReady ? (bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount)).toFixed(2) : '...')
                                       : ms.amount.toFixed(2)}
+                                    {user?.role === 'customer' ? ' incl. VAT' : ' net'}
                                   </p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
@@ -3220,7 +3471,7 @@ export default function BookingDetailPage() {
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
                       {/* Original quote amount */}
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Quote Amount:</span>
+                        <span className="text-sm text-gray-600">Quote Amount (excl. VAT):</span>
                         <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
                           {booking.quote.currency || "€"}{booking.quote.amount != null ? booking.quote.amount.toLocaleString() : "—"}
                         </span>
@@ -4508,6 +4759,16 @@ export default function BookingDetailPage() {
                             <span>{booking.payment.currency || 'EUR'} {booking.payment.vatAmount.toFixed(2)}</span>
                           </div>
                         )}
+                        {booking.payment.reverseCharge && (
+                          <div className="rounded-md border border-blue-100 bg-blue-50 p-2 text-[11px] text-blue-800">
+                            0% VAT applied: Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                          </div>
+                        )}
+                        {booking.vatDecision?.explanation && (
+                          <div className="rounded-md border border-emerald-100 bg-emerald-50 p-2 text-[11px] text-emerald-800">
+                            {booking.vatDecision.explanation}
+                          </div>
+                        )}
                         {booking.payment.totalWithVat != null && (
                           <div className="flex justify-between font-medium">
                             <span>Total (incl. VAT)</span>
@@ -4553,6 +4814,63 @@ export default function BookingDetailPage() {
                         {booking.payment.stripePaymentIntentId && (
                           <div className="border-t border-gray-200 pt-1.5 mt-1.5">
                             <p className="text-[10px] text-gray-400 break-all">PI: {booking.payment.stripePaymentIntentId}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {(booking.payment?.invoiceUrl ||
+                    booking.payment?.invoiceUblUrl ||
+                    booking.payment?.creditNoteUrl ||
+                    booking.payment?.creditNoteUblUrl) && (
+                    <Card className="bg-slate-50/60 border border-slate-100">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-xs">
+                          <FileText className="h-4 w-4 text-slate-600" />
+                          Invoice
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-xs text-gray-700">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Invoice #</span>
+                          <span>{booking.payment.invoiceNumber || 'Generated'}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {booking.payment.invoiceUrl && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
+                            </Button>
+                          )}
+                          {booking.payment.invoiceUblUrl && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">Download UBL</a>
+                            </Button>
+                          )}
+                        </div>
+                        {booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
+                          <p className="text-[11px] text-gray-500">
+                            Peppol status: {booking.payment.peppolDispatchStatus}
+                          </p>
+                        )}
+                        {(booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
+                          <div className="border-t border-gray-200 pt-2 space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Credit note #</span>
+                              <span>{booking.payment.creditNoteNumber}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {booking.payment.creditNoteUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">Credit note PDF</a>
+                                </Button>
+                              )}
+                              {booking.payment.creditNoteUblUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.creditNoteUblUrl} target="_blank" rel="noreferrer">Credit note UBL</a>
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </CardContent>

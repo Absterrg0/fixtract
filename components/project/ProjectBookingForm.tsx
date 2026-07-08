@@ -110,6 +110,21 @@ interface RFQAnswer {
   fieldType?: string;
 }
 
+interface VatAnswer {
+  fieldName: string;
+  value: string | number | boolean | string[];
+}
+
+interface VatPreviewDecision {
+  action: 'standard_rate' | 'reduced_rate' | 'rfq';
+  country: string;
+  standardRate: number;
+  appliedRate: number;
+  reducedRate?: number;
+  reverseCharge: boolean;
+  explanation?: string;
+}
+
 interface BlockedRange {
   startDate: string;
   endDate: string;
@@ -298,6 +313,8 @@ export default function ProjectBookingForm({
   } | null>(null);
   const [loadingScheduleWindow, setLoadingScheduleWindow] = useState(false);
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
+  const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>({});
+  const [vatPreview, setVatPreview] = useState<VatPreviewDecision | null>(null);
   const [uploadingQuestionIndexes, setUploadingQuestionIndexes] = useState<Set<number>>(new Set());
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
     []
@@ -313,6 +330,43 @@ export default function ProjectBookingForm({
       ? project.subprojects[selectedPackageIndex]
       : null;
   const isRfqPackage = selectedPackage?.pricing?.type === 'rfq';
+
+  // Best-effort VAT preview for the review step. Checkout always uses the
+  // backend-computed decision, so failures here are silently ignored.
+  useEffect(() => {
+    if (currentStep !== 4) {
+      setVatPreview(null);
+      return;
+    }
+    setVatPreview(null);
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/vat-preview`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: project._id,
+              serviceConfigurationId: project.serviceConfigurationId,
+              vatAnswers: Object.values(vatAnswers),
+            }),
+          }
+        );
+        const payload = await response.json();
+        if (!cancelled && response.ok && payload.success && payload.data) {
+          setVatPreview(payload.data);
+        }
+      } catch {
+        if (!cancelled) setVatPreview(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers]);
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
   const isUnitPricing =
@@ -1870,6 +1924,10 @@ export default function ProjectBookingForm({
     });
   };
 
+  const handleVatAnswerChange = (fieldName: string, value: VatAnswer['value']) => {
+    setVatAnswers(prev => ({ ...prev, [fieldName]: { fieldName, value } }));
+  };
+
   const handleRFQAttachmentUpload = async (index: number, file: File | null) => {
     if (!file) return;
 
@@ -2030,6 +2088,20 @@ export default function ProjectBookingForm({
       }
     }
 
+    if (currentStep === 3 && project.vatManagement?.enabled) {
+      for (const question of project.vatManagement.reducedVatQuestions || []) {
+        const answer = vatAnswers[question.fieldName]?.value;
+        const isMissing =
+          answer === undefined ||
+          answer === '' ||
+          (Array.isArray(answer) && answer.length === 0);
+        if (question.isRequired && isMissing) {
+          toast.error(`Please answer: ${question.question}`);
+          return false;
+        }
+      }
+    }
+
     if (currentStep === 4) {
       if (useProfileAddress) {
         if (!hasProfileAddress) {
@@ -2143,6 +2215,8 @@ export default function ProjectBookingForm({
       const bookingData = {
         bookingType: 'project',
         projectId: project._id,
+        serviceConfigurationId: project.serviceConfigurationId,
+        vatAnswers: Object.values(vatAnswers),
         preferredStartDate: isRfqPackage ? undefined : selectedDate,
         preferredStartTime:
           !isRfqPackage && projectMode === 'hours' && selectedTime
@@ -2216,7 +2290,29 @@ export default function ProjectBookingForm({
         debugLog?.('[BOOKING] Response data:', data);
 
         if (response.ok && data.success) {
-          if (shouldPayAtCheckout && data.booking?._id) {
+          const returnedVatDecision = data.booking?.vatDecision;
+          const returnedStatus = data.booking?.status;
+
+          if (returnedVatDecision?.action === 'reduced_rate' && returnedVatDecision?.explanation) {
+            toast.success(returnedVatDecision.explanation);
+          }
+
+          if (returnedVatDecision?.action === 'rfq' && !returnedVatDecision?.reverseCharge) {
+            toast.info(returnedVatDecision.explanation || 'This VAT case requires quotation review. You can chat with the professional or proceed at the standard rate from your booking.');
+            // Only count as an RFQ completion when the package itself is RFQ;
+            // fixed-price bookings routed here are just pending VAT review.
+            if (selectedPackage?.pricing?.type === 'rfq') {
+              trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
+            }
+            if (data.booking?._id) {
+              router.replace(`/bookings/${data.booking._id}`);
+            } else {
+              router.replace('/dashboard');
+            }
+            return;
+          }
+
+          if (shouldPayAtCheckout && returnedStatus === 'quote_accepted' && data.booking?._id) {
             trackBeginCheckout(data.booking._id, {
               bookingNumber: data.booking.bookingNumber,
               payment: {
@@ -3804,6 +3900,87 @@ export default function ProjectBookingForm({
                 ))}
                 </>)}
 
+                {project.vatManagement?.enabled && (project.vatManagement.reducedVatQuestions?.length ?? 0) > 0 && (
+                  <div className='space-y-4 pt-4 border-t'>
+                    <div>
+                      <h2 className='text-xl font-semibold mb-2'>Reduced VAT questions</h2>
+                      <p className='text-gray-600 text-sm'>
+                        These answers determine whether a reduced VAT route can be applied.
+                      </p>
+                    </div>
+
+                    {(project.vatManagement.reducedVatQuestions || []).map((question) => {
+                      const value = vatAnswers[question.fieldName]?.value;
+                      return (
+                        <div key={question.fieldName} className='space-y-2'>
+                          <Label htmlFor={`vat-${question.fieldName}`}>
+                            {question.question}
+                            {question.isRequired && <span className='text-red-500 ml-1'>*</span>}
+                          </Label>
+
+                          {question.answerType === 'number' && (
+                            <div className='flex gap-2'>
+                              <Input
+                                id={`vat-${question.fieldName}`}
+                                type='number'
+                                value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+                                onChange={(e) => handleVatAnswerChange(question.fieldName, e.target.value ? Number(e.target.value) : '')}
+                              />
+                              {question.unit && (
+                                <span className='flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600'>
+                                  {question.unit}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {question.answerType === 'yes_no' && (
+                            <RadioGroup
+                              value={value === true ? 'yes' : value === false ? 'no' : ''}
+                              onValueChange={(next) => handleVatAnswerChange(question.fieldName, next === 'yes')}
+                              className='flex gap-4'
+                            >
+                              <div className='flex items-center space-x-2'>
+                                <RadioGroupItem value='yes' id={`vat-${question.fieldName}-yes`} />
+                                <Label htmlFor={`vat-${question.fieldName}-yes`} className='font-normal'>Yes</Label>
+                              </div>
+                              <div className='flex items-center space-x-2'>
+                                <RadioGroupItem value='no' id={`vat-${question.fieldName}-no`} />
+                                <Label htmlFor={`vat-${question.fieldName}-no`} className='font-normal'>No</Label>
+                              </div>
+                            </RadioGroup>
+                          )}
+
+                          {question.answerType === 'checkboxes' && (
+                            <div className='space-y-2'>
+                              {(question.options || []).map((option) => {
+                                const selected = Array.isArray(value) && value.includes(option);
+                                return (
+                                  <label key={option} className='flex items-center gap-2 text-sm'>
+                                    <Checkbox
+                                      checked={selected}
+                                      onCheckedChange={(checked) => {
+                                        const current = Array.isArray(value) ? value : [];
+                                        handleVatAnswerChange(
+                                          question.fieldName,
+                                          checked
+                                            ? [...current, option]
+                                            : current.filter(item => item !== option)
+                                        );
+                                      }}
+                                    />
+                                    {option}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Additional Notes */}
                 <div className='space-y-2 pt-4 border-t'>
                   <Label htmlFor='additional-notes'>
@@ -4219,7 +4396,7 @@ export default function ProjectBookingForm({
                       {finalDisplayTotal > 0 && (
                         <div className='flex justify-between items-center'>
                           <span className='text-lg font-bold text-gray-900'>
-                            Grand Total:
+                            Grand Total{vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq' ? ' (excl. VAT)' : ''}:
                           </span>
                           <span className='text-2xl font-bold text-blue-600'>
                             {customerPricingReady ? (
@@ -4228,6 +4405,51 @@ export default function ProjectBookingForm({
                               <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
                             )}
                           </span>
+                        </div>
+                      )}
+
+                      {/* Estimated VAT */}
+                      {finalDisplayTotal > 0 && vatPreview && !isRfqPackage && (
+                        <div className='space-y-1 pt-2 border-t border-blue-200 text-sm'>
+                          {vatPreview.action === 'rfq' && !vatPreview.reverseCharge ? (
+                            <p className='text-amber-700'>
+                              {vatPreview.explanation ||
+                                'Your answers require a VAT review. After submitting you can chat with the professional or proceed at the standard VAT rate.'}
+                            </p>
+                          ) : vatPreview.reverseCharge ? (
+                            <>
+                              <div className='flex justify-between text-gray-700'>
+                                <span>VAT (0% — reverse charge)</span>
+                                <span>{formatCurrency(0)}</span>
+                              </div>
+                              <p className='text-xs text-gray-600'>
+                                Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <div className='flex justify-between text-gray-700'>
+                                <span>
+                                  Estimated VAT ({vatPreview.appliedRate}%
+                                  {vatPreview.action === 'reduced_rate' ? ' reduced rate' : ''})
+                                </span>
+                                <span>
+                                  {formatCurrency(Math.round(finalDisplayTotal * vatPreview.appliedRate) / 100)}
+                                </span>
+                              </div>
+                              <div className='flex justify-between font-semibold text-gray-900'>
+                                <span>Estimated total incl. VAT</span>
+                                <span>
+                                  {formatCurrency(
+                                    Math.round(finalDisplayTotal * (100 + vatPreview.appliedRate)) / 100
+                                  )}
+                                </span>
+                              </div>
+                              {vatPreview.action === 'reduced_rate' && vatPreview.explanation && (
+                                <p className='text-xs text-green-700'>{vatPreview.explanation}</p>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
 

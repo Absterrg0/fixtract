@@ -1,3 +1,12 @@
+export interface QuotationPricingLine {
+  clientKey?: string
+  description: string
+  price: number
+  vatRate: number
+  vatCountry?: string
+  vatLabel?: string
+}
+
 export interface QuotationMilestone {
   title: string
   amount: number
@@ -32,6 +41,7 @@ export interface QuoteVersion {
   materialsIncluded: boolean
   materials?: QuoteMaterial[]
   description: string
+  pricingLines?: QuotationPricingLine[]
   totalAmount: number
   currency: string
   milestones?: QuotationMilestone[]
@@ -49,6 +59,7 @@ export interface QuotationWizardFormData {
   materialsIncluded: boolean | null
   materials: QuoteMaterial[]
   description: string
+  pricingLines: QuotationPricingLine[]
   totalAmount: number
   currency: string
   useMilestones: boolean
