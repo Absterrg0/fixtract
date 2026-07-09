@@ -12,8 +12,12 @@ declare global {
   }
 }
 
+import { getMigratedItem, setMigratedItem } from '@/lib/storageMigration';
+
 const TRAFFIC_SESSION_KEY = 'fixtract-traffic-attribution-v1';
+const LEGACY_TRAFFIC_SESSION_KEY = 'fixera-traffic-attribution-v1';
 const EVENT_DEDUPE_PREFIX = 'fixtract-analytics-event:';
+const LEGACY_EVENT_DEDUPE_PREFIX = 'fixera-analytics-event:';
 
 export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined | AnalyticsItem[]>;
 
@@ -83,12 +87,13 @@ export function getPageType(pathname: string): string {
 export function getTrafficAttribution(): Record<string, string> {
   if (typeof window === 'undefined') return {};
 
-  const stored = window.sessionStorage.getItem(TRAFFIC_SESSION_KEY);
+  const stored = getMigratedItem('session', TRAFFIC_SESSION_KEY, LEGACY_TRAFFIC_SESSION_KEY);
   if (stored) {
     try {
       return JSON.parse(stored) as Record<string, string>;
     } catch {
       window.sessionStorage.removeItem(TRAFFIC_SESSION_KEY);
+      window.sessionStorage.removeItem(LEGACY_TRAFFIC_SESSION_KEY);
     }
   }
 
@@ -109,7 +114,12 @@ export function getTrafficAttribution(): Record<string, string> {
     referrer_host: referrerHost || '(none)',
   };
 
-  window.sessionStorage.setItem(TRAFFIC_SESSION_KEY, JSON.stringify(attribution));
+  setMigratedItem(
+    'session',
+    TRAFFIC_SESSION_KEY,
+    JSON.stringify(attribution),
+    LEGACY_TRAFFIC_SESSION_KEY
+  );
   return attribution;
 }
 
@@ -137,8 +147,9 @@ export function trackEvent(eventName: string, params: AnalyticsEventParams = {})
 export function trackOnce(eventName: string, dedupeId: string, params: AnalyticsEventParams = {}): void {
   if (typeof window === 'undefined') return;
   const key = `${EVENT_DEDUPE_PREFIX}${eventName}:${dedupeId}`;
-  if (window.sessionStorage.getItem(key)) return;
-  window.sessionStorage.setItem(key, '1');
+  const legacyKey = `${LEGACY_EVENT_DEDUPE_PREFIX}${eventName}:${dedupeId}`;
+  if (getMigratedItem('session', key, legacyKey)) return;
+  setMigratedItem('session', key, '1', legacyKey);
   trackEvent(eventName, params);
 }
 

@@ -46,7 +46,8 @@ import {
   getCertificateGradient,
   isQualityCertificate,
 } from '@/lib/projectHighlights';
-import { emitChatWidgetOpen, PENDING_CHAT_START_KEY } from '@/lib/chatWidgetEvents';
+import { emitChatWidgetOpen, PENDING_CHAT_START_KEY, LEGACY_PENDING_CHAT_START_KEY } from '@/lib/chatWidgetEvents';
+import { setMigratedItem } from '@/lib/storageMigration';
 import {
   formatProfessionalViewerLabel,
   formatWindowProfessionalViewer,
@@ -489,9 +490,11 @@ export default function ProjectDetailPage() {
     if (!profId) return;
 
     if (!isAuthenticated) {
-      sessionStorage.setItem(
+      setMigratedItem(
+        'session',
         PENDING_CHAT_START_KEY,
-        JSON.stringify({ open: true, professionalId: profId })
+        JSON.stringify({ open: true, professionalId: profId }),
+        LEGACY_PENDING_CHAT_START_KEY
       );
       toast.error('Please sign in to contact this professional');
       router.push(`/login?redirect=/projects/${projectId}`);

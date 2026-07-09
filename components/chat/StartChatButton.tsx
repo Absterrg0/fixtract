@@ -6,7 +6,8 @@ import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { emitChatWidgetOpen, PENDING_CHAT_START_KEY } from "@/lib/chatWidgetEvents";
+import { emitChatWidgetOpen, PENDING_CHAT_START_KEY, LEGACY_PENDING_CHAT_START_KEY } from "@/lib/chatWidgetEvents";
+import { setMigratedItem } from "@/lib/storageMigration";
 
 interface StartChatButtonProps {
   professionalId: string;
@@ -44,7 +45,12 @@ export default function StartChatButton({
 
     if (!isAuthenticated) {
       if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(PENDING_CHAT_START_KEY, JSON.stringify(detail));
+        setMigratedItem(
+          "session",
+          PENDING_CHAT_START_KEY,
+          JSON.stringify(detail),
+          LEGACY_PENDING_CHAT_START_KEY
+        );
       }
       router.push(`/login?redirect=${encodeURIComponent(pathname || "/")}`);
       return;

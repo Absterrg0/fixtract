@@ -6,7 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { PENDING_FAVORITE_KEY, HEART_PATH } from "@/lib/constants/favorites";
+import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY, HEART_PATH } from "@/lib/constants/favorites";
+import { setMigratedItem } from "@/lib/storageMigration";
 
 export { PENDING_FAVORITE_KEY };
 
@@ -64,9 +65,11 @@ export default function FavoriteButton({
 
     if (!isAuthenticated) {
       if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(
+        setMigratedItem(
+          "session",
           PENDING_FAVORITE_KEY,
-          JSON.stringify({ targetType, targetId })
+          JSON.stringify({ targetType, targetId }),
+          LEGACY_PENDING_FAVORITE_KEY
         );
       }
       router.push(`/login?redirect=${encodeURIComponent(pathname || "/")}`);
