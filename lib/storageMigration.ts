@@ -32,8 +32,13 @@ export function getMigratedItem(
     const prev = store.getItem(oldKey);
     if (prev == null) return null;
 
-    store.setItem(newKey, prev);
-    store.removeItem(oldKey);
+    try {
+      store.setItem(newKey, prev);
+      store.removeItem(oldKey);
+    } catch {
+      // Persisting the migration failed (quota/private mode); still
+      // return the legacy value so behavior isn't regressed.
+    }
     return prev;
   } catch {
     return null;

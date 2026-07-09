@@ -14,7 +14,7 @@ export interface ConsentState {
 }
 
 export const STORAGE_KEY = "fixtract-consent-v1";
-const LEGACY_STORAGE_KEY = "fixera-consent-v1";
+export const LEGACY_STORAGE_KEY = "fixera-consent-v1";
 const EVENT_NAME = "consent-updated";
 
 export function getConsent(): ConsentState | null {

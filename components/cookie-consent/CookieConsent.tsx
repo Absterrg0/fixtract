@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { CONSENT_EVENT, STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
-
-const LEGACY_STORAGE_KEY = 'fixera-consent-v1'
+import { CONSENT_EVENT, STORAGE_KEY, LEGACY_STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
 
 export default function CookieConsent() {
   const [decided, setDecided] = useState<ConsentState | null | undefined>(undefined)
