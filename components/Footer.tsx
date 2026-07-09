@@ -67,15 +67,14 @@ export default async function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
           {/* Brand & Contact Section */}
           <div className="lg:col-span-2">
-            <Link href="#hero" className="inline-flex items-center space-x-3 mb-6" aria-label="Fixtract">
+            <Link href="#hero" className="inline-flex items-center mb-6" aria-label="Fixtract">
               <Image
-                src="/icon-192.png"
-                alt=""
-                width={48}
-                height={48}
-                className="h-12 w-12"
+                src="/fixtract-logo-light.png"
+                alt="Fixtract — Find. Hire. Build."
+                width={220}
+                height={67}
+                className="h-14 w-auto"
               />
-              <span className="text-3xl font-bold text-white">Fixtract</span>
             </Link>
             <p className="text-gray-300 mb-8 leading-relaxed">
               Fixtract is a trusted platform connecting customers with verified professionals for any property service. From minor repairs to major renovations, we make it simple to get the job done with quality and security guaranteed.

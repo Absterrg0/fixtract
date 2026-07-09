@@ -65,18 +65,15 @@ const Navbar = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-2 shrink-0" aria-label="Fixtract home">
+            <Link href="/" className="flex items-center shrink-0" aria-label="Fixtract home">
               <Image
-                src="/icon-192.png"
-                alt=""
-                width={36}
-                height={36}
-                className="h-9 w-9"
+                src="/fixtract-logo.png"
+                alt="Fixtract — Find. Hire. Build."
+                width={178}
+                height={54}
+                className="h-10 w-auto sm:h-11"
                 priority
               />
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Fixtract
-              </span>
             </Link>
 
             {/* --- Desktop Navigation --- */}
