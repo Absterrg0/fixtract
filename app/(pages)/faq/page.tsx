@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildMetadata({
   title: "Frequently Asked Questions",
-  description: "Answers to the most common questions about using Fixera — booking, payments, warranty, professionals, and more.",
+  description: "Answers to the most common questions about using Fixtract — booking, payments, warranty, professionals, and more.",
   path: "/faq",
 });
 

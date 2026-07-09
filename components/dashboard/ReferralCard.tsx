@@ -141,12 +141,12 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
     if (!data?.referralCode) return;
     const link = `${window.location.origin}/join?ref=${encodeURIComponent(data.referralCode)}`;
     const text = isProfessional
-      ? 'Join Fixera as a professional and start earning points while building trust faster. Use my referral link:'
-      : 'Join Fixera and get a discount on your first booking! Use my referral link:';
+      ? 'Join Fixtract as a professional and start earning points while building trust faster. Use my referral link:'
+      : 'Join Fixtract and get a discount on your first booking! Use my referral link:';
 
     const urls: Record<string, string> = {
       whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${link}`)}`,
-      email: `mailto:?subject=${encodeURIComponent('Join Fixera!')}&body=${encodeURIComponent(`${text}\n\n${link}`)}`,
+      email: `mailto:?subject=${encodeURIComponent('Join Fixtract!')}&body=${encodeURIComponent(`${text}\n\n${link}`)}`,
     };
 
     if (urls[platform]) {
@@ -188,8 +188,8 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
           )}
           <p className="text-sm text-gray-600 mb-4">
             {isProfessional
-              ? 'Refer professionals to Fixera and earn points that help you level up faster.'
-              : 'Refer customers to Fixera and earn reward value in points for future bookings when they complete their first booking.'}
+              ? 'Refer professionals to Fixtract and earn points that help you level up faster.'
+              : 'Refer customers to Fixtract and earn reward value in points for future bookings when they complete their first booking.'}
           </p>
           <Button onClick={generateCode} disabled={generating} className="bg-purple-600 hover:bg-purple-700">
             {generating ? (

@@ -94,7 +94,7 @@ function BacklinkVerificationTooltip() {
           <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />
           <span className="text-[11px] leading-snug text-muted-foreground">
             Your page must include a{' '}
-            <span className="font-medium text-foreground">visible link to fixera.com</span>
+            <span className="font-medium text-foreground">visible link to fixtract.com</span>
           </span>
         </li>
         <li className="flex gap-2">
@@ -731,7 +731,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           )}
         </div>
         <p className="text-sm text-slate-500">
-          Link to Fixera from your website or blog and earn{' '}
+          Link to Fixtract from your website or blog and earn{' '}
           <span className="font-medium text-slate-700">{rewardPoints} points</span> per verified link.
         </p>
       </CardHeader>
@@ -750,7 +750,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         {/* Submit form */}
         <div className="space-y-3">
           <label htmlFor="backlink-url-input" className="text-xs font-medium text-slate-700">
-            Submit a page URL where you&apos;ve linked to Fixera
+            Submit a page URL where you&apos;ve linked to Fixtract
           </label>
           <div className="flex items-center gap-2">
             <Input

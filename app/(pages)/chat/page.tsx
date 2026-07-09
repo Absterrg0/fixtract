@@ -208,7 +208,7 @@ export default function ChatPage() {
   const isSupportConversation = selectedConversation?.type === "support";
   const isSupportClosed = isSupportConversation && selectedConversation?.status === "archived";
   const otherName = isSupportConversation
-    ? "Fixera Support"
+    ? "Fixtract Support"
     : otherParticipant?.username || otherParticipant?.name || "Conversation";
 
   const loadConversationList = useCallback(
@@ -875,7 +875,7 @@ export default function ChatPage() {
             {/* Composer */}
             {isSupportClosed ? (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
-                🔒 This support chat has been closed by Fixera. You can no longer reply.
+                🔒 This support chat has been closed by Fixtract. You can no longer reply.
               </div>
             ) : (
               <ChatComposer

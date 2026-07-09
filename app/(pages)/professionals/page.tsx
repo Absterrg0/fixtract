@@ -8,8 +8,8 @@ import { breadcrumbSchema } from '@/lib/seo/jsonLd';
 import { buildMetadata } from '@/lib/seo/metadata';
 
 export const metadata: Metadata = buildMetadata({
-    title: 'Become a Fixera Professional',
-    description: 'Join Fixera as a verified professional. Grow your business, earn more, and connect with customers across your area.',
+    title: 'Become a Fixtract Professional',
+    description: 'Join Fixtract as a verified professional. Grow your business, earn more, and connect with customers across your area.',
     path: '/professionals',
 });
 

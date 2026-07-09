@@ -45,7 +45,7 @@ interface ProjectData {
     resources: string[]
   }
   renovationPlanning?: {
-    fixeraManaged: boolean
+    fixtractManaged: boolean
     resources: string[]
   }
   projectType?: string[]
@@ -590,7 +590,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const updatedResources = current.includes(memberId)
       ? current.filter(id => id !== memberId)
       : [...current, memberId]
-    updateFormData({ renovationPlanning: { fixeraManaged: formData.renovationPlanning?.fixeraManaged ?? false, resources: updatedResources } })
+    updateFormData({ renovationPlanning: { fixtractManaged: formData.renovationPlanning?.fixtractManaged ?? false, resources: updatedResources } })
   }
 
   const handleImageUpload = (files: FileList | null) => {
@@ -1014,20 +1014,20 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 <span>Renovation Planning</span>
               </CardTitle>
               <CardDescription>
-                Choose if planning is Fixera-managed and assign team members
+                Choose if planning is Fixtract-managed and assign team members
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="planningManaged"
-                  checked={formData.renovationPlanning?.fixeraManaged || false}
-                  onCheckedChange={(checked) => updateFormData({ renovationPlanning: { fixeraManaged: checked as boolean, resources: formData.renovationPlanning?.resources || [] } })}
+                  checked={formData.renovationPlanning?.fixtractManaged || false}
+                  onCheckedChange={(checked) => updateFormData({ renovationPlanning: { fixtractManaged: checked as boolean, resources: formData.renovationPlanning?.resources || [] } })}
                 />
-                <Label htmlFor="planningManaged" className="cursor-pointer">Fixera-managed planning</Label>
+                <Label htmlFor="planningManaged" className="cursor-pointer">Fixtract-managed planning</Label>
               </div>
 
-              {formData.renovationPlanning?.fixeraManaged && (
+              {formData.renovationPlanning?.fixtractManaged && (
                 <div className="space-y-6">
                   {/* Planning Team Selection */}
                   <div className="space-y-3">

@@ -20,7 +20,7 @@ import {
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ''
 const MAX_KPI_COLUMNS = 10
-const KPI_COLUMNS_STORAGE_KEY = 'fixera-kpi-columns-v1'
+const KPI_COLUMNS_STORAGE_KEY = 'fixtract-kpi-columns-v1'
 
 type Preset = 'month' | 'quarter' | 'year' | 'last30' | 'custom'
 type SortDir = 'asc' | 'desc'
@@ -403,7 +403,7 @@ export default function AdminKpiDashboard() {
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl
-      a.download = `fixera-kpi-${section}-${appliedFrom}_to_${appliedTo}.${fmt === 'xlsx' ? 'xls' : 'csv'}`
+      a.download = `fixtract-kpi-${section}-${appliedFrom}_to_${appliedTo}.${fmt === 'xlsx' ? 'xls' : 'csv'}`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

@@ -62,7 +62,7 @@ const ProfessionalsSection = () => {
               </span>
             </h2>
             <p className="text-xl text-gray-600 mb-10 leading-relaxed">
-              Join thousands of professionals earning more, working smarter, and growing their businesses across Europe with Fixera&apos;s comprehensive platform.
+              Join thousands of professionals earning more, working smarter, and growing their businesses across Europe with Fixtract&apos;s comprehensive platform.
             </p>
             <div className="space-y-6 mb-12">
               {professionalBenefits.map((benefit) => (
@@ -135,7 +135,7 @@ const ProfessionalsSection = () => {
               Real Growth, Real Results
             </h3>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              See how professionals like you have transformed their business with Fixera.
+              See how professionals like you have transformed their business with Fixtract.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

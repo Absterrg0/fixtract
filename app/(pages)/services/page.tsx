@@ -181,7 +181,7 @@ export default function ServicesHubPage() {
         <div className="mb-12">
           <h1 className="text-5xl font-bold text-gray-900">All Services</h1>
           <p className="mt-4 text-xl text-gray-600 max-w-3xl">
-            Explore the full range of professional services available on Fixera. Find exactly what you need for your next project.
+            Explore the full range of professional services available on Fixtract. Find exactly what you need for your next project.
           </p>
         </div>
 

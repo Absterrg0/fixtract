@@ -5,7 +5,7 @@ import { Bell, X } from 'lucide-react';
 import { useFCM } from '@/contexts/FCMProvider';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
 
-const DISMISSED_KEY = 'fixera_push_prompt_dismissed';
+const DISMISSED_KEY = 'fixtract_push_prompt_dismissed';
 
 /**
  * NotificationPermissionPrompt

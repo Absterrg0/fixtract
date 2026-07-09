@@ -43,7 +43,7 @@ export default function PrivacyAndData() {
 
       const disposition = res.headers.get("content-disposition") || ""
       const match = /filename="?([^";]+)"?/i.exec(disposition)
-      const filename = match?.[1] || `fixera-data-export-${new Date().toISOString().split("T")[0]}.json`
+      const filename = match?.[1] || `fixtract-data-export-${new Date().toISOString().split("T")[0]}.json`
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)

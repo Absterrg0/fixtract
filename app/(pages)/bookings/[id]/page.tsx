@@ -5154,7 +5154,7 @@ export default function BookingDetailPage() {
                   <div>
                     <p className="text-sm font-semibold text-amber-900">Have you tried chatting with the professional first?</p>
                     <p className="text-xs text-amber-800 mt-1">
-                      Disputes should only be raised after attempting to resolve the issue through the chat. Fixera support will review the chat history. Do you want to continue with the dispute?
+                      Disputes should only be raised after attempting to resolve the issue through the chat. Fixtract support will review the chat history. Do you want to continue with the dispute?
                     </p>
                   </div>
                 </div>
@@ -5228,7 +5228,7 @@ export default function BookingDetailPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Cancel Booking</DialogTitle>
-              <DialogDescription>Select a reason for cancellation. Your refund request is sent to the professional, who has 5 business days to respond before it escalates to Fixera.</DialogDescription>
+              <DialogDescription>Select a reason for cancellation. Your refund request is sent to the professional, who has 5 business days to respond before it escalates to Fixtract.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">

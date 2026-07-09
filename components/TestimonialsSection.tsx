@@ -36,7 +36,7 @@ const TestimonialsSection = () => {
             Loved by Customers Across Europe
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Real stories from real customers who transformed their properties with help from Fixera professionals.
+            Real stories from real customers who transformed their properties with help from Fixtract professionals.
           </p>
         </div>
 

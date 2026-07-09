@@ -465,7 +465,7 @@ Your booking has been successfully confirmed. Here are the next steps:
 If you have any questions, please don't hesitate to contact us.
 
 Best regards,
-The Fixera Team`}
+The Fixtract Team`}
               </div>
             </div>
             <div className="mt-4 text-center">

@@ -5,8 +5,8 @@ import { authFetch } from "@/lib/utils";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-export const ADMIN_ACTIVE_CONVERSATION_KEY = "fixera.admin.activeConversationId";
-export const ADMIN_CONVERSATION_SEEN_PREFIX = "fixera.admin.conversationSeen.";
+export const ADMIN_ACTIVE_CONVERSATION_KEY = "fixtract.admin.activeConversationId";
+export const ADMIN_CONVERSATION_SEEN_PREFIX = "fixtract.admin.conversationSeen.";
 
 export const getAdminActiveConversationId = (): string => {
   if (typeof window === "undefined") return "";
@@ -43,7 +43,7 @@ export const markAdminConversationSeen = (conversationId: string, seenAt: number
   if (typeof window === "undefined" || !conversationId) return;
   try {
     window.localStorage.setItem(ADMIN_CONVERSATION_SEEN_PREFIX + conversationId, String(seenAt));
-    window.dispatchEvent(new CustomEvent("fixera:admin-chat-seen"));
+    window.dispatchEvent(new CustomEvent("fixtract:admin-chat-seen"));
   } catch {
     // ignore storage errors
   }
@@ -87,8 +87,8 @@ export const useAdminUnreadCount = () => {
   useEffect(() => {
     if (!enabled) return;
     const onSeen = () => void poll();
-    window.addEventListener("fixera:admin-chat-seen", onSeen);
-    return () => window.removeEventListener("fixera:admin-chat-seen", onSeen);
+    window.addEventListener("fixtract:admin-chat-seen", onSeen);
+    return () => window.removeEventListener("fixtract:admin-chat-seen", onSeen);
   }, [enabled, poll]);
 
   return { unreadCount, enabled };

@@ -136,7 +136,7 @@ interface ProjectData {
     resources: string[]
   }
   renovationPlanning?: {
-    fixeraManaged: boolean
+    fixtractManaged: boolean
     resources: string[]
   }
   projectType?: string[]
@@ -321,7 +321,7 @@ export default function ProjectCreatePage() {
             service: project.service,
             areaOfWork: project.areaOfWork,
             intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
-            renovationPlanning: project.renovationPlanning || { fixeraManaged: false, resources: [] },
+            renovationPlanning: project.renovationPlanning || { fixtractManaged: false, resources: [] },
             distance: project.distance || {
               address: '',
               useCompanyAddress: false,

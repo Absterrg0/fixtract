@@ -23,7 +23,7 @@ export async function startAdminSupportChat(
     const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/chat/start-support`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetUserId, initialMessage: "Hello from Fixera support." }),
+      body: JSON.stringify({ targetUserId, initialMessage: "Hello from Fixtract support." }),
       signal: controller.signal,
     })
     const json = await res.json().catch(() => null)

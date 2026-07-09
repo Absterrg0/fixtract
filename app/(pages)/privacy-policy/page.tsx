@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       content?.seo?.metaDescription ||
       content?.excerpt ||
-      "Read Fixera's privacy policy — how we collect, use, and protect your personal data.",
+      "Read Fixtract's privacy policy — how we collect, use, and protect your personal data.",
     path: content?.seo?.canonical || "/privacy-policy",
     noindex: content?.seo?.noindex,
   });

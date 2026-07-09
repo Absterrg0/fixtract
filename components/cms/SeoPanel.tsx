@@ -41,7 +41,7 @@ export default function SeoPanel({ value, onChange, fallbackTitle, fallbackDescr
           <div id={panelId} className="space-y-5 p-5">
             <div className="rounded-xl border border-pink-100 bg-gradient-to-br from-rose-50/60 to-white p-4">
               <div className="text-[11px] uppercase tracking-wide text-rose-500">Google preview</div>
-              <div className="mt-2 text-xs text-emerald-700 truncate">{pathPreview || "fixera.com/..."}</div>
+              <div className="mt-2 text-xs text-emerald-700 truncate">{pathPreview || "fixtract.com/..."}</div>
               <div className="mt-1 text-base text-blue-800 line-clamp-1">{previewTitle}</div>
               <div className="mt-1 text-sm text-slate-600 line-clamp-2">{previewDesc}</div>
             </div>

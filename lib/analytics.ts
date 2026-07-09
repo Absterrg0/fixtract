@@ -12,8 +12,8 @@ declare global {
   }
 }
 
-const TRAFFIC_SESSION_KEY = 'fixera-traffic-attribution-v1';
-const EVENT_DEDUPE_PREFIX = 'fixera-analytics-event:';
+const TRAFFIC_SESSION_KEY = 'fixtract-traffic-attribution-v1';
+const EVENT_DEDUPE_PREFIX = 'fixtract-analytics-event:';
 
 export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined | AnalyticsItem[]>;
 

@@ -3,7 +3,7 @@ import { buildMetadata } from "@/lib/seo/metadata";
 
 export const metadata: Metadata = buildMetadata({
   title: "Projects",
-  description: "Browse projects from verified Fixera professionals — before/after galleries, case studies, and portfolios.",
+  description: "Browse projects from verified Fixtract professionals — before/after galleries, case studies, and portfolios.",
   path: "/projects",
 });
 

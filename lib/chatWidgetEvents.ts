@@ -1,5 +1,5 @@
-export const CHAT_WIDGET_OPEN_EVENT = "fixera:chat-widget-open";
-export const PENDING_CHAT_START_KEY = "fixera:pending-chat-start";
+export const CHAT_WIDGET_OPEN_EVENT = "fixtract:chat-widget-open";
+export const PENDING_CHAT_START_KEY = "fixtract:pending-chat-start";
 
 export interface ChatWidgetOpenDetail {
   open?: boolean;

@@ -200,7 +200,7 @@ function RegisterForm() {
             </div>
             <CardTitle className="text-2xl font-bold text-gray-900">Create Your Account</CardTitle>
             <CardDescription className="text-gray-600">
-              Join Fixera as a professional and grow your business
+              Join Fixtract as a professional and grow your business
             </CardDescription>
           </CardHeader>
 
@@ -316,7 +316,7 @@ function RegisterForm() {
                   <Input
                     id="referralCode"
                     type="text"
-                    placeholder="e.g. FIXERA-AHMED-7K2X"
+                    placeholder="e.g. FIXTRACT-AHMED-7K2X"
                     value={formData.referralCode}
                     onChange={(e) => handleInputChange('referralCode', e.target.value.toUpperCase())}
                     className="pl-10"

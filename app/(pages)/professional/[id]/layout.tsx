@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!professional) {
     return buildMetadata({
       title: "Professional",
-      description: "View a verified Fixera professional's profile, services, and reviews.",
+      description: "View a verified Fixtract professional's profile, services, and reviews.",
       path: `/professional/${id}`,
     });
   }
@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const where = [city, country].filter(Boolean).join(", ");
   const description =
     professional.businessInfo?.description ||
-    `${name}${where ? ` — verified Fixera professional in ${where}` : " on Fixera"}. View services, reviews, and book directly.`;
+    `${name}${where ? ` — verified Fixtract professional in ${where}` : " on Fixtract"}. View services, reviews, and book directly.`;
   return buildMetadata({
     title: name,
     description,

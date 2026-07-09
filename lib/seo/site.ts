@@ -19,7 +19,7 @@ export const siteUrl = (): string => {
     parsed = new URL(raw);
   } catch {
     throw new Error(
-      `siteUrl: NEXT_PUBLIC_SITE_URL="${raw}" is not a valid URL. Expected an absolute http(s) origin like https://fixera.com.`
+      `siteUrl: NEXT_PUBLIC_SITE_URL="${raw}" is not a valid URL. Expected an absolute http(s) origin like https://fixtract.com.`
     );
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -30,11 +30,11 @@ export const siteUrl = (): string => {
   return parsed.origin;
 };
 
-export const SITE_NAME = "Fixera";
+export const SITE_NAME = "Fixtract";
 export const SITE_TAGLINE = "One Platform, Every Solution.";
 export const SITE_DESCRIPTION =
-  "Fixera connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed.";
-export const OG_DEFAULT_IMAGE = "/fixera-logo.png";
+  "Fixtract connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed.";
+export const OG_DEFAULT_IMAGE = "/fixtract-logo.png";
 
 export const absoluteUrl = (path: string): string => {
   if (!path) return siteUrl();

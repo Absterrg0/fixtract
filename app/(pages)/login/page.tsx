@@ -51,7 +51,7 @@ function LoginPageContent() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
-          <CardDescription className="text-center">Sign in to your Fixera account</CardDescription>
+          <CardDescription className="text-center">Sign in to your Fixtract account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

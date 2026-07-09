@@ -501,7 +501,7 @@ function CustomerSignupForm() {
   };
 
   const handleVerificationSuccess = () => {
-    toast.success('Account verified successfully! Welcome to Fixera!');
+    toast.success('Account verified successfully! Welcome to Fixtract!');
     router.push('/dashboard?welcome=true');
   };
 
@@ -541,7 +541,7 @@ function CustomerSignupForm() {
               Create Customer Account
             </CardTitle>
             <CardDescription className='text-gray-600'>
-              Join Fixera to find trusted property professionals
+              Join Fixtract to find trusted property professionals
             </CardDescription>
           </CardHeader>
 
@@ -920,7 +920,7 @@ function CustomerSignupForm() {
                   <Input
                     id='referralCode'
                     type='text'
-                    placeholder='e.g. FIXERA-AHMED-7K2X'
+                    placeholder='e.g. FIXTRACT-AHMED-7K2X'
                     value={formData.referralCode}
                     onChange={(e) =>
                       handleInputChange('referralCode', e.target.value.toUpperCase())
