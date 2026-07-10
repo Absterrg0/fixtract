@@ -136,8 +136,6 @@ interface ProjectData {
     resources: string[]
   }
   renovationPlanning?: {
-    fixtractManaged?: boolean
-    /** Legacy pre-rebrand field; prefer fixtractManaged */
     fixeraManaged?: boolean
     resources: string[]
   }
@@ -325,13 +323,10 @@ export default function ProjectCreatePage() {
             intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
             renovationPlanning: project.renovationPlanning
               ? {
-                  fixtractManaged:
-                    project.renovationPlanning.fixtractManaged ??
-                    project.renovationPlanning.fixeraManaged ??
-                    false,
+                  fixeraManaged: project.renovationPlanning.fixeraManaged ?? false,
                   resources: project.renovationPlanning.resources || [],
                 }
-              : { fixtractManaged: false, resources: [] },
+              : { fixeraManaged: false, resources: [] },
             distance: project.distance || {
               address: '',
               useCompanyAddress: false,
