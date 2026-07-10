@@ -60,8 +60,6 @@ interface IIntakeMeeting {
 }
 
 interface IRenovationPlanning {
-  fixtractManaged?: boolean
-  /** Legacy pre-rebrand field; prefer fixtractManaged */
   fixeraManaged?: boolean
   resources: string[]
 }
@@ -1366,7 +1364,7 @@ export default function ProjectDetailPage() {
                     </div>
                   )}
 
-                  {(project.renovationPlanning?.fixtractManaged ?? project.renovationPlanning?.fixeraManaged) && (
+                  {(project.renovationPlanning?.fixeraManaged) && (
                     <div>
                       <span className="font-medium text-gray-600 text-sm">Renovation Planning:</span>
                       <p className="text-sm">Fixtract Managed</p>
