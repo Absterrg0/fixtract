@@ -60,7 +60,7 @@ function JoinContent() {
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full text-blue-700 font-medium mb-6">
             <Sparkles className="h-4 w-4" />
-            Join Fixera Today
+            Join Fixtract Today
           </div>
 
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">

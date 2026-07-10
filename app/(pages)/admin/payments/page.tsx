@@ -327,7 +327,7 @@ export default function AdminPaymentsPage() {
         <Card className="max-w-md">
           <CardHeader>
             <CardTitle>Restricted</CardTitle>
-            <CardDescription>Only Fixera admins can access payment oversight tools.</CardDescription>
+            <CardDescription>Only Fixtract admins can access payment oversight tools.</CardDescription>
           </CardHeader>
         </Card>
       </div>

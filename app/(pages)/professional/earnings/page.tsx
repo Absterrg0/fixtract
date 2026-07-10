@@ -234,7 +234,7 @@ export default function ProfessionalEarningsDashboard() {
         heightLeft -= pageHeight - margin * 2;
       }
 
-      pdf.save(`fixera-dashboard-${range}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`fixtract-dashboard-${range}-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
       toast.error('Failed to export PDF');
@@ -270,7 +270,7 @@ export default function ProfessionalEarningsDashboard() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `fixera-bookings-${range}-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `fixtract-bookings-${range}-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();

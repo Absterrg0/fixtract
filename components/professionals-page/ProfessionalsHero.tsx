@@ -11,7 +11,7 @@ const ProfessionalsHero = () => {
       <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-10 [mask-image:linear-gradient(to_bottom,white,rgba(255,255,255,0))]"></div>
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
-          Grow Your Business with Fixera
+          Grow Your Business with Fixtract
         </h1>
         <p className="text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto mb-10">
           Access thousands of high-quality jobs, manage your workflow with powerful tools, and get paid securely. Join the leading platform for property professionals.

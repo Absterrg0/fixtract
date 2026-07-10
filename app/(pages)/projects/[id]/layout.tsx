@@ -38,14 +38,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!project) {
     return buildMetadata({
       title: "Project",
-      description: "View a published project on Fixera.",
+      description: "View a published project on Fixtract.",
       path: safePath,
     });
   }
   const title = project.title || "Project";
   const description =
     (project.description && project.description.slice(0, 160)) ||
-    `A ${title.toLowerCase()} project listed by a verified Fixera professional.`;
+    `A ${title.toLowerCase()} project listed by a verified Fixtract professional.`;
   const image = project.coverImage || project.images?.[0];
   return buildMetadata({
     title,

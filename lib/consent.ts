@@ -1,4 +1,10 @@
-export type ConsentCategory = 'analytics' | 'marketing';
+import {
+  getMigratedItem,
+  removeMigratedItem,
+  setMigratedItem,
+} from "@/lib/storageMigration";
+
+export type ConsentCategory = "analytics" | "marketing";
 
 export interface ConsentState {
   necessary: true;
@@ -7,17 +13,18 @@ export interface ConsentState {
   decidedAt: string;
 }
 
-export const STORAGE_KEY = 'fixera-consent-v1';
-const EVENT_NAME = 'consent-updated';
+export const STORAGE_KEY = "fixtract-consent-v1";
+export const LEGACY_STORAGE_KEY = "fixera-consent-v1";
+const EVENT_NAME = "consent-updated";
 
 export function getConsent(): ConsentState | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = getMigratedItem("local", STORAGE_KEY, LEGACY_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<ConsentState>;
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    if (typeof parsed.decidedAt !== 'string') return null;
+    if (typeof parsed !== "object" || parsed === null) return null;
+    if (typeof parsed.decidedAt !== "string") return null;
     return {
       necessary: true,
       analytics: !!parsed.analytics,
@@ -29,18 +36,26 @@ export function getConsent(): ConsentState | null {
   }
 }
 
-export function setConsent(input: { analytics: boolean; marketing: boolean }): ConsentState {
+export function setConsent(input: {
+  analytics: boolean;
+  marketing: boolean;
+}): ConsentState {
   const state: ConsentState = {
     necessary: true,
     analytics: !!input.analytics,
     marketing: !!input.marketing,
     decidedAt: new Date().toISOString(),
   };
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setMigratedItem(
+        "local",
+        STORAGE_KEY,
+        JSON.stringify(state),
+        LEGACY_STORAGE_KEY
+      );
     } catch (err) {
-      console.warn('consent: failed to persist to localStorage', err);
+      console.warn("consent: failed to persist to localStorage", err);
     }
     try {
       window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: state }));
@@ -58,11 +73,11 @@ export function hasConsented(category: ConsentCategory): boolean {
 }
 
 export function clearConsent(): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    removeMigratedItem("local", STORAGE_KEY, LEGACY_STORAGE_KEY);
   } catch (err) {
-    console.warn('consent: failed to clear localStorage', err);
+    console.warn("consent: failed to clear localStorage", err);
   }
   try {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: null }));

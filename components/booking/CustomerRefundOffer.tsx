@@ -42,7 +42,7 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
   useEffect(() => { load() }, [load])
 
   const respond = async (decision: 'accept' | 'refuse') => {
-    if (decision === 'refuse' && !window.confirm('Refuse the counter-offer? Your refund request will be escalated to Fixera.')) return
+    if (decision === 'refuse' && !window.confirm('Refuse the counter-offer? Your refund request will be escalated to Fixtract.')) return
     setBusy(true)
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/cancellation/counter-response`, {
@@ -55,7 +55,7 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
         toast.error(json?.msg || 'Failed to respond')
         return
       }
-      toast.success(decision === 'accept' ? 'Refund accepted and issued.' : 'Counter-offer refused — escalated to Fixera.')
+      toast.success(decision === 'accept' ? 'Refund accepted and issued.' : 'Counter-offer refused — escalated to Fixtract.')
       await load()
       onResolved?.()
     } catch {
@@ -80,7 +80,7 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         <p className="font-semibold flex items-center gap-1"><RotateCcw className="h-4 w-4" /> Refund request sent</p>
-        <p className="mt-1">The professional has up to 5 business days to respond. If they don&apos;t, it escalates to Fixera automatically.</p>
+        <p className="mt-1">The professional has up to 5 business days to respond. If they don&apos;t, it escalates to Fixtract automatically.</p>
       </div>
     )
   }
@@ -88,8 +88,8 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
   if (request.status === 'escalated') {
     return (
       <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-        <p className="font-semibold flex items-center gap-1"><RotateCcw className="h-4 w-4" /> Refund escalated to Fixera</p>
-        <p className="mt-1">Fixera is reviewing your refund request and will be in touch.</p>
+        <p className="font-semibold flex items-center gap-1"><RotateCcw className="h-4 w-4" /> Refund escalated to Fixtract</p>
+        <p className="mt-1">Fixtract is reviewing your refund request and will be in touch.</p>
       </div>
     )
   }

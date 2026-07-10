@@ -60,9 +60,9 @@ function installGoogleAnalytics(): void {
     window.gtag = function gtag() { window.dataLayer!.push(arguments); } as Window['gtag'];
   }
 
-  if (!document.getElementById('fixera-ga4-script')) {
+  if (!document.getElementById('fixtract-ga4-script')) {
     const script = document.createElement('script');
-    script.id = 'fixera-ga4-script';
+    script.id = 'fixtract-ga4-script';
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`;
     document.head.appendChild(script);
@@ -84,10 +84,10 @@ function installClarity(): void {
       (window.clarity!.q = window.clarity!.q || []).push(args);
     };
 
-  if (document.getElementById('fixera-clarity-script')) return;
+  if (document.getElementById('fixtract-clarity-script')) return;
 
   const script = document.createElement('script');
-  script.id = 'fixera-clarity-script';
+  script.id = 'fixtract-clarity-script';
   script.async = true;
   script.src = `https://www.clarity.ms/tag/${encodeURIComponent(clarityProjectId)}`;
   document.head.appendChild(script);

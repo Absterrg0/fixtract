@@ -1190,7 +1190,7 @@ function AgreementsStep({
             />
             <span className="text-sm text-gray-700 leading-relaxed">
               <AgreementLabel policySlug="self-billing-agreement" policies={policies}>
-                I agree that Fixera prepares and issues invoices on my behalf (self-billing agreement)
+                I agree that Fixtract prepares and issues invoices on my behalf (self-billing agreement)
               </AgreementLabel>
             </span>
           </label>

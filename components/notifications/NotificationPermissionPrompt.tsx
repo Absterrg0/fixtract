@@ -4,8 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useFCM } from '@/contexts/FCMProvider';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
+import { getMigratedItem, setMigratedItem } from '@/lib/storageMigration';
 
-const DISMISSED_KEY = 'fixera_push_prompt_dismissed';
+const DISMISSED_KEY = 'fixtract_push_prompt_dismissed';
+const LEGACY_DISMISSED_KEY = 'fixera_push_prompt_dismissed';
 
 /**
  * NotificationPermissionPrompt
@@ -38,7 +40,7 @@ const NotificationPermissionPrompt: React.FC = () => {
     if (Notification.permission !== 'default') return; // already granted or denied
     if (permissionGranted) return;
 
-    const dismissed = localStorage.getItem(DISMISSED_KEY);
+    const dismissed = getMigratedItem('local', DISMISSED_KEY, LEGACY_DISMISSED_KEY);
     if (dismissed) return;
 
     // Show the prompt after a short delay so it doesn't immediately compete
@@ -54,7 +56,7 @@ const NotificationPermissionPrompt: React.FC = () => {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISSED_KEY, '1');
+    setMigratedItem('local', DISMISSED_KEY, '1', LEGACY_DISMISSED_KEY);
     setShow(false);
   };
 

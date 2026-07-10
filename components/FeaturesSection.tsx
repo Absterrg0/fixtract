@@ -24,7 +24,7 @@ const FeaturesSection = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <Badge className="mb-4 bg-green-100 text-green-800 px-4 py-2 border-green-200">
-            Why Choose Fixera
+            Why Choose Fixtract
           </Badge>
           <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
             Built for Trust, Designed for Results

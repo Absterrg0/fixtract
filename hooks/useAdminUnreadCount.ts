@@ -2,16 +2,41 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
 import { authFetch } from "@/lib/utils";
+import {
+  getMigratedItem,
+  migratePrefixedItems,
+  setMigratedItem,
+} from "@/lib/storageMigration";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-export const ADMIN_ACTIVE_CONVERSATION_KEY = "fixera.admin.activeConversationId";
-export const ADMIN_CONVERSATION_SEEN_PREFIX = "fixera.admin.conversationSeen.";
+export const ADMIN_ACTIVE_CONVERSATION_KEY = "fixtract.admin.activeConversationId";
+export const ADMIN_CONVERSATION_SEEN_PREFIX = "fixtract.admin.conversationSeen.";
+const LEGACY_ADMIN_ACTIVE_CONVERSATION_KEY = "fixera.admin.activeConversationId";
+const LEGACY_ADMIN_CONVERSATION_SEEN_PREFIX = "fixera.admin.conversationSeen.";
+
+let adminSeenPrefixMigrated = false;
+
+function ensureAdminSeenPrefixMigrated() {
+  if (adminSeenPrefixMigrated) return;
+  adminSeenPrefixMigrated = true;
+  migratePrefixedItems(
+    "local",
+    ADMIN_CONVERSATION_SEEN_PREFIX,
+    LEGACY_ADMIN_CONVERSATION_SEEN_PREFIX
+  );
+}
 
 export const getAdminActiveConversationId = (): string => {
   if (typeof window === "undefined") return "";
   try {
-    return window.localStorage.getItem(ADMIN_ACTIVE_CONVERSATION_KEY) || "";
+    return (
+      getMigratedItem(
+        "local",
+        ADMIN_ACTIVE_CONVERSATION_KEY,
+        LEGACY_ADMIN_ACTIVE_CONVERSATION_KEY
+      ) || ""
+    );
   } catch {
     return "";
   }
@@ -21,7 +46,12 @@ export const setAdminActiveConversationId = (conversationId: string) => {
   if (typeof window === "undefined") return;
   try {
     if (conversationId) {
-      window.localStorage.setItem(ADMIN_ACTIVE_CONVERSATION_KEY, conversationId);
+      setMigratedItem(
+        "local",
+        ADMIN_ACTIVE_CONVERSATION_KEY,
+        conversationId,
+        LEGACY_ADMIN_ACTIVE_CONVERSATION_KEY
+      );
     }
   } catch {
     // ignore storage errors
@@ -31,7 +61,10 @@ export const setAdminActiveConversationId = (conversationId: string) => {
 export const getAdminConversationSeenAt = (conversationId: string): number => {
   if (typeof window === "undefined" || !conversationId) return 0;
   try {
-    const raw = window.localStorage.getItem(ADMIN_CONVERSATION_SEEN_PREFIX + conversationId);
+    ensureAdminSeenPrefixMigrated();
+    const raw = window.localStorage.getItem(
+      ADMIN_CONVERSATION_SEEN_PREFIX + conversationId
+    );
     const parsed = raw ? Number(raw) : 0;
     return Number.isFinite(parsed) ? parsed : 0;
   } catch {
@@ -39,11 +72,21 @@ export const getAdminConversationSeenAt = (conversationId: string): number => {
   }
 };
 
-export const markAdminConversationSeen = (conversationId: string, seenAt: number = Date.now()) => {
+export const markAdminConversationSeen = (
+  conversationId: string,
+  seenAt: number = Date.now()
+) => {
   if (typeof window === "undefined" || !conversationId) return;
   try {
-    window.localStorage.setItem(ADMIN_CONVERSATION_SEEN_PREFIX + conversationId, String(seenAt));
-    window.dispatchEvent(new CustomEvent("fixera:admin-chat-seen"));
+    ensureAdminSeenPrefixMigrated();
+    window.localStorage.setItem(
+      ADMIN_CONVERSATION_SEEN_PREFIX + conversationId,
+      String(seenAt)
+    );
+    window.localStorage.removeItem(
+      LEGACY_ADMIN_CONVERSATION_SEEN_PREFIX + conversationId
+    );
+    window.dispatchEvent(new CustomEvent("fixtract:admin-chat-seen"));
   } catch {
     // ignore storage errors
   }
@@ -87,8 +130,8 @@ export const useAdminUnreadCount = () => {
   useEffect(() => {
     if (!enabled) return;
     const onSeen = () => void poll();
-    window.addEventListener("fixera:admin-chat-seen", onSeen);
-    return () => window.removeEventListener("fixera:admin-chat-seen", onSeen);
+    window.addEventListener("fixtract:admin-chat-seen", onSeen);
+    return () => window.removeEventListener("fixtract:admin-chat-seen", onSeen);
   }, [enabled, poll]);
 
   return { unreadCount, enabled };

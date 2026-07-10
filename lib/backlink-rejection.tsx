@@ -24,7 +24,7 @@ export function summarizeRejectionReason(reason: string): {
     const domains = noLinkMatch[1].split(/\s+or\s+/i).map((d) => d.trim()).filter(Boolean);
     if (domains.length > 1) {
       return {
-        summary: 'No Fixera link was found on this page',
+        summary: 'No Fixtract link was found on this page',
         expandable: true,
         full,
       };
@@ -56,7 +56,7 @@ export function RejectionTooltipBody({ reason }: { reason: string }) {
   if (parsed.type === 'no_link') {
     return (
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-red-900">No Fixera link on page</p>
+        <p className="text-xs font-semibold text-red-900">No Fixtract link on page</p>
         <p className="text-[11px] leading-snug text-muted-foreground">
           The page must include a link to one of these domains:
         </p>

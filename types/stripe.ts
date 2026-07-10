@@ -1,5 +1,5 @@
 /**
- * Frontend Stripe TypeScript types for Fixera Platform
+ * Frontend Stripe TypeScript types for Fixtract Platform
  * Version: 2.1
  */
 

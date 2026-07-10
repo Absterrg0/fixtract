@@ -262,7 +262,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     if (!messaging) return;
 
     const unsubscribe = onMessage(messaging, (payload) => {
-      const { title = 'Fixera', body = '' } = payload.notification ?? {};
+      const { title = 'Fixtract', body = '' } = payload.notification ?? {};
       const data = (payload.data ?? {}) as Record<string, string>;
       const url = data.clickUrl || '/';
 

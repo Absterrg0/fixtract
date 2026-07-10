@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildMetadata({
   title: "Blog",
-  description: "Insights, guides, and stories from the Fixera community. Tips for homeowners and professionals on renovation, maintenance, and building projects.",
+  description: "Insights, guides, and stories from the Fixtract community. Tips for homeowners and professionals on renovation, maintenance, and building projects.",
   path: "/blog",
 });
 
@@ -31,7 +31,7 @@ export default async function BlogIndexPage({ searchParams }: PageProps) {
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white pt-24 pb-20">
       <JsonLd data={breadcrumbSchema([{ name: "Home", path: "/" }, { name: "Blog", path: "/blog" }])} />
       <div className="mx-auto max-w-6xl px-6">
-        <Header title="The Fixera Blog" subtitle="Tips, stories, and insider advice on home projects." />
+        <Header title="The Fixtract Blog" subtitle="Tips, stories, and insider advice on home projects." />
 
         {tag && (
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-100 to-pink-100 px-4 py-1.5 text-sm text-rose-700">

@@ -458,7 +458,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
 
         const isMine = getSenderId(message) === currentUserId;
         const isAdminSender = message.senderRole === "admin";
-        const senderName = isAdminSender ? "Fixera Support" : getSenderName(message);
+        const senderName = isAdminSender ? "Fixtract Support" : getSenderName(message);
         const senderImage = isAdminSender ? null : getSenderImage(message);
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showAvatar = !prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification" || prevMessage.messageType === "quotation_notification" || prevMessage.messageType === "warranty_notification";

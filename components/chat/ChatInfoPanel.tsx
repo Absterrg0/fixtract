@@ -108,12 +108,12 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           <div className="h-16 w-16 mb-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
             <ShieldCheck className="h-8 w-8 text-white" />
           </div>
-          <p className="text-sm font-semibold text-gray-900">Fixera Support</p>
+          <p className="text-sm font-semibold text-gray-900">Fixtract Support</p>
           <Badge variant="secondary" className="mt-1 text-[10px] bg-indigo-100 text-indigo-700">
             Official
           </Badge>
           <p className="mt-3 text-xs text-gray-500 leading-relaxed">
-            This is an official conversation with the Fixera team. We&apos;ll help you with anything platform-related.
+            This is an official conversation with the Fixtract team. We&apos;ll help you with anything platform-related.
           </p>
         </div>
       </div>

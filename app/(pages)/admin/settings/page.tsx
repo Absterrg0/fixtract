@@ -37,7 +37,7 @@ const adminRequestInit = (init: RequestInit = {}): RequestInit => {
 }
 
 const DEFAULT_COMPANY_ADDRESS = {
-  name: 'Fixera',
+  name: 'Fixtract',
   street: '',
   city: '',
   postalCode: '',
@@ -353,7 +353,7 @@ export default function AdminSettingsPage() {
               <div className="border-t pt-6 space-y-4">
                 <div>
                   <h2 className="text-base font-semibold text-gray-900">Invoice issuer</h2>
-                  <p className="text-sm text-gray-500">Fixera company details printed on generated invoices.</p>
+                  <p className="text-sm text-gray-500">Fixtract company details printed on generated invoices.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">

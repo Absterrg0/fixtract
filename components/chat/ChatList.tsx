@@ -34,7 +34,7 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
       };
     }
     return {
-      name: "Fixera Support",
+      name: "Fixtract Support",
       subtitle: "Official support team",
       profileImage: undefined,
       isSupport: true as const,

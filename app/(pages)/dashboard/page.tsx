@@ -643,7 +643,7 @@ export default function DashboardPage() {
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
                       <p className="text-xs text-indigo-700">Rewards</p>
-                      <p className="text-sm font-semibold text-slate-900">Points for verified Fixera links</p>
+                      <p className="text-sm font-semibold text-slate-900">Points for verified Fixtract links</p>
                     </div>
                     <div className="rounded-xl border border-blue-100 bg-white/80 p-3 shadow-sm">
                       <p className="text-xs text-blue-700">Moderation</p>

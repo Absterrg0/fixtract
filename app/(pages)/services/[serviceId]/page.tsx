@@ -93,7 +93,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const meta = findServiceMeta(serviceId);
   if (meta) {
-    const description = meta.description || `Find verified professionals for ${meta.name.toLowerCase()} on Fixera.`;
+    const description = meta.description || `Find verified professionals for ${meta.name.toLowerCase()} on Fixtract.`;
     return buildMetadata({
       title: meta.name,
       description,
@@ -103,7 +103,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const fallbackTitle = landing?.title || humanizeSlug(serviceId);
   return buildMetadata({
     title: fallbackTitle,
-    description: `Information for ${fallbackTitle} on Fixera is being prepared. Browse our other services in the meantime.`,
+    description: `Information for ${fallbackTitle} on Fixtract is being prepared. Browse our other services in the meantime.`,
     path: `/services/${encodeURIComponent(serviceId)}`,
     noindex: true,
   });
@@ -258,7 +258,7 @@ export default async function Page({ params }: Props) {
                 {serviceName}
               </h1>
               <p className="mt-4 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-                We&apos;re putting the finishing touches on this page. In the meantime, explore the other services available on Fixera or get in touch and we&apos;ll help you find the right professional.
+                We&apos;re putting the finishing touches on this page. In the meantime, explore the other services available on Fixtract or get in touch and we&apos;ll help you find the right professional.
               </p>
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">

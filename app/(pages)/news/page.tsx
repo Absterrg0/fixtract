@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildMetadata({
   title: "News",
-  description: "Platform updates, announcements, and product news from Fixera.",
+  description: "Platform updates, announcements, and product news from Fixtract.",
   path: "/news",
 });
 
@@ -35,7 +35,7 @@ export default async function NewsIndexPage({ searchParams }: PageProps) {
           <div className="relative rounded-[calc(1.5rem-1.5px)] bg-gradient-to-br from-white via-rose-50/50 to-pink-50/50 px-8 py-12">
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-rose-300/30 to-pink-300/30 blur-2xl" />
             <h1 className="relative bg-gradient-to-r from-rose-600 via-pink-500 to-orange-500 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-              Fixera News
+              Fixtract News
             </h1>
             <p className="relative mt-3 max-w-xl text-rose-600/80">
               Platform updates, announcements, and product news.

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { CONSENT_EVENT, STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
+import { CONSENT_EVENT, STORAGE_KEY, LEGACY_STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
 
 export default function CookieConsent() {
   const [decided, setDecided] = useState<ConsentState | null | undefined>(undefined)
@@ -17,7 +17,7 @@ export default function CookieConsent() {
 
     const refresh = () => setDecided(getConsent())
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY || e.key === null) refresh()
+      if (e.key === STORAGE_KEY || e.key === LEGACY_STORAGE_KEY || e.key === null) refresh()
     }
     window.addEventListener(CONSENT_EVENT, refresh)
     window.addEventListener('storage', onStorage)

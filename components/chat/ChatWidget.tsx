@@ -28,11 +28,13 @@ import type { ProfessionalOption } from "@/lib/chatApi";
 import {
   CHAT_WIDGET_OPEN_EVENT,
   PENDING_CHAT_START_KEY,
+  LEGACY_PENDING_CHAT_START_KEY,
   type ChatWidgetOpenDetail,
 } from "@/lib/chatWidgetEvents";
 import type { ChatAttachment, ChatConversation, ChatMessage } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
 import { toast } from "sonner";
+import { getMigratedItem, removeMigratedItem } from "@/lib/storageMigration";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
@@ -362,10 +364,18 @@ export default function ChatWidget() {
     if (!isAuthenticated || !isAllowedRole(userRole)) return;
     if (typeof window === "undefined") return;
 
-    const raw = window.sessionStorage.getItem(PENDING_CHAT_START_KEY);
+    const raw = getMigratedItem(
+      "session",
+      PENDING_CHAT_START_KEY,
+      LEGACY_PENDING_CHAT_START_KEY
+    );
     if (!raw) return;
 
-    window.sessionStorage.removeItem(PENDING_CHAT_START_KEY);
+    removeMigratedItem(
+      "session",
+      PENDING_CHAT_START_KEY,
+      LEGACY_PENDING_CHAT_START_KEY
+    );
 
     try {
       const detail = JSON.parse(raw) as ChatWidgetOpenDetail;

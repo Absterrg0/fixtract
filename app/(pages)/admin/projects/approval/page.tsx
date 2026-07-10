@@ -196,7 +196,9 @@ interface Project {
     resources?: string[]
   }
   renovationPlanning?: {
-    fixeraManaged: boolean
+    fixtractManaged?: boolean
+    /** Legacy pre-rebrand field; prefer fixtractManaged */
+    fixeraManaged?: boolean
     resources?: string[]
   }
   isResubmission?: boolean
@@ -959,11 +961,11 @@ export default function ProjectApprovalPage() {
                         )}
 
                         {/* Renovation Planning */}
-                        {selectedProject.renovationPlanning?.fixeraManaged && (
+                        {(selectedProject.renovationPlanning?.fixtractManaged ?? selectedProject.renovationPlanning?.fixeraManaged) && (
                           <div>
                             <Label className="text-sm font-medium">Renovation Planning</Label>
                             <p className="text-sm text-gray-700 mt-1">
-                              Fixera-managed
+                              Fixtract-managed
                               {selectedProject.renovationPlanning.resources && selectedProject.renovationPlanning.resources.length > 0 && (
                                 <span> — {selectedProject.renovationPlanning.resources.length} resource(s) assigned</span>
                               )}

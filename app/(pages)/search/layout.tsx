@@ -3,7 +3,7 @@ import { buildMetadata } from "@/lib/seo/metadata";
 
 export const metadata: Metadata = buildMetadata({
   title: "Search",
-  description: "Search Fixera for services, professionals, and projects across every category.",
+  description: "Search Fixtract for services, professionals, and projects across every category.",
   path: "/search",
 });
 

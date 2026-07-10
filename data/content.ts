@@ -227,7 +227,7 @@ export const mainFeatures = [
   {
     icon: 'Star',
     title: 'Quality Guaranteed',
-    description: 'All work is backed by the Fixera Guarantee, which includes warranty protection and our comprehensive satisfaction promise.',
+    description: 'All work is backed by the Fixtract Guarantee, which includes warranty protection and our comprehensive satisfaction promise.',
     benefits: ['Up to 10-year warranty', 'Satisfaction guarantee', 'Quality control checks', '24/7 dispute resolution'],
   },
   {
@@ -268,7 +268,7 @@ export const testimonials = [
     location: 'Amsterdam, Netherlands',
     service: 'Plumbing Emergency',
     rating: 5,
-    text: "Had a major plumbing emergency on a Sunday. Through Fixera, I found a professional who came within 2 hours and fixed everything. The pricing was transparent and the service was exceptional. Highly recommend!",
+    text: "Had a major plumbing emergency on a Sunday. Through Fixtract, I found a professional who came within 2 hours and fixed everything. The pricing was transparent and the service was exceptional. Highly recommend!",
     projectValue: '€350',
   },
   {
@@ -312,7 +312,7 @@ export const successStories = [
     profession: 'Electrician',
     location: 'Berlin, Germany',
     growth: '+150% Income',
-    story: 'Fixera doubled my client base in just 6 months. The platform handles all the admin, so I can focus on quality work.',
+    story: 'Fixtract doubled my client base in just 6 months. The platform handles all the admin, so I can focus on quality work.',
     avatarInitial: 'TM',
     image: '/images/success-1.jpg' 
   },
@@ -321,7 +321,7 @@ export const successStories = [
     profession: 'Interior Designer',
     location: 'Barcelona, Spain',
     growth: '+200% Projects',
-    story: 'I now work with clients across 3 countries. The variety and scale of projects I get through Fixera is incredible.',
+    story: 'I now work with clients across 3 countries. The variety and scale of projects I get through Fixtract is incredible.',
     avatarInitial: 'ER',
     image: '/images/success-2.jpg'
   },
@@ -330,7 +330,7 @@ export const successStories = [
     profession: 'Renovation Contractor',
     location: 'Rotterdam, Netherlands',
     growth: 'Grew to a team of 10',
-    story: 'I started as a solo contractor. Fixera\'s tools made it effortless to manage a growing team and bigger projects.',
+    story: 'I started as a solo contractor. Fixtract\'s tools made it effortless to manage a growing team and bigger projects.',
     avatarInitial: 'MV',
     image: '/images/success-3.jpg'
   }
@@ -375,7 +375,7 @@ export const footerSections = [
     {
       title: 'Company',
       links: [
-        { name: 'About Fixera', href: '/about' },
+        { name: 'About Fixtract', href: '/about' },
         { name: 'Blog', href: '/blog' },
         { name: 'News', href: '/news' },
         { name: 'FAQ', href: '/faq' },
@@ -386,7 +386,7 @@ export const footerSections = [
 export const footerContact = {
     address: 'Brussels, BE & Amsterdam, NL',
     phone: '+32 2 123 4567',
-    email: 'support@fixera.com',
+    email: 'support@fixtract.com',
 };
 
 
@@ -503,15 +503,15 @@ export const professionalFaqs = [
     answer: "Payments are secured through our Escrow system. Once a project is marked as complete by the customer, funds are released to your account within 2-3 business days."
   },
   {
-    question: "What are the fees for using Fixera?",
-    answer: "Fixera charges a competitive commission fee only on completed projects. There are no subscription fees or costs to join. The fee is a percentage of the final project price and is clearly shown when you provide a quote."
+    question: "What are the fees for using Fixtract?",
+    answer: "Fixtract charges a competitive commission fee only on completed projects. There are no subscription fees or costs to join. The fee is a percentage of the final project price and is clearly shown when you provide a quote."
   },
   {
     question: "Can I choose which projects I want to work on?",
     answer: "Absolutely. You have full control. You can browse available jobs, respond to quote requests (RFQs), and accept or decline any project offer that comes your way."
   },
   {
-    question: "How does Fixera help me manage my business?",
+    question: "How does Fixtract help me manage my business?",
     answer: "Our platform includes tools for scheduling, communication with clients, automatic invoicing, and a dashboard to track your earnings and project history, helping you stay organized and focus on your work."
   }
 ];
@@ -521,7 +521,7 @@ export const companyValues = [
   {
     icon: 'Shield',
     title: 'Trust & Safety',
-    description: 'Every professional is verified, and every project is protected by our Fixera Guarantee.'
+    description: 'Every professional is verified, and every project is protected by our Fixtract Guarantee.'
   },
   {
     icon: 'Star',
@@ -536,9 +536,9 @@ export const companyValues = [
 ];
 
 export const companyTimeline = [
-  { year: '2023', event: 'The idea for Fixera was born out of a frustrating home renovation experience.' },
+  { year: '2023', event: 'The idea for Fixtract was born out of a frustrating home renovation experience.' },
   { year: '2024', event: 'Platform development begins with a small, dedicated team of engineers and designers.' },
-  { year: 'Q1 2025', event: 'Fixera officially launches in Belgium and the Netherlands with 500+ verified professionals.' },
+  { year: 'Q1 2025', event: 'Fixtract officially launches in Belgium and the Netherlands with 500+ verified professionals.' },
   { year: 'Q3 2025', event: 'Reached 10,000 completed projects and expanded to Germany and France.' },
   { year: 'Future', event: 'Our goal is to become the most trusted home services platform across all of Europe.' }
 ];

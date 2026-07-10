@@ -10,7 +10,7 @@ export function organizationSchema() {
     "@type": "Organization",
     name: SITE_NAME,
     url: siteUrl(),
-    logo: absoluteUrl("/fixera-logo.png"),
+    logo: absoluteUrl("/fixtract-logo.png"),
     description: SITE_DESCRIPTION,
     ...(sameAs.length > 0 ? { sameAs } : {}),
   };
@@ -65,7 +65,7 @@ export function articleSchema(input: ArticleSchemaInput) {
     "@type": "Article",
     headline: input.title,
     description: input.description,
-    image: input.image ? absoluteUrl(input.image) : absoluteUrl("/fixera-logo.png"),
+    image: input.image ? absoluteUrl(input.image) : absoluteUrl("/fixtract-logo.png"),
     datePublished: input.datePublished,
     dateModified: input.dateModified || input.datePublished,
     author: input.authorName
@@ -74,7 +74,7 @@ export function articleSchema(input: ArticleSchemaInput) {
     publisher: {
       "@type": "Organization",
       name: SITE_NAME,
-      logo: { "@type": "ImageObject", url: absoluteUrl("/fixera-logo.png") },
+      logo: { "@type": "ImageObject", url: absoluteUrl("/fixtract-logo.png") },
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": absoluteUrl(input.path) },
     keywords: input.tags?.join(", "),
@@ -143,7 +143,7 @@ export function localBusinessSchema(input: LocalBusinessSchemaInput) {
     name: input.name,
     url: absoluteUrl(input.path),
     description: input.description,
-    image: input.image ? absoluteUrl(input.image) : absoluteUrl("/fixera-logo.png"),
+    image: input.image ? absoluteUrl(input.image) : absoluteUrl("/fixtract-logo.png"),
     priceRange: input.priceRange,
     telephone: input.telephone,
   };

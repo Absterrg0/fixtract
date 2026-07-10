@@ -1,6 +1,7 @@
 import React from 'react'
 import Link from 'next/link'
-import { Hammer, Facebook, Twitter, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react'
+import Image from 'next/image'
+import { Facebook, Twitter, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react'
 import { footerSections } from '@/data/content'
 import { publicListPolicyLinks, PolicyLink, CMS_RESERVED_POLICIES } from '@/lib/cms'
 import { publicGetSiteSettings, SiteSettings } from '@/lib/siteSettings'
@@ -66,14 +67,17 @@ export default async function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
           {/* Brand & Contact Section */}
           <div className="lg:col-span-2">
-            <Link href="#hero" className="inline-flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <Hammer className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-3xl font-bold text-white">Fixera</span>
+            <Link href="#hero" className="inline-flex items-center mb-6" aria-label="Fixtract">
+              <Image
+                src="/fixtract-logo-light.png"
+                alt="Fixtract — Find. Hire. Build."
+                width={220}
+                height={67}
+                className="h-14 w-auto"
+              />
             </Link>
             <p className="text-gray-300 mb-8 leading-relaxed">
-              Fixera is a trusted platform connecting customers with verified professionals for any property service. From minor repairs to major renovations, we make it simple to get the job done with quality and security guaranteed.
+              Fixtract is a trusted platform connecting customers with verified professionals for any property service. From minor repairs to major renovations, we make it simple to get the job done with quality and security guaranteed.
             </p>
           </div>
 
@@ -87,7 +91,7 @@ export default async function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-6">
             <p className="text-gray-400 text-sm text-center sm:text-left">
-              © {currentYear} Fixera. All rights reserved.
+              © {currentYear} Fixtract. All rights reserved.
             </p>
             <div className="flex items-center space-x-6">
               {SOCIAL_DEFS.map(({ key, name, icon: Icon }) => {

@@ -24,11 +24,11 @@ async function fetchAboutContent() {
 export async function generateMetadata(): Promise<Metadata> {
   const content = await fetchAboutContent();
   return buildMetadata({
-    title: content?.seo?.titleTag || content?.title || "About Fixera",
+    title: content?.seo?.titleTag || content?.title || "About Fixtract",
     description:
       content?.seo?.metaDescription ||
       content?.excerpt ||
-      "Learn about Fixera — our mission to connect customers with verified professionals for every property service.",
+      "Learn about Fixtract — our mission to connect customers with verified professionals for every property service.",
     path: content?.seo?.canonical || "/about",
     image: content?.seo?.ogImage || content?.coverImage,
     noindex: content?.seo?.noindex,

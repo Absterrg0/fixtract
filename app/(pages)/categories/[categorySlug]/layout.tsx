@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ categoryS
   if (!cat) notFound();
   return buildMetadata({
     title: cat.name,
-    description: cat.description || `Browse verified professionals offering ${cat.name.toLowerCase()} services on Fixera.`,
+    description: cat.description || `Browse verified professionals offering ${cat.name.toLowerCase()} services on Fixtract.`,
     path: `/categories/${categorySlug}`,
   });
 }

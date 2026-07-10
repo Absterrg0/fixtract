@@ -60,8 +60,8 @@ export default function RefundRequestsPanel() {
   const respond = async (req: RefundRequest, decision: 'approve' | 'counter' | 'reject') => {
     const bookingId = req.booking?._id
     if (!bookingId) return
-    if (decision === 'approve' && !window.confirm('Approve a full refund (including the Fixera fee) for this booking?')) return
-    if (decision === 'reject' && !window.confirm('Reject this refund request? It will be escalated to Fixera.')) return
+    if (decision === 'approve' && !window.confirm('Approve a full refund (including the Fixtract fee) for this booking?')) return
+    if (decision === 'reject' && !window.confirm('Reject this refund request? It will be escalated to Fixtract.')) return
 
     let amount: number | undefined
     if (decision === 'counter') {
@@ -88,7 +88,7 @@ export default function RefundRequestsPanel() {
       toast.success(
         decision === 'approve' ? 'Refund approved and issued.'
         : decision === 'counter' ? 'Counter-offer sent to the customer.'
-        : 'Refund request rejected and escalated to Fixera.'
+        : 'Refund request rejected and escalated to Fixtract.'
       )
       setCounterFor(null)
       setCounterAmount("")

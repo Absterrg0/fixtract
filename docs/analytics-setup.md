@@ -1,6 +1,6 @@
 # Analytics Setup Guide
 
-This document covers everything needed to configure Google Analytics 4 (GA4) and Microsoft Clarity for Fixera. The code is already integrated — this guide is about the dashboard configuration and environment variables required to activate it.
+This document covers everything needed to configure Google Analytics 4 (GA4) and Microsoft Clarity for Fixtract. The code is already integrated — this guide is about the dashboard configuration and environment variables required to activate it.
 
 ---
 
@@ -30,10 +30,10 @@ Scripts are loaded **only after the visitor grants analytics consent** via the c
 2. Click **Admin** (gear icon, bottom-left)
 3. Under the **Account** column → **Create Account** (or select an existing account)
 4. Under the **Property** column → **Create Property**
-5. Enter a property name (e.g. `Fixera Production`), select your timezone and currency → **Next**
+5. Enter a property name (e.g. `Fixtract Production`), select your timezone and currency → **Next**
 6. Fill in business category and size → **Create**
 7. Choose **Web** as the platform
-8. Enter your site URL and a stream name (e.g. `Fixera Web`) → **Create stream**
+8. Enter your site URL and a stream name (e.g. `Fixtract Web`) → **Create stream**
 9. On the stream details page, copy the **Measurement ID** (format: `G-XXXXXXXXXX`)
 
 Set this as `NEXT_PUBLIC_GA_MEASUREMENT_ID` in your environment.
@@ -42,7 +42,7 @@ Set this as `NEXT_PUBLIC_GA_MEASUREMENT_ID` in your environment.
 
 ### Step 2: Mark Key Events
 
-GA4 key events (formerly called "conversions") are the events Fixera considers meaningful business actions. They appear highlighted in reports and power the key event rate metric.
+GA4 key events (formerly called "conversions") are the events Fixtract considers meaningful business actions. They appear highlighted in reports and power the key event rate metric.
 
 1. In GA4 → **Admin** → **Data display** → **Events**
 2. Click **+ New key event** (top-right)
@@ -65,7 +65,7 @@ GA4 key events (formerly called "conversions") are the events Fixera considers m
 
 ### Step 3: Create Custom Dimensions
 
-Custom dimensions allow you to use Fixera-specific parameters in your reports (e.g. filter by page type or traffic channel).
+Custom dimensions allow you to use Fixtract-specific parameters in your reports (e.g. filter by page type or traffic channel).
 
 1. **Admin** → **Data display** → **Custom definitions** → **Create custom dimension**
 2. Create all of the following — all are **Event scoped**:
@@ -194,7 +194,7 @@ These tags appear in the Clarity dashboard under **Filters** when viewing record
 
 ## Events Reference
 
-All events sent by Fixera to GA4 and Clarity:
+All events sent by Fixtract to GA4 and Clarity:
 
 | Event | Trigger | GA4 ecommerce? |
 |---|---|---|

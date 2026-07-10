@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Menu, X, Hammer, User, LogOut, MessageSquare, LifeBuoy, Heart } from "lucide-react";
+import Image from "next/image";
+import { Menu, X, User, LogOut, MessageSquare, LifeBuoy, Heart } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useAdminUnreadCount } from "@/hooks/useAdminUnreadCount";
@@ -64,13 +65,15 @@ const Navbar = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-2 shrink-0">
-              <div className="w-9 h-9 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Hammer className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Fixera
-              </span>
+            <Link href="/" className="flex items-center shrink-0" aria-label="Fixtract home">
+              <Image
+                src="/fixtract-logo.png"
+                alt="Fixtract — Find. Hire. Build."
+                width={178}
+                height={54}
+                className="h-10 w-auto sm:h-11"
+                priority
+              />
             </Link>
 
             {/* --- Desktop Navigation --- */}

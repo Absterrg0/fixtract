@@ -3,7 +3,7 @@ import { buildMetadata } from "@/lib/seo/metadata";
 
 export const metadata: Metadata = buildMetadata({
   title: "Service Categories",
-  description: "Explore Fixera service categories — interior, exterior, structural, and more.",
+  description: "Explore Fixtract service categories — interior, exterior, structural, and more.",
   path: "/categories",
 });
 

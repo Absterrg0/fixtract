@@ -165,7 +165,7 @@ export default function AdminBookingDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetUserId,
-          initialMessage: `Hello — I'm reaching out from Fixera about booking ${data?.booking.bookingNumber || ''}.`,
+          initialMessage: `Hello — I'm reaching out from Fixtract about booking ${data?.booking.bookingNumber || ''}.`,
         }),
       })
       const json = await res.json()

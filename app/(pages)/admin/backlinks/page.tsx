@@ -445,7 +445,7 @@ function AllowedDomainsCombobox({
   const addDomain = (raw: string) => {
     const host = normalizeAllowedDomain(raw);
     if (!host) {
-      toast.error('Enter a valid hostname (e.g. fixera.com or https://fixera.com)');
+      toast.error('Enter a valid hostname (e.g. fixtract.com or https://fixtract.com)');
       return;
     }
     if (value.includes(host)) {

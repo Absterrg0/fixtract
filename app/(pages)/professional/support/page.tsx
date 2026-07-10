@@ -586,7 +586,7 @@ function SupportChatTab() {
             <LifeBuoy size={16} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-indigo-900">Fixera Support</p>
+            <p className="text-sm font-semibold text-indigo-900">Fixtract Support</p>
             <p className="text-[11px] text-indigo-500">You&apos;re chatting with our support team</p>
           </div>
         </div>

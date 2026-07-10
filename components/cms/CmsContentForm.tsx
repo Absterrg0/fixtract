@@ -376,7 +376,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             onChange={(seo) => update({ seo })}
             fallbackTitle={form.title}
             fallbackDescription={form.excerpt}
-            pathPreview={publicPreviewPath ? `fixera.com${publicPreviewPath}` : undefined}
+            pathPreview={publicPreviewPath ? `fixtract.com${publicPreviewPath}` : undefined}
           />
         </div>
 

@@ -9,12 +9,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { adminGetSiteSettings, adminUpdateSiteSettings, SocialLinks } from "@/lib/siteSettings";
 
 const FIELDS: Array<{ key: keyof SocialLinks; label: string; placeholder: string }> = [
-  { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/fixera" },
-  { key: "twitter", label: "Twitter / X", placeholder: "https://twitter.com/fixera" },
-  { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/fixera" },
-  { key: "linkedin", label: "LinkedIn", placeholder: "https://linkedin.com/company/fixera" },
-  { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@fixera" },
-  { key: "youtube", label: "YouTube", placeholder: "https://youtube.com/@fixera" },
+  { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/fixtract" },
+  { key: "twitter", label: "Twitter / X", placeholder: "https://twitter.com/fixtract" },
+  { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/fixtract" },
+  { key: "linkedin", label: "LinkedIn", placeholder: "https://linkedin.com/company/fixtract" },
+  { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@fixtract" },
+  { key: "youtube", label: "YouTube", placeholder: "https://youtube.com/@fixtract" },
 ];
 
 function isValidUrl(v: string): boolean {
