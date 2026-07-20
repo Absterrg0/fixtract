@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { getAuthToken } from '@/lib/utils';
@@ -65,32 +66,48 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   const [items, setItems] = useState<InboxNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   const refresh = useCallback(async () => {
-    if (!isAuthenticated || !BACKEND_URL) {
+    if (!isAuthenticatedRef.current || !BACKEND_URL) {
       setItems([]);
       setUnreadCount(0);
       return;
     }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/user/notifications?limit=20`, {
         credentials: 'include',
         headers: authHeaders(),
+        signal: controller.signal,
       });
       if (!res.ok) return;
+      if (!isAuthenticatedRef.current || controller.signal.aborted) return;
       const json = await res.json();
+      if (!isAuthenticatedRef.current || controller.signal.aborted) return;
       if (json?.success && json.data) {
         setItems(json.data.items ?? []);
         setUnreadCount(json.data.unreadCount ?? 0);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       // ignore transient network errors
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
-  }, [isAuthenticated]);
+  }, []);
 
   const markRead = useCallback(async (id: string) => {
     setItems((prev) =>
@@ -99,11 +116,12 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     setUnreadCount((c) => Math.max(0, c - 1));
 
     try {
-      await fetch(`${BACKEND_URL}/api/user/notifications/${id}/read`, {
+      const res = await fetch(`${BACKEND_URL}/api/user/notifications/${id}/read`, {
         method: 'PATCH',
         credentials: 'include',
         headers: authHeaders(),
       });
+      if (!res.ok) throw new Error('Failed to mark notification as read');
     } catch {
       void refresh();
     }
@@ -114,11 +132,12 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     setUnreadCount(0);
 
     try {
-      await fetch(`${BACKEND_URL}/api/user/notifications/read-all`, {
+      const res = await fetch(`${BACKEND_URL}/api/user/notifications/read-all`, {
         method: 'POST',
         credentials: 'include',
         headers: authHeaders(),
       });
+      if (!res.ok) throw new Error('Failed to mark all notifications as read');
     } catch {
       void refresh();
     }
@@ -126,8 +145,11 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
 
   useEffect(() => {
     if (!isAuthenticated) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setItems([]);
       setUnreadCount(0);
+      setLoading(false);
       return;
     }
 
@@ -143,6 +165,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('fixtract:inbox-refresh', onInboxRefresh);
       window.clearInterval(interval);
+      abortRef.current?.abort();
     };
   }, [isAuthenticated, refresh]);
 

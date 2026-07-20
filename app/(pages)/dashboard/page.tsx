@@ -1045,8 +1045,17 @@ export default function DashboardPage() {
                       Run Notification Reminders
                     </Button>
                     <div className="relative group">
-                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                      <div className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+                      <button
+                        type="button"
+                        aria-label="What does Run Notification Reminders do?"
+                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <Info className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <div
+                        role="tooltip"
+                        className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
+                      >
                         <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
                         <ul className="space-y-1 list-disc pl-3">
                           <li>Sends 3-day nudges for RFQ, reschedule, refund, completion, and not-started bookings</li>
@@ -1068,8 +1077,17 @@ export default function DashboardPage() {
                       Run Completion Auto-Accept
                     </Button>
                     <div className="relative group">
-                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                      <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+                      <button
+                        type="button"
+                        aria-label="What does Run Completion Auto-Accept do?"
+                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <Info className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <div
+                        role="tooltip"
+                        className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
+                      >
                         <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
                         <ul className="space-y-1 list-disc pl-3">
                           <li>Auto-accepts professional completion requests after 10 days with no customer response</li>
