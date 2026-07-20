@@ -310,7 +310,8 @@ const NotificationPreferences: React.FC = () => {
       </div>
 
       <p className="text-xs text-gray-400">
-        Push notifications require browser permission. Email preferences apply only to transactional messages—you will always receive critical account emails.
+        Push notifications require browser permission. Email preferences apply to most messages.
+        Critical booking, payment, dispute, and account alerts may still be sent even when a channel is turned off.
       </p>
     </div>
   );

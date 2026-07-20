@@ -267,6 +267,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
       const url = data.clickUrl || '/';
 
       setUnreadPushCount((n) => n + 1);
+      window.dispatchEvent(new CustomEvent('fixtract:inbox-refresh'));
 
       toast(title, {
         description: body,
