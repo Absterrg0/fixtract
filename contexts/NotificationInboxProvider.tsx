@@ -4,7 +4,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -69,8 +69,16 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   const isAuthenticatedRef = useRef(isAuthenticated);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
+  // Sync auth guard + clear inbox before paint so in-flight responses cannot repopulate after logout.
+  useLayoutEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
+    if (!isAuthenticated) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setItems([]);
+      setUnreadCount(0);
+      setLoading(false);
+    }
   }, [isAuthenticated]);
 
   const refresh = useCallback(async () => {
@@ -144,14 +152,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   }, [refresh]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      setItems([]);
-      setUnreadCount(0);
-      setLoading(false);
-      return;
-    }
+    if (!isAuthenticated) return;
 
     void refresh();
 

@@ -1048,11 +1048,13 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         aria-label="What does Run Notification Reminders do?"
+                        aria-describedby="notif-reminders-help"
                         className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <Info className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <div
+                        id="notif-reminders-help"
                         role="tooltip"
                         className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
                       >
@@ -1080,11 +1082,13 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         aria-label="What does Run Completion Auto-Accept do?"
+                        aria-describedby="completion-autoaccept-help"
                         className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <Info className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <div
+                        id="completion-autoaccept-help"
                         role="tooltip"
                         className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
                       >
