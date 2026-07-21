@@ -65,26 +65,30 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-80 sm:w-96 p-0" align="end" forceMount>
-        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-          <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-2 px-1 py-1">
+          <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Notifications</DropdownMenuLabel>
+          <div className="flex items-center">
             {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={() => { void markAllRead(); }}
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              <DropdownMenuItem
+                className="gap-1 px-2 py-1.5 text-xs font-medium text-blue-600 focus:text-blue-700 cursor-pointer rounded-sm"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  void markAllRead();
+                }}
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Mark all read
-              </button>
+              </DropdownMenuItem>
             )}
-            <Link
-              href="/profile?tab=notifications"
-              aria-label="Notification settings"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
+            <DropdownMenuItem asChild className="p-0">
+              <Link
+                href="/profile?tab=notifications"
+                aria-label="Notification settings"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            </DropdownMenuItem>
           </div>
         </div>
         <DropdownMenuSeparator className="my-0" />
