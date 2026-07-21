@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import AddressAutocomplete from '@/components/professional/project-wizard/AddressAutocomplete';
+import StartChatButton from '@/components/chat/StartChatButton';
 import {
   ArrowLeft,
   Calendar,
@@ -315,6 +316,7 @@ export default function ProjectBookingForm({
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
   const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>({});
   const [vatPreview, setVatPreview] = useState<VatPreviewDecision | null>(null);
+  const [proceedAtStandardVat, setProceedAtStandardVat] = useState(false);
   const [uploadingQuestionIndexes, setUploadingQuestionIndexes] = useState<Set<number>>(new Set());
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
     []
@@ -339,6 +341,7 @@ export default function ProjectBookingForm({
       return;
     }
     setVatPreview(null);
+    setProceedAtStandardVat(false);
     let cancelled = false;
     (async () => {
       try {
@@ -2209,14 +2212,23 @@ export default function ProjectBookingForm({
       const hasValidPackageAmount =
         typeof selectedPackage.pricing.amount === 'number' &&
         selectedPackage.pricing.amount >= 0;
+      const vatNeedsRfqReview =
+        vatPreview?.action === 'rfq' && !vatPreview?.reverseCharge && !proceedAtStandardVat;
       const shouldPayAtCheckout =
-        !isRfqPackage && hasValidPackageAmount && totalPrice > 0;
+        !isRfqPackage &&
+        hasValidPackageAmount &&
+        totalPrice > 0 &&
+        !vatNeedsRfqReview;
 
       const bookingData = {
         bookingType: 'project',
         projectId: project._id,
         serviceConfigurationId: project.serviceConfigurationId,
         vatAnswers: Object.values(vatAnswers),
+        proceedAtStandardVat:
+          proceedAtStandardVat &&
+          vatPreview?.action === 'rfq' &&
+          !vatPreview?.reverseCharge,
         preferredStartDate: isRfqPackage ? undefined : selectedDate,
         preferredStartTime:
           !isRfqPackage && projectMode === 'hours' && selectedTime
@@ -4412,10 +4424,52 @@ export default function ProjectBookingForm({
                       {finalDisplayTotal > 0 && vatPreview && !isRfqPackage && (
                         <div className='space-y-1 pt-2 border-t border-blue-200 text-sm'>
                           {vatPreview.action === 'rfq' && !vatPreview.reverseCharge ? (
-                            <p className='text-amber-700'>
-                              {vatPreview.explanation ||
-                                'Your answers require a VAT review. After submitting you can chat with the professional or proceed at the standard VAT rate.'}
-                            </p>
+                            <div className='space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3'>
+                              <p className='text-amber-800'>
+                                {vatPreview.explanation ||
+                                  'Your answers require a VAT review or quotation.'}
+                              </p>
+                              {proceedAtStandardVat ? (
+                                <p className='text-xs text-green-700'>
+                                  You chose to proceed at the standard VAT rate (
+                                  {vatPreview.standardRate}%). Submit to continue checkout.
+                                </p>
+                              ) : (
+                                <p className='text-xs text-amber-700'>
+                                  Chat with the professional for a quotation, or proceed at the
+                                  standard VAT rate ({vatPreview.standardRate}%).
+                                </p>
+                              )}
+                              <div className='flex flex-wrap gap-2'>
+                                {project.professionalId?._id && (
+                                  <StartChatButton
+                                    professionalId={project.professionalId._id}
+                                    label='Chat for quotation'
+                                    size='sm'
+                                  />
+                                )}
+                                {!proceedAtStandardVat && (
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    variant='outline'
+                                    onClick={() => setProceedAtStandardVat(true)}
+                                  >
+                                    Proceed at standard VAT rate
+                                  </Button>
+                                )}
+                                {proceedAtStandardVat && (
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    variant='ghost'
+                                    onClick={() => setProceedAtStandardVat(false)}
+                                  >
+                                    Undo standard rate
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                           ) : vatPreview.reverseCharge ? (
                             <>
                               <div className='flex justify-between text-gray-700'>
