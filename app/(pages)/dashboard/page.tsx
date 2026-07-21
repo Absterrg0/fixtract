@@ -132,6 +132,8 @@ export default function DashboardPage() {
   const [warrantyAnalytics, setWarrantyAnalytics] = useState<WarrantyAnalytics | null>(null)
   const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
   const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
+  const [isRunningNotifReminders, setIsRunningNotifReminders] = useState(false)
+  const [isRunningAutoAccept, setIsRunningAutoAccept] = useState(false)
   const [isRecalculatingProfessionalLevels, setIsRecalculatingProfessionalLevels] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -313,9 +315,21 @@ export default function DashboardPage() {
     }
   }
 
-  const runSchedulerCheck = async (type: 'warranty' | 'rfq') => {
-    const setLoading = type === 'warranty' ? setIsRunningWarrantyCheck : setIsRunningRfqCheck
-    const endpoint = type === 'warranty' ? 'run-warranty-checks' : 'run-rfq-checks'
+  const runSchedulerCheck = async (type: 'warranty' | 'rfq' | 'notif' | 'autoaccept') => {
+    const loadingMap = {
+      warranty: setIsRunningWarrantyCheck,
+      rfq: setIsRunningRfqCheck,
+      notif: setIsRunningNotifReminders,
+      autoaccept: setIsRunningAutoAccept,
+    } as const
+    const endpointMap = {
+      warranty: 'run-warranty-checks',
+      rfq: 'run-rfq-checks',
+      notif: 'run-notification-reminders',
+      autoaccept: 'run-completion-auto-accept',
+    } as const
+    const setLoading = loadingMap[type]
+    const endpoint = endpointMap[type]
     setLoading(true)
     try {
       const token = getAuthToken()
@@ -336,13 +350,27 @@ export default function DashboardPage() {
         if (d.closed) parts.push(`${d.closed} auto-closed`)
         if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
         toast.success(parts.length ? `Warranty: ${parts.join(', ')}` : 'No overdue warranty claims found')
-      } else {
+      } else if (type === 'rfq') {
         const parts: string[] = []
         if (d.cancelled) parts.push(`${d.cancelled} cancelled`)
         if (d.remindersSent) parts.push(`${d.remindersSent} reminder(s) sent`)
         if (d.expiredQuotationsFound) parts.push(`${d.expiredQuotationsFound} expired quotation(s)`)
         if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
         toast.success(parts.length ? `RFQ: ${parts.join(', ')}` : 'No overdue RFQ deadlines found')
+      } else if (type === 'notif') {
+        const parts: string[] = []
+        for (const [key, val] of Object.entries(d)) {
+          if (key === 'errors') continue
+          if (typeof val === 'number' && val > 0) parts.push(`${key}: ${val}`)
+        }
+        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
+        toast.success(parts.length ? `Reminders — ${parts.join(', ')}` : 'No notification reminders due')
+      } else {
+        const parts: string[] = []
+        if (d.autoAccepted) parts.push(`${d.autoAccepted} auto-accepted`)
+        if (d.skipped) parts.push(`${d.skipped} skipped`)
+        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
+        toast.success(parts.length ? `Auto-accept — ${parts.join(', ')}` : 'No completions to auto-accept')
       }
       await fetchAdminData()
     } catch (err) {
@@ -957,7 +985,8 @@ export default function DashboardPage() {
                   </CardTitle>
                   <CardDescription>Manually trigger background checks that process overdue items. Safe to run anytime — only acts on items that are actually overdue.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col sm:flex-row gap-4">
+                <CardContent className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1 flex items-center gap-1.5">
                     <Button
                       variant="outline"
@@ -1002,6 +1031,76 @@ export default function DashboardPage() {
                         <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
                       </div>
                     </div>
+                  </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      onClick={() => runSchedulerCheck('notif')}
+                      disabled={isRunningNotifReminders}
+                      className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      {isRunningNotifReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                      Run Notification Reminders
+                    </Button>
+                    <div className="relative group">
+                      <button
+                        type="button"
+                        aria-label="What does Run Notification Reminders do?"
+                        aria-describedby="notif-reminders-help"
+                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <Info className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <div
+                        id="notif-reminders-help"
+                        role="tooltip"
+                        className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
+                      >
+                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <ul className="space-y-1 list-disc pl-3">
+                          <li>Sends 3-day nudges for RFQ, reschedule, refund, completion, and not-started bookings</li>
+                          <li>Review reminders at 10 and 20 days; unread chat after 24h</li>
+                          <li>ID expiry warnings within 30 days, then every 15 days</li>
+                        </ul>
+                        <p className="mt-2 text-slate-400">Safe to run anytime — tracking fields prevent duplicates.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      onClick={() => runSchedulerCheck('autoaccept')}
+                      disabled={isRunningAutoAccept}
+                      className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      {isRunningAutoAccept ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                      Run Completion Auto-Accept
+                    </Button>
+                    <div className="relative group">
+                      <button
+                        type="button"
+                        aria-label="What does Run Completion Auto-Accept do?"
+                        aria-describedby="completion-autoaccept-help"
+                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <Info className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <div
+                        id="completion-autoaccept-help"
+                        role="tooltip"
+                        className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
+                      >
+                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <ul className="space-y-1 list-disc pl-3">
+                          <li>Auto-accepts professional completion requests after 10 days with no customer response</li>
+                          <li>Skips bookings with unpaid milestones or unpaid extra costs</li>
+                        </ul>
+                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on eligible bookings.</p>
+                      </div>
+                    </div>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
