@@ -65,18 +65,27 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-80 sm:w-96 p-0" align="end" forceMount>
-        <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={() => { void markAllRead(); }}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => { void markAllRead(); }}
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                Mark all read
+              </button>
+            )}
+            <Link
+              href="/profile?tab=notifications"
+              aria-label="Notification settings"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Mark all read
-            </button>
-          )}
+              <Settings className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
         <DropdownMenuSeparator className="my-0" />
 
@@ -125,14 +134,6 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
             );
           })}
         </div>
-
-        <DropdownMenuSeparator className="my-0" />
-        <DropdownMenuItem asChild className="rounded-none px-3 py-2.5 text-sm text-gray-600">
-          <Link href="/profile?tab=notifications" className="flex items-center gap-2 w-full">
-            <Settings className="h-4 w-4" />
-            Notification settings
-          </Link>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
