@@ -2212,8 +2212,6 @@ export default function ProjectBookingForm({
       const hasValidPackageAmount =
         typeof selectedPackage.pricing.amount === 'number' &&
         selectedPackage.pricing.amount >= 0;
-      const vatNeedsRfqReview =
-        vatPreview?.action === 'rfq' && !vatPreview?.reverseCharge && !proceedAtStandardVat;
       const shouldPayAtCheckout =
         !isRfqPackage &&
         hasValidPackageAmount &&
@@ -2560,12 +2558,15 @@ export default function ProjectBookingForm({
     repeatBuyerDiscountAmount > 0
       ? discountedDisplayTotalPrice ?? baseDisplayTotal
       : baseDisplayTotal;
+  const vatNeedsRfqReview =
+    vatPreview?.action === 'rfq' && !vatPreview?.reverseCharge && !proceedAtStandardVat;
   const shouldPayAtCheckoutFlow =
     Boolean(selectedPackage) &&
     selectedPackage?.pricing.type !== 'rfq' &&
     typeof selectedPackage?.pricing.amount === 'number' &&
     selectedPackage.pricing.amount >= 0 &&
-    finalDisplayTotal > 0;
+    finalDisplayTotal > 0 &&
+    !vatNeedsRfqReview;
   const finalStepLabel = shouldPayAtCheckoutFlow
     ? 'Review & Pay'
     : 'Review & Submit RFQ';
