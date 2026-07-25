@@ -6,9 +6,18 @@ export type ApiErrorBody = {
   field?: 'email' | 'phone' | 'name' | string;
 };
 
+function asTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() || undefined : undefined;
+}
+
 export function messageFromApiBody(body: ApiErrorBody | null | undefined, fallback: string): string {
-  if (!body) return fallback;
-  return body.msg?.trim() || body.message?.trim() || body.error?.trim() || fallback;
+  if (!body || typeof body !== 'object') return fallback;
+  return (
+    asTrimmedString(body.msg) ||
+    asTrimmedString(body.message) ||
+    asTrimmedString(body.error) ||
+    fallback
+  );
 }
 
 export async function readJsonResponse<T = ApiErrorBody>(res: Response): Promise<T & ApiErrorBody> {
@@ -17,8 +26,15 @@ export async function readJsonResponse<T = ApiErrorBody>(res: Response): Promise
     return {} as T & ApiErrorBody;
   }
   try {
-    return JSON.parse(text) as T & ApiErrorBody;
-  } catch {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`Invalid server response (${res.status})`);
+    }
+    return parsed as T & ApiErrorBody;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Invalid server response')) {
+      throw err;
+    }
     throw new Error(`Invalid server response (${res.status})`);
   }
 }

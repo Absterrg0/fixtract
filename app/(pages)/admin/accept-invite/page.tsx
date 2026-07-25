@@ -174,7 +174,7 @@ function AcceptInviteContent() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm your password"
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
 

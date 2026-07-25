@@ -6,14 +6,13 @@ import {
   hasAdminPermission,
   permissionForAdminPage,
   type AdminPermission,
-  type AdminRole,
 } from '@/lib/adminRbac';
 
 export function useAdminAccess() {
   const { user, isAuthenticated } = useAuth();
   const isAdmin = isAuthenticated && user?.role === 'admin';
-  const adminRole = (user?.adminRole as AdminRole | undefined) || (isAdmin ? 'super' : undefined);
-  const permissions = (user?.adminPermissions as AdminPermission[] | undefined) || [];
+  const adminRole = user?.adminRole || (isAdmin ? 'super' : undefined);
+  const permissions = user?.adminPermissions || [];
 
   const can = useMemo(() => {
     return (permission: AdminPermission) => {

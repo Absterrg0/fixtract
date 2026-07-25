@@ -116,6 +116,22 @@ export const ADMIN_ROLE_ACCESS: Record<AdminRole, string[]> = {
   ],
 };
 
+/** Area → roles matrix derived from ADMIN_ROLE_ACCESS (single source of truth). */
+export const ADMIN_ACCESS_MATRIX: Array<{ area: string; roles: AdminRole[] }> = (() => {
+  const byArea = new Map<string, Set<AdminRole>>();
+  for (const role of ADMIN_ROLES) {
+    for (const area of ADMIN_ROLE_ACCESS[role]) {
+      if (area === 'Everything below') continue;
+      if (!byArea.has(area)) byArea.set(area, new Set<AdminRole>(['super']));
+      byArea.get(area)!.add(role);
+    }
+  }
+  return Array.from(byArea.entries()).map(([area, roles]) => ({
+    area,
+    roles: ADMIN_ROLES.filter((r) => roles.has(r)),
+  }));
+})();
+
 export function permissionForAdminPage(pathname: string): AdminPermission | null {
   const match = ADMIN_PAGE_PERMISSIONS.find(
     (rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`)

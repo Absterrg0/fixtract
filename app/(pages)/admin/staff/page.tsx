@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { RequireAdminPermission } from '@/components/admin/RequireAdminPermission';
-import { ADMIN_ROLE_ACCESS, ADMIN_ROLE_LABELS, ADMIN_ROLES, type AdminRole } from '@/lib/adminRbac';
+import {
+  ADMIN_ACCESS_MATRIX,
+  ADMIN_ROLE_ACCESS,
+  ADMIN_ROLE_LABELS,
+  ADMIN_ROLES,
+  type AdminRole,
+} from '@/lib/adminRbac';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,28 +35,12 @@ type StaffMember = {
   adminRole: AdminRole;
   accountStatus: string;
   invitePending?: boolean;
+  inviteExpired?: boolean;
   permissions: string[];
   createdAt?: string;
 };
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-/** Rows for the area × role matrix (product-facing labels). */
-const ACCESS_MATRIX: Array<{ area: string; roles: AdminRole[] }> = [
-  { area: 'Staff & roles', roles: ['super'] },
-  { area: 'Platform settings', roles: ['super'] },
-  { area: 'Bookings', roles: ['super', 'care', 'finance'] },
-  { area: 'Disputes & cancellations', roles: ['super', 'care'] },
-  { area: 'Support chat / tickets', roles: ['super', 'care'] },
-  { area: 'Customers', roles: ['super', 'care'] },
-  { area: 'Warranty claims', roles: ['super', 'care', 'quality'] },
-  { area: 'CMS & discount codes', roles: ['super', 'marketing'] },
-  { area: 'Loyalty / referrals / backlinks', roles: ['super', 'marketing'] },
-  { area: 'Professional & project approvals', roles: ['super', 'quality'] },
-  { area: 'Reviews & services', roles: ['super', 'quality'] },
-  { area: 'Payments', roles: ['super', 'finance'] },
-  { area: 'KPI / audit / email logs', roles: ['super', 'finance'] },
-];
 
 function authInit(init?: RequestInit): RequestInit {
   return {
@@ -116,7 +106,8 @@ function StaffPageInner() {
       msg?: string;
     }
   ) => {
-    setLastInviteUrl(json.inviteUrl || null);
+    // Only surface the bearer invite URL when email delivery failed
+    setLastInviteUrl(json.emailSent ? null : json.inviteUrl || null);
     if (json.emailSent) {
       toast.success(
         json.resent
@@ -550,7 +541,7 @@ function StaffPageInner() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {ACCESS_MATRIX.map((row) => (
+                {ADMIN_ACCESS_MATRIX.map((row) => (
                   <tr key={row.area} className="hover:bg-slate-50/80">
                     <td className="px-4 py-2.5 text-slate-800">{row.area}</td>
                     {ADMIN_ROLES.map((role) => (
