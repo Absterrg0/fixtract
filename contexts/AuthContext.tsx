@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
+import type { AdminRole } from '@/lib/adminRbac'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
@@ -13,7 +14,7 @@ interface User {
   email: string
   phone: string
   role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
-  adminRole?: 'super' | 'care' | 'marketing' | 'quality' | 'finance'
+  adminRole?: AdminRole
   adminPermissions?: string[]
   isEmailVerified: boolean
   isPhoneVerified: boolean

@@ -70,8 +70,8 @@ function AcceptInviteContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters');
       return;
     }
     if (password !== confirmPassword) {
@@ -151,11 +151,12 @@ function AcceptInviteContent() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Choose a password"
                   required
-                  minLength={6}
+                  minLength={8}
                   className="pr-10"
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                 >

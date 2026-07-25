@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Check, Copy, Loader2 } from 'lucide-react';
+import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
 
 type StaffMember = {
   _id: string;
@@ -27,6 +28,7 @@ type StaffMember = {
   phone?: string;
   adminRole: AdminRole;
   accountStatus: string;
+  invitePending?: boolean;
   permissions: string[];
   createdAt?: string;
 };
@@ -87,8 +89,10 @@ function StaffPageInner() {
     if (!silent) setLoading(true);
     try {
       const res = await fetch(`${API}/api/admin/staff`, authInit());
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || 'Failed to load staff');
+      const json = await readJsonResponse<{ data?: StaffMember[] }>(res);
+      if (!res.ok || !json.success) {
+        throw new Error(messageFromApiBody(json, 'Failed to load staff'));
+      }
       setStaff(json.data || []);
     } catch (err: unknown) {
       if (!silent) toast.error(err instanceof Error ? err.message : 'Failed to load staff');
@@ -102,6 +106,31 @@ function StaffPageInner() {
     void load();
   }, [load]);
 
+  const applyInviteResponse = (
+    json: {
+      data?: StaffMember;
+      inviteUrl?: string;
+      emailSent?: boolean;
+      emailError?: string;
+      resent?: boolean;
+      msg?: string;
+    }
+  ) => {
+    setLastInviteUrl(json.inviteUrl || null);
+    if (json.emailSent) {
+      toast.success(
+        json.resent
+          ? `Invite resent to ${json.data?.email}`
+          : `Invite email sent to ${json.data?.email}`
+      );
+    } else {
+      toast.warning(json.msg || `Invite ready for ${json.data?.email} — email was not sent`);
+      if (json.emailError) {
+        toast.message(json.emailError, { duration: 8000 });
+      }
+    }
+  };
+
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -114,23 +143,29 @@ function StaffPageInner() {
           body: JSON.stringify({ name, email, phone: phone || undefined, adminRole }),
         })
       );
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || 'Invite failed');
-      setLastInviteUrl(json.inviteUrl || null);
-      if (json.emailSent) {
-        toast.success(`Invite email sent to ${json.data?.email}`);
-      } else {
-        toast.success(`Invited ${json.data?.email}`);
-        toast.message('Email not sent — copy the invite link below');
+      const json = await readJsonResponse<{
+        success?: boolean;
+        msg?: string;
+        field?: 'email' | 'phone' | 'name';
+        inviteUrl?: string;
+        emailSent?: boolean;
+        emailError?: string;
+        resent?: boolean;
+        data?: StaffMember;
+      }>(res);
+      if (!res.ok || !json.success) {
+        throw new Error(messageFromApiBody(json, `Invite failed (${res.status})`));
       }
+      applyInviteResponse(json);
       setName('');
       setEmail('');
       setPhone('');
       setAdminRole('care');
       if (json.data) {
+        const member = json.data;
         setStaff((prev) => {
-          const exists = prev.some((m) => m._id === json.data._id);
-          return exists ? prev.map((m) => (m._id === json.data._id ? json.data : m)) : [json.data, ...prev];
+          const exists = prev.some((m) => m._id === member._id);
+          return exists ? prev.map((m) => (m._id === member._id ? member : m)) : [member, ...prev];
         });
       } else {
         await load({ silent: true });
@@ -156,10 +191,13 @@ function StaffPageInner() {
         `${API}/api/admin/staff/${staffId}`,
         authInit({ method: 'PATCH', body: JSON.stringify({ adminRole: nextRole }) })
       );
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || 'Update failed');
+      const json = await readJsonResponse<{ data?: StaffMember }>(res);
+      if (!res.ok || !json.success) {
+        throw new Error(messageFromApiBody(json, 'Update failed'));
+      }
       if (json.data) {
-        setStaff((prev) => prev.map((m) => (m._id === staffId ? { ...m, ...json.data } : m)));
+        const updated = json.data;
+        setStaff((prev) => prev.map((m) => (m._id === staffId ? { ...m, ...updated } : m)));
       }
       toast.success('Role updated');
     } catch (err: unknown) {
@@ -167,6 +205,35 @@ function StaffPageInner() {
       toast.error(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setRowBusy(staffId, false);
+    }
+  };
+
+  const resendInvite = async (member: StaffMember) => {
+    setRowBusy(member._id, true);
+    try {
+      const res = await fetch(
+        `${API}/api/admin/staff/${member._id}/resend-invite`,
+        authInit({ method: 'POST' })
+      );
+      const json = await readJsonResponse<{
+        data?: StaffMember;
+        inviteUrl?: string;
+        emailSent?: boolean;
+        emailError?: string;
+        resent?: boolean;
+        msg?: string;
+      }>(res);
+      if (!res.ok || !json.success) {
+        throw new Error(messageFromApiBody(json, 'Resend failed'));
+      }
+      applyInviteResponse(json);
+      if (json.data) {
+        setStaff((prev) => prev.map((m) => (m._id === member._id ? { ...m, ...json.data } : m)));
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Resend failed');
+    } finally {
+      setRowBusy(member._id, false);
     }
   };
 
@@ -184,8 +251,17 @@ function StaffPageInner() {
         `${API}/api/admin/staff/${member._id}`,
         authInit({ method: 'PATCH', body: JSON.stringify({ accountStatus: next }) })
       );
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || 'Update failed');
+      const json = await readJsonResponse<{
+        data?: StaffMember;
+        inviteUrl?: string;
+        emailSent?: boolean;
+        emailError?: string;
+        resent?: boolean;
+        msg?: string;
+      }>(res);
+      if (!res.ok || !json.success) {
+        throw new Error(messageFromApiBody(json, 'Update failed'));
+      }
       if (json.data) {
         setStaff((prev) =>
           prev.map((m) => (m._id === member._id ? { ...m, ...json.data } : m))
@@ -424,14 +500,25 @@ function StaffPageInner() {
                             </Badge>
                           </td>
                           <td className="px-3 py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleStatus(member)}
-                              disabled={isSelf || rowBusy}
-                            >
-                              {member.accountStatus === 'active' ? 'Suspend' : 'Reactivate'}
-                            </Button>
+                            {member.invitePending || member.accountStatus === 'pending' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resendInvite(member)}
+                                disabled={isSelf || rowBusy}
+                              >
+                                Resend invite
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleStatus(member)}
+                                disabled={isSelf || rowBusy}
+                              >
+                                {member.accountStatus === 'active' ? 'Suspend' : 'Reactivate'}
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       );
