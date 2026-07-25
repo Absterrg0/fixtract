@@ -481,17 +481,25 @@ function StaffPageInner() {
                               variant={
                                 member.accountStatus === 'active'
                                   ? 'secondary'
-                                  : member.accountStatus === 'pending'
+                                  : member.accountStatus === 'pending' ||
+                                      member.accountStatus === 'invite_expired'
                                     ? 'outline'
                                     : 'destructive'
                               }
                               className="font-normal capitalize"
                             >
-                              {member.accountStatus}
+                              {member.accountStatus === 'invite_expired'
+                                ? 'Invite expired'
+                                : member.accountStatus}
                             </Badge>
                           </td>
                           <td className="px-3 py-3 text-right">
-                            {member.invitePending || member.accountStatus === 'pending' ? (
+                            {member.accountStatus !== 'suspended' &&
+                            member.accountStatus !== 'rejected' &&
+                            (member.invitePending ||
+                              member.inviteExpired ||
+                              member.accountStatus === 'pending' ||
+                              member.accountStatus === 'invite_expired') ? (
                               <Button
                                 variant="outline"
                                 size="sm"

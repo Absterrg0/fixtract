@@ -36,6 +36,18 @@ function AcceptInviteContent() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(null);
+    setDetails(null);
+    setPassword('');
+    setConfirmPassword('');
+
+    if (!API) {
+      setLoadError('App misconfigured: NEXT_PUBLIC_BACKEND_URL is missing.');
+      setLoading(false);
+      return;
+    }
+
     if (!token) {
       setLoadError('Missing invite token. Check the link from your email.');
       setLoading(false);
@@ -70,6 +82,10 @@ function AcceptInviteContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!API) {
+      toast.error('App misconfigured: NEXT_PUBLIC_BACKEND_URL is missing.');
+      return;
+    }
     if (password.length < 8) {
       toast.error('Password must be at least 8 characters');
       return;
@@ -92,10 +108,16 @@ function AcceptInviteContent() {
         throw new Error(json.msg || 'Could not activate account');
       }
 
+      // Acceptance already succeeded — session sync failures must not look like activation failures
       setAuthToken(json.token);
-      await checkAuth();
-      toast.success('Account activated — welcome to the team');
-      router.push('/dashboard');
+      try {
+        await checkAuth();
+        toast.success('Account activated — welcome to the team');
+        router.push('/dashboard');
+      } catch {
+        toast.success('Account activated — please sign in to continue');
+        router.push('/login');
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not activate account');
     } finally {
