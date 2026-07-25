@@ -13,6 +13,8 @@ interface User {
   email: string
   phone: string
   role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
+  adminRole?: 'super' | 'care' | 'marketing' | 'quality' | 'finance'
+  adminPermissions?: string[]
   isEmailVerified: boolean
   isPhoneVerified: boolean
   vatNumber?: string
@@ -185,6 +187,7 @@ const ROUTE_CONFIG = {
     '/forgot-password',
     '/reset-password',
     '/signup',
+    '/admin/accept-invite',
   ],
 
   // Protected routes - require authentication (any role)

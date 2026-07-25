@@ -16,6 +16,8 @@ import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBoo
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
+import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -126,6 +128,15 @@ interface WarrantyDashboardAction {
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const { can, canAccessPath, adminRole } = useAdminAccess()
+  const openAdmin = (path: string) => {
+    const pathOnly = path.split('?')[0]
+    if (!canAccessPath(pathOnly)) {
+      toast.error('Your role cannot access that admin area')
+      return
+    }
+    window.open(path, '_blank', 'noopener,noreferrer')
+  }
   const [loyaltyStats, setLoyaltyStats] = useState<LoyaltyStats | null>(null)
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
   const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
@@ -448,8 +459,22 @@ export default function DashboardPage() {
                 Admin Dashboard
               </h1>
               <p className="text-gray-600">Welcome back, {user?.name}! Manage your platform here.</p>
+              {adminRole && (
+                <p className="mt-1 text-sm text-indigo-700">
+                  Role: {ADMIN_ROLE_LABELS[adminRole as AdminRole] || adminRole}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
+              {can('staff.manage') && (
+                <Link
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  href="/admin/staff"
+                >
+                  <Users className="h-4 w-4" />
+                  Staff & roles
+                </Link>
+              )}
               <Link
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
                 href='/admin/kpi'
