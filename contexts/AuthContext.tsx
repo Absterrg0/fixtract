@@ -286,6 +286,11 @@ const getAllowedRoles = (pathname: string): string[] => {
     return []
   }
 
+  // Invite acceptance must stay reachable before the invitee has credentials
+  if (pathname === '/admin/accept-invite' || pathname.startsWith('/admin/accept-invite/')) {
+    return []
+  }
+
   const allowedRoles: string[] = []
   for (const [role, routes] of Object.entries(ROUTE_CONFIG.ROLE_BASED)) {
     const hasAccess = routes.some(route => pathname.startsWith(route))
