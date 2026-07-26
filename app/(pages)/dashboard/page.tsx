@@ -16,6 +16,8 @@ import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBoo
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
+import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -126,6 +128,15 @@ interface WarrantyDashboardAction {
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const { can, canAccessPath, adminRole } = useAdminAccess()
+  const openAdmin = (path: string) => {
+    const pathOnly = path.split('?')[0]
+    if (!canAccessPath(pathOnly)) {
+      toast.error('Your role cannot access that admin area')
+      return
+    }
+    window.open(path, '_blank', 'noopener,noreferrer')
+  }
   const [loyaltyStats, setLoyaltyStats] = useState<LoyaltyStats | null>(null)
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
   const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
@@ -448,8 +459,22 @@ export default function DashboardPage() {
                 Admin Dashboard
               </h1>
               <p className="text-gray-600">Welcome back, {user?.name}! Manage your platform here.</p>
+              {adminRole && (
+                <p className="mt-1 text-sm text-indigo-700">
+                  Role: {ADMIN_ROLE_LABELS[adminRole as AdminRole] || adminRole}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
+              {can('staff.manage') && (
+                <Link
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  href="/admin/staff"
+                >
+                  <Users className="h-4 w-4" />
+                  Staff & roles
+                </Link>
+              )}
               <Link
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
                 href='/admin/kpi'
@@ -550,7 +575,7 @@ export default function DashboardPage() {
                 {/* Quick Stats */}
                 <Card
                   className="cursor-pointer border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-                  onClick={() => window.open('/admin/projects/approval', '_blank')}
+                  onClick={() => openAdmin('/admin/projects/approval')}
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
@@ -610,7 +635,7 @@ export default function DashboardPage() {
 
                 <Card
                   className="cursor-pointer border-rose-100 bg-gradient-to-br from-white via-rose-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-                  onClick={() => window.open('/admin/warranty-claims', '_blank')}
+                  onClick={() => openAdmin('/admin/warranty-claims')}
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
@@ -650,7 +675,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => window.open('/admin/referral', '_blank')}
+                    onClick={() => openAdmin('/admin/referral')}
                     className="w-full bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900"
                   >
                     <Gift className="h-4 w-4 mr-2" />
@@ -679,7 +704,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => window.open('/admin/backlinks', '_blank', 'noopener,noreferrer')}
+                    onClick={() => openAdmin('/admin/backlinks')}
                     className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800"
                   >
                     <Link2 className="h-4 w-4 mr-2" />
@@ -711,7 +736,7 @@ export default function DashboardPage() {
                     Public ratings update immediately when a review is hidden.
                   </div>
                   <Button
-                    onClick={() => window.open('/admin/reviews', '_blank')}
+                    onClick={() => openAdmin('/admin/reviews')}
                     className="w-full bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600"
                   >
                     <EyeOff className="h-4 w-4 mr-2" />
@@ -730,7 +755,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/favorites', '_blank')}
+                    onClick={() => openAdmin('/admin/favorites')}
                     className="w-full bg-gradient-to-r from-pink-400 to-purple-500 hover:from-pink-500 hover:to-purple-600"
                   >
                     <Heart className="h-4 w-4 mr-2" />
@@ -749,7 +774,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/settings', '_blank')}
+                    onClick={() => openAdmin('/admin/settings')}
                     className="w-full bg-gradient-to-r from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900"
                   >
                     <Settings className="h-4 w-4 mr-2" />
@@ -768,7 +793,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/cms', '_blank')}
+                    onClick={() => openAdmin('/admin/cms')}
                     className="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-orange-400 hover:from-rose-600 hover:via-pink-600 hover:to-orange-500"
                   >
                     <FileText className="h-4 w-4 mr-2" />
@@ -787,7 +812,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/support', '_blank')}
+                    onClick={() => openAdmin('/admin/support')}
                     className="w-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600"
                   >
                     <LifeBuoy className="h-4 w-4 mr-2" />
@@ -806,7 +831,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/discount-codes', '_blank')}
+                    onClick={() => openAdmin('/admin/discount-codes')}
                     className="w-full bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600"
                   >
                     <Ticket className="h-4 w-4 mr-2" />
@@ -825,7 +850,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/professionals/manage', '_blank')}
+                    onClick={() => openAdmin('/admin/professionals/manage')}
                     className="w-full bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800"
                   >
                     <Briefcase className="h-4 w-4 mr-2" />
@@ -844,7 +869,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/customers', '_blank')}
+                    onClick={() => openAdmin('/admin/customers')}
                     className="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800"
                   >
                     <Users className="h-4 w-4 mr-2" />
@@ -879,7 +904,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => window.open('/admin/warranty-claims', '_blank')}
+                    onClick={() => openAdmin('/admin/warranty-claims')}
                     className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700"
                   >
                     Open Warranty Claims Dashboard
@@ -897,7 +922,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/bookings', '_blank', 'noopener,noreferrer')}
+                    onClick={() => openAdmin('/admin/bookings')}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800"
                   >
                     Open Booking Management
@@ -915,7 +940,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/disputes', '_blank')}
+                    onClick={() => openAdmin('/admin/disputes')}
                     className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700"
                   >
                     Open Dispute Dashboard
@@ -933,7 +958,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/cancellation-requests', '_blank')}
+                    onClick={() => openAdmin('/admin/cancellation-requests')}
                     className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
                   >
                     Open Cancellation Requests
@@ -951,7 +976,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/chat-reports', '_blank')}
+                    onClick={() => openAdmin('/admin/chat-reports')}
                     className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                   >
                     Open Reported Chats
@@ -969,7 +994,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/audit-logs', '_blank', 'noopener,noreferrer')}
+                    onClick={() => openAdmin('/admin/audit-logs')}
                     className="w-full bg-gradient-to-r from-slate-600 to-zinc-700 hover:from-slate-700 hover:to-zinc-800"
                   >
                     Open Audit Logs
@@ -1123,14 +1148,14 @@ export default function DashboardPage() {
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button
-                      onClick={() => window.open('/admin/services', '_blank')}
+                      onClick={() => openAdmin('/admin/services')}
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                     >
                       <Package className="h-4 w-4 mr-2" />
                       Manage Service Configurations
                     </Button>
                     <Button
-                      onClick={() => window.open('/admin/services', '_blank')}
+                      onClick={() => openAdmin('/admin/services')}
                       variant="outline"
                       className="w-full border-purple-200 hover:bg-purple-50"
                     >
@@ -1203,7 +1228,7 @@ export default function DashboardPage() {
                     <CardDescription>Manage loyalty tiers, discounts, and points rewards</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <Button onClick={() => window.open('/admin/loyalty/config', '_blank')} className="w-full">
+                    <Button onClick={() => openAdmin('/admin/loyalty/config')} className="w-full">
                       Configure Loyalty And Points
                     </Button>
                     <Button
@@ -1232,7 +1257,7 @@ export default function DashboardPage() {
                     <CardDescription>Configure level thresholds, perks, and points boost rules</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <Button onClick={() => window.open('/admin/professional-levels/config', '_blank')} className="w-full">
+                    <Button onClick={() => openAdmin('/admin/professional-levels/config')} className="w-full">
                       Configure Professional Levels
                     </Button>
                     <Button
@@ -1332,14 +1357,14 @@ export default function DashboardPage() {
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button 
-                      onClick={() => window.open('/admin/professionals?status=pending', '_blank')}
+                      onClick={() => openAdmin('/admin/professionals?status=pending')}
                       className="w-full"
                       variant={approvalStats?.pending ? 'default' : 'outline'}
                     >
                       Review Pending ({approvalStats?.pending || 0})
                     </Button>
                     <Button 
-                      onClick={() => window.open('/admin/professionals?status=approved', '_blank')}
+                      onClick={() => openAdmin('/admin/professionals?status=approved')}
                       variant="outline"
                       className="w-full"
                     >
@@ -1348,14 +1373,14 @@ export default function DashboardPage() {
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button 
-                      onClick={() => window.open('/admin/professionals?status=rejected', '_blank')}
+                      onClick={() => openAdmin('/admin/professionals?status=rejected')}
                       variant="outline"
                       className="w-full"
                     >
                       View Rejected ({approvalStats?.rejected || 0})
                     </Button>
                     <Button 
-                      onClick={() => window.open('/admin/professionals?status=suspended', '_blank')}
+                      onClick={() => openAdmin('/admin/professionals?status=suspended')}
                       variant="outline"
                       className="w-full"
                     >
@@ -1382,14 +1407,14 @@ export default function DashboardPage() {
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button
-                      onClick={() => window.open('/admin/payments', '_blank')}
+                      onClick={() => openAdmin('/admin/payments')}
                       className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       View All Payments
                     </Button>
                     <Button
-                      onClick={() => window.open('/admin/payments?status=authorized', '_blank')}
+                      onClick={() => openAdmin('/admin/payments?status=authorized')}
                       variant="outline"
                       className="w-full border-amber-200 hover:bg-amber-50"
                     >
