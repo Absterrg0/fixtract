@@ -12,7 +12,7 @@ import ProfessionalFilters from '@/components/ProfessionalFilters';
 import JsonLd from '@/components/seo/JsonLd';
 import { breadcrumbSchema, serviceSchema } from '@/lib/seo/jsonLd';
 import { buildMetadata } from '@/lib/seo/metadata';
-import { CmsContent } from '@/lib/cms';
+import { CmsContent, cmsCoverAlt } from '@/lib/cms';
 import { publicGetCms, publicListCms } from '@/lib/cms/public';
 import RichTextRenderer from '@/components/cms/RichTextRenderer';
 import BlogCard from '@/components/cms/BlogCard';
@@ -177,7 +177,7 @@ export default async function Page({ params }: Props) {
           ])}
         />
         <div className="relative h-[28rem] md:h-[32rem] w-full">
-          <Image src={coverSrc} alt={landing.title} fill className="object-cover" priority unoptimized={Boolean(landing.coverImage)} />
+          <Image src={coverSrc} alt={cmsCoverAlt(landing)} fill className="object-cover" priority unoptimized={Boolean(landing.coverImage)} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
           <div className="absolute inset-0 flex flex-col justify-end">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-10 md:pb-14">

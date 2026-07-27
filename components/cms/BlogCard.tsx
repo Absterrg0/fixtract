@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Calendar } from "lucide-react";
-import { CmsContent, cmsAuthorName } from "@/lib/cms";
+import { CmsContent, cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 
 interface Props {
   item: CmsContent;
@@ -21,7 +21,7 @@ export default function BlogCard({ item, basePath }: Props) {
           <div className="relative aspect-[16/9] overflow-hidden">
             <img
               src={item.coverImage}
-              alt={item.title}
+              alt={cmsCoverAlt(item)}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-rose-900/20 via-transparent to-transparent" />

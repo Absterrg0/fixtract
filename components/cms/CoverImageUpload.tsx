@@ -9,12 +9,21 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   value?: string;
+  altValue?: string;
   onChange: (url: string | undefined) => void;
+  onAltChange?: (alt: string) => void;
   required?: boolean;
   recommendedSize?: string;
 }
 
-export default function CoverImageUpload({ value, onChange, required, recommendedSize }: Props) {
+export default function CoverImageUpload({
+  value,
+  altValue,
+  onChange,
+  onAltChange,
+  required,
+  recommendedSize,
+}: Props) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,31 +80,56 @@ export default function CoverImageUpload({ value, onChange, required, recommende
         <div className="rounded-[calc(1rem-1.5px)] bg-white">
           {value ? (
             <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[calc(1rem-1.5px)]">
-              <Image src={value} alt="Cover" fill className="object-cover" unoptimized />
+              <Image
+                src={value}
+                alt={altValue?.trim() || "Cover"}
+                fill
+                className="object-cover"
+                unoptimized
+              />
             </div>
           ) : (
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={uploading}
-              className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 rounded-[calc(1rem-1.5px)] bg-gradient-to-br from-rose-50 via-pink-50 to-white text-rose-700 transition hover:from-rose-100 hover:via-pink-100 hover:to-rose-50"
+              className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 rounded-[calc(1rem-1.5px)] text-rose-500 transition hover:bg-rose-50/50 disabled:opacity-60"
             >
-              {uploading ? (
-                <Loader2 className="animate-spin" size={24} />
-              ) : (
-                <>
-                  <ImagePlus size={28} className="text-rose-500" />
-                  <span className="text-sm font-medium">Click to upload cover image</span>
-                  {recommendedSize && (
-                    <span className="px-4 text-center text-xs font-medium text-rose-500">{recommendedSize}</span>
-                  )}
-                  <span className="text-xs text-rose-400">JPEG, PNG, or WebP — up to 5MB</span>
-                </>
-              )}
+              {uploading ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+              <span className="text-sm font-medium">{uploading ? "Uploading…" : "Upload cover image"}</span>
+              {recommendedSize && <span className="px-4 text-center text-[11px] text-rose-400">{recommendedSize}</span>}
             </button>
           )}
         </div>
       </div>
+      {value && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="text-xs font-medium text-rose-600 hover:text-rose-800 disabled:opacity-50"
+        >
+          {uploading ? "Uploading…" : "Replace image"}
+        </button>
+      )}
+      {onAltChange && (
+        <div className="space-y-1.5 pt-1">
+          <label htmlFor="cover-image-alt" className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+            Cover alt text
+          </label>
+          <input
+            id="cover-image-alt"
+            value={altValue || ""}
+            onChange={(e) => onAltChange(e.target.value)}
+            placeholder="Describe the image for SEO & accessibility"
+            maxLength={200}
+            className="w-full rounded-xl border border-pink-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-rose-400 focus:bg-white focus:ring-2 focus:ring-rose-200"
+          />
+          <p className="text-[11px] text-rose-400">
+            {(altValue || "").length}/200 — defaults to the content title if left blank
+          </p>
+        </div>
+      )}
       <input
         ref={inputRef}
         type="file"
@@ -103,21 +137,6 @@ export default function CoverImageUpload({ value, onChange, required, recommende
         className="hidden"
         onChange={(e) => handle(e.target.files?.[0])}
       />
-      {value && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-rose-100 to-pink-100 px-3 py-1.5 text-xs font-medium text-rose-700 hover:from-rose-200 hover:to-pink-200"
-          >
-            {uploading ? <Loader2 className="animate-spin" size={12} /> : <ImagePlus size={12} />} Replace image
-          </button>
-          {recommendedSize && (
-            <span className="text-xs font-medium text-rose-500">{recommendedSize}</span>
-          )}
-        </div>
-      )}
     </div>
   );
 }

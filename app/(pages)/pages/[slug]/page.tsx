@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { publicGetCms } from "@/lib/cms/public";
+import { cmsCoverAlt } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -48,7 +49,7 @@ export default async function GenericCmsPage({ params }: Props) {
       {content.coverImage && (
         <div className="mx-auto max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img src={content.coverImage} alt={content.title} className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover" />
+            <img src={content.coverImage} alt={cmsCoverAlt(content)} className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover" />
           </div>
         </div>
       )}
