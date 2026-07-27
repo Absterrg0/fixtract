@@ -354,27 +354,25 @@ export default function AdminKpiDashboard() {
     setResponseRows([])
     setLoading(true)
     try {
-      const [sumRes, regRes, svcRes, subRes, proRes, custRes, respRes] = await Promise.all([
+      const [sumRes, regRes, svcRes, subRes, proRes, custRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/kpi/summary?${rangeQs}`),
         authFetch(`${BACKEND}/api/admin/kpi/by-region?${rangeQs}`),
         authFetch(`${BACKEND}/api/admin/kpi/by-service?${rangeQs}`),
         authFetch(`${BACKEND}/api/admin/kpi/by-subproject?${rangeQs}`),
         authFetch(`${BACKEND}/api/admin/kpi/by-professional?${rangeQs}`),
         authFetch(`${BACKEND}/api/admin/kpi/by-customer?${rangeQs}`),
-        authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`),
       ])
       if (requestId !== requestIdRef.current) return
       if (!sumRes.ok) {
         toast.error('Failed to load KPI summary')
       }
-      const [sumJson, regJson, svcJson, subJson, proJson, custJson, respJson] = await Promise.all([
+      const [sumJson, regJson, svcJson, subJson, proJson, custJson] = await Promise.all([
         sumRes.ok ? sumRes.json() : Promise.resolve({ data: null }),
         regRes.ok ? regRes.json() : Promise.resolve({ data: { rows: [] } }),
         svcRes.ok ? svcRes.json() : Promise.resolve({ data: { serviceBookings: [] } }),
         subRes.ok ? subRes.json() : Promise.resolve({ data: { rows: [] } }),
         proRes.ok ? proRes.json() : Promise.resolve({ data: { rows: [] } }),
         custRes.ok ? custRes.json() : Promise.resolve({ data: { rows: [] } }),
-        respRes.ok ? respRes.json() : Promise.resolve({ data: { rows: [] } }),
       ])
       if (requestId !== requestIdRef.current) return
       setSummary(sumJson.data || null)
@@ -383,7 +381,23 @@ export default function AdminKpiDashboard() {
       setSubprojects(subJson.data?.rows || [])
       setProfessionals(proJson.data?.rows || [])
       setCustomers(custJson.data?.rows || [])
-      setResponseRows(respJson.data?.rows || [])
+
+      // Isolate pro-response so a failure cannot blank the rest of the dashboard.
+      try {
+        const respRes = await authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`)
+        if (requestId !== requestIdRef.current) return
+        const respJson = respRes.ok ? await respRes.json() : { data: { rows: [] } }
+        if (requestId !== requestIdRef.current) return
+        setResponseRows(respJson.data?.rows || [])
+        if (!respRes.ok) {
+          toast.error('Failed to load pro response (top 50)')
+        }
+      } catch (respErr) {
+        if (requestId !== requestIdRef.current) return
+        console.error(respErr)
+        setResponseRows([])
+        toast.error('Failed to load pro response (top 50)')
+      }
     } catch (err) {
       if (requestId !== requestIdRef.current) return
       console.error(err)
@@ -851,7 +865,7 @@ export default function AdminKpiDashboard() {
             <TabsTrigger value="subproject">By Subproject</TabsTrigger>
             <TabsTrigger value="professional">By Professional</TabsTrigger>
             <TabsTrigger value="customer">By Customer</TabsTrigger>
-            <TabsTrigger value="response">Pro response</TabsTrigger>
+            <TabsTrigger value="response">Pro response (top 50)</TabsTrigger>
           </TabsList>
 
           {(['city', 'service', 'subproject', 'professional', 'customer', 'response'] as TabKey[]).map((tab) => {
@@ -871,7 +885,7 @@ export default function AdminKpiDashboard() {
             const tabTitle = tab === 'city'
               ? 'By Region (City)'
               : tab === 'response'
-                ? 'Pro response'
+                ? 'Pro response (top 50)'
                 : `By ${tab.charAt(0).toUpperCase() + tab.slice(1)}`
             return (
             <TabsContent value={tab} key={tab}>

@@ -188,20 +188,24 @@ export default function AdminBookingDetailPage() {
 
   const viewCustomerProChat = useCallback(async () => {
     if (!id) return
+    const chatWindow = window.open('about:blank', '_blank')
     setOpeningProChat(true)
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${id}/conversation`)
       const json = await res.json()
       if (!res.ok || !json?.success || !json?.data?.conversationId) {
+        chatWindow?.close()
         toast.error(json?.msg || 'No customer↔professional chat found for this booking')
         return
       }
-      window.open(
-        `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`,
-        '_blank',
-        'noopener'
-      )
+      const url = `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`
+      if (chatWindow) {
+        chatWindow.location.href = url
+      } else {
+        window.open(url, '_blank', 'noopener')
+      }
     } catch {
+      chatWindow?.close()
       toast.error('Failed to open customer↔professional chat')
     } finally {
       setOpeningProChat(false)

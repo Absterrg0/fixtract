@@ -228,6 +228,12 @@ export default function AdminAuditLogsPage() {
     setExporting(format)
     try {
       const params = new URLSearchParams(filterParams)
+      const trimmedActorEmail = actorEmail.trim()
+      if (trimmedActorEmail.length >= 2) {
+        params.set('actorEmail', trimmedActorEmail)
+      } else {
+        params.delete('actorEmail')
+      }
       if (format === 'json') params.set('format', 'json')
       const res = await authFetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/audit-logs/export?${params.toString()}`
@@ -253,7 +259,7 @@ export default function AdminAuditLogsPage() {
     } finally {
       setExporting(null)
     }
-  }, [filterParams])
+  }, [filterParams, actorEmail])
 
   if (loading || !user) return null
   if (user.role !== 'admin') return null

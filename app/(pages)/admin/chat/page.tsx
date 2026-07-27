@@ -180,6 +180,10 @@ function AdminChatInner() {
   const send = async () => {
     const trimmed = text.trim()
     if (!trimmed || !conversationId) return
+    if (!conversation || conversation.type === 'direct' || conversation.status === 'archived') {
+      toast.error('Cannot reply to this conversation')
+      return
+    }
     setSending(true)
     try {
       const res = await authFetch(`${BACKEND}/api/admin/conversations/${conversationId}/reply`, {
@@ -387,7 +391,9 @@ function AdminChatInner() {
                     )}
                   </div>
                   <div className="border-t p-3">
-                    {isDirect ? (
+                    {!conversation ? (
+                      <p className="text-center text-sm text-gray-400">Loading conversation…</p>
+                    ) : isDirect ? (
                       <p className="text-center text-sm text-gray-400 flex items-center justify-center gap-1">
                         <Lock className="h-4 w-4" /> Read-only — you cannot reply to customer↔professional threads.
                       </p>
