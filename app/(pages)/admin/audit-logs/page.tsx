@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ClipboardList, RefreshCw, X } from "lucide-react"
+import { ClipboardList, Download, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
 
 interface AuditLog {
@@ -52,8 +52,7 @@ interface AuditStats {
   uniqueActors: number
 }
 
-const KNOWN_ACTIONS = [
-  'all',
+const FALLBACK_ACTIONS = [
   'admin.professionals.approve',
   'admin.professionals.reject',
   'admin.professionals.suspend',
@@ -68,7 +67,7 @@ const KNOWN_ACTIONS = [
   'user.anonymize',
 ]
 
-const TARGET_TYPES = ['all', 'User', 'Booking', 'Payment', 'WarrantyClaim', 'CancellationRequest', 'Referral']
+const FALLBACK_TARGET_TYPES = ['User', 'Booking', 'Payment', 'WarrantyClaim', 'CancellationRequest', 'Referral']
 
 const STATUSES: Array<'all' | 'success' | 'failure'> = ['all', 'success', 'failure']
 
@@ -81,6 +80,10 @@ export default function AdminAuditLogsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
+
+  const [actionOptions, setActionOptions] = useState<string[]>(FALLBACK_ACTIONS)
+  const [targetTypeOptions, setTargetTypeOptions] = useState<string[]>(FALLBACK_TARGET_TYPES)
 
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [targetTypeFilter, setTargetTypeFilter] = useState<string>('all')
@@ -113,16 +116,42 @@ export default function AdminAuditLogsPage() {
     }
   }, [actorEmail])
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams({ page: page.toString(), limit: '25' })
+  useEffect(() => {
+    if (user?.role !== 'admin') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/audit-logs/actions`)
+        const json = await res.json()
+        if (cancelled || !res.ok || !json?.success) return
+        const actions = Array.isArray(json.data?.actions) ? json.data.actions.filter(Boolean) : []
+        const targetTypes = Array.isArray(json.data?.targetTypes) ? json.data.targetTypes.filter(Boolean) : []
+        if (actions.length > 0) setActionOptions(actions)
+        if (targetTypes.length > 0) setTargetTypeOptions(targetTypes)
+      } catch {
+        // keep fallback lists
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user])
+
+  const filterParams = useMemo(() => {
+    const params = new URLSearchParams()
     if (actionFilter !== 'all') params.set('action', actionFilter)
     if (targetTypeFilter !== 'all') params.set('targetType', targetTypeFilter)
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (debouncedActorEmail.length >= 2) params.set('actorEmail', debouncedActorEmail)
     if (fromDate) params.set('from', fromDate)
     if (untilDate) params.set('until', untilDate)
+    return params
+  }, [actionFilter, targetTypeFilter, statusFilter, debouncedActorEmail, fromDate, untilDate])
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams(filterParams)
+    params.set('page', page.toString())
+    params.set('limit', '25')
     return params.toString()
-  }, [page, actionFilter, targetTypeFilter, statusFilter, debouncedActorEmail, fromDate, untilDate])
+  }, [page, filterParams])
 
   const statsQueryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -195,13 +224,44 @@ export default function AdminAuditLogsPage() {
     }
   }, [])
 
+  const exportLogs = useCallback(async (format: 'csv' | 'json') => {
+    setExporting(format)
+    try {
+      const params = new URLSearchParams(filterParams)
+      if (format === 'json') params.set('format', 'json')
+      const res = await authFetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/audit-logs/export?${params.toString()}`
+      )
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json?.msg || 'Failed to export audit logs')
+        return
+      }
+      const blob = await res.blob()
+      const stamp = new Date().toISOString().slice(0, 10)
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `audit-logs-${stamp}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+      toast.success(`Exported audit logs (${format.toUpperCase()})`)
+    } catch {
+      toast.error('Failed to export audit logs')
+    } finally {
+      setExporting(null)
+    }
+  }, [filterParams])
+
   if (loading || !user) return null
   if (user.role !== 'admin') return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
       <div className="max-w-6xl mx-auto pt-20 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <ClipboardList className="h-6 w-6" />
@@ -209,10 +269,30 @@ export default function AdminAuditLogsPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">Every state-changing admin and account action</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { fetchLogs(); fetchStats() }}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!!exporting}
+              onClick={() => exportLogs('csv')}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!!exporting}
+              onClick={() => exportLogs('json')}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { fetchLogs(); fetchStats() }}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {stats && (
@@ -248,8 +328,9 @@ export default function AdminAuditLogsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {KNOWN_ACTIONS.map((a) => (
-                      <SelectItem key={a} value={a}>{a === 'all' ? 'All actions' : a}</SelectItem>
+                    <SelectItem value="all">All actions</SelectItem>
+                    {actionOptions.map((a) => (
+                      <SelectItem key={a} value={a}>{a}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -262,8 +343,9 @@ export default function AdminAuditLogsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TARGET_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t === 'all' ? 'All targets' : t}</SelectItem>
+                    <SelectItem value="all">All targets</SelectItem>
+                    {targetTypeOptions.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

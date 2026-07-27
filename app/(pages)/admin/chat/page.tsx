@@ -8,6 +8,7 @@ import { useChatPolling } from "@/hooks/useChatPolling"
 import { setAdminActiveConversationId, markAdminConversationSeen } from "@/hooks/useAdminUnreadCount"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Loader2, RefreshCw, Send, Lock, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
@@ -18,11 +19,14 @@ interface AdminConversation {
   status: string
   supportTargetUserId?: { _id: string; name?: string; email?: string }
   supportAdminId?: { _id: string; name?: string; email?: string }
+  customerId?: { _id: string; name?: string; email?: string }
+  professionalId?: { _id: string; name?: string; email?: string }
 }
 
 interface AdminConversationListItem {
   _id: string
   supportTargetUserId?: { _id: string; name?: string; email?: string }
+  supportAdminId?: { _id: string; name?: string; email?: string } | null
   lastMessagePreview?: string
   lastMessageAt?: string | null
   awaitingReply?: boolean
@@ -36,6 +40,8 @@ interface AdminMessage {
   createdAt: string
 }
 
+type InboxFilter = 'all' | 'mine'
+
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
 
 function AdminChatInner() {
@@ -47,6 +53,7 @@ function AdminChatInner() {
   const [selectedId, setSelectedId] = useState<string>(queryConversationId)
   const conversationId = selectedId
 
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all')
   const [conversations, setConversations] = useState<AdminConversationListItem[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [conversation, setConversation] = useState<AdminConversation | null>(null)
@@ -77,7 +84,8 @@ function AdminChatInner() {
   const loadConversations = useCallback(async (silent = false) => {
     if (!silent) setListLoading(true)
     try {
-      const res = await authFetch(`${BACKEND}/api/admin/conversations`)
+      const qs = inboxFilter === 'mine' ? '?mine=true' : ''
+      const res = await authFetch(`${BACKEND}/api/admin/conversations${qs}`)
       const json = await res.json()
       if (!res.ok || !json?.success) {
         throw new Error(json?.msg || "Failed to load conversations")
@@ -88,7 +96,7 @@ function AdminChatInner() {
     } finally {
       if (!silent) setListLoading(false)
     }
-  }, [])
+  }, [inboxFilter])
 
   const load = useCallback(async (silent = false) => {
     if (!conversationId) {
@@ -142,7 +150,7 @@ function AdminChatInner() {
   const pollConversations = useCallback(() => loadConversations(true), [loadConversations])
 
   useChatPolling(pollMessages, 6000, user?.role === 'admin' && !!conversationId, [conversationId])
-  useChatPolling(pollConversations, 15000, user?.role === 'admin', [])
+  useChatPolling(pollConversations, 15000, user?.role === 'admin', [inboxFilter])
 
   useEffect(() => {
     const container = messagesContainerRef.current
@@ -217,8 +225,11 @@ function AdminChatInner() {
 
   if (loading || !user || user.role !== 'admin') return null
 
-  const target = conversation?.supportTargetUserId
+  const isDirect = conversation?.type === 'direct'
   const isClosed = conversation?.status === "archived"
+  const target = conversation?.supportTargetUserId
+  const customer = conversation?.customerId
+  const professional = conversation?.professionalId
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -237,7 +248,29 @@ function AdminChatInner() {
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
           <Card className="h-[70vh] overflow-hidden">
             <CardContent className="p-0 h-full overflow-y-auto">
-              <div className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Inbox</div>
+              <div className="border-b px-4 py-3 space-y-2">
+                <div className="text-sm font-semibold text-gray-700">Inbox</div>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={inboxFilter === 'all' ? 'default' : 'outline'}
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => setInboxFilter('all')}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={inboxFilter === 'mine' ? 'default' : 'outline'}
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => setInboxFilter('mine')}
+                  >
+                    Mine
+                  </Button>
+                </div>
+              </div>
               {listLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
               ) : conversations.length === 0 ? (
@@ -246,6 +279,7 @@ function AdminChatInner() {
                 <ul className="divide-y">
                   {conversations.map((c) => {
                     const u = c.supportTargetUserId
+                    const assignee = c.supportAdminId
                     const active = c._id === conversationId
                     return (
                       <li key={c._id}>
@@ -269,6 +303,11 @@ function AdminChatInner() {
                               )}
                             </div>
                           </div>
+                          {assignee?.name || assignee?.email ? (
+                            <p className="mt-0.5 text-[11px] text-gray-500 truncate">
+                              Assigned: {assignee.name || assignee.email}
+                            </p>
+                          ) : null}
                           <p className={`mt-0.5 text-xs truncate ${c.awaitingReply ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>
                             {c.lastMessagePreview || "No messages yet."}
                           </p>
@@ -282,11 +321,24 @@ function AdminChatInner() {
           </Card>
 
           <div className="space-y-4">
-            {target && (
+            {isDirect ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-gray-500">
+                  Customer: {customer?.name || customer?.email || "—"}
+                  {customer?.email && customer?.name ? ` (${customer.email})` : ""}
+                  {" · "}
+                  Professional: {professional?.name || professional?.email || "—"}
+                  {professional?.email && professional?.name ? ` (${professional.email})` : ""}
+                </p>
+                <Badge variant="secondary" className="text-xs">
+                  Read-only — customer↔professional thread
+                </Badge>
+              </div>
+            ) : target ? (
               <p className="text-sm text-gray-500">
                 With {target.name || target.email || "user"} {target.email ? `(${target.email})` : ""}
               </p>
-            )}
+            ) : null}
 
             {loadError && (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -300,7 +352,7 @@ function AdminChatInner() {
               <Card>
                 <CardContent className="p-0">
                   <div className="flex items-center justify-end border-b p-2">
-                    {!isClosed && conversation && (
+                    {!isDirect && !isClosed && conversation && (
                       <Button
                         variant="destructive"
                         size="sm"
@@ -335,7 +387,11 @@ function AdminChatInner() {
                     )}
                   </div>
                   <div className="border-t p-3">
-                    {isClosed ? (
+                    {isDirect ? (
+                      <p className="text-center text-sm text-gray-400 flex items-center justify-center gap-1">
+                        <Lock className="h-4 w-4" /> Read-only — you cannot reply to customer↔professional threads.
+                      </p>
+                    ) : isClosed ? (
                       <p className="text-center text-sm text-gray-400 flex items-center justify-center gap-1">
                         <Lock className="h-4 w-4" /> This support chat is closed.
                       </p>

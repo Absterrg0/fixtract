@@ -98,6 +98,7 @@ export default function AdminBookingDetailPage() {
   const [forceStatusValue, setForceStatusValue] = useState("")
   const [forcingStatus, setForcingStatus] = useState(false)
   const [startingChat, setStartingChat] = useState<'customer' | 'professional' | null>(null)
+  const [openingProChat, setOpeningProChat] = useState(false)
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -185,6 +186,28 @@ export default function AdminBookingDetailPage() {
     }
   }, [data])
 
+  const viewCustomerProChat = useCallback(async () => {
+    if (!id) return
+    setOpeningProChat(true)
+    try {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${id}/conversation`)
+      const json = await res.json()
+      if (!res.ok || !json?.success || !json?.data?.conversationId) {
+        toast.error(json?.msg || 'No customer↔professional chat found for this booking')
+        return
+      }
+      window.open(
+        `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`,
+        '_blank',
+        'noopener'
+      )
+    } catch {
+      toast.error('Failed to open customer↔professional chat')
+    } finally {
+      setOpeningProChat(false)
+    }
+  }, [id])
+
   if (loading || !user) return null
 
   return (
@@ -251,6 +274,15 @@ export default function AdminBookingDetailPage() {
                   >
                     <MessageSquare className="h-4 w-4 mr-1" />
                     {startingChat === 'professional' ? 'Opening…' : 'Chat professional'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={openingProChat}
+                    onClick={viewCustomerProChat}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                    {openingProChat ? 'Opening…' : 'View customer↔pro chat'}
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-3 border-t mt-3">
