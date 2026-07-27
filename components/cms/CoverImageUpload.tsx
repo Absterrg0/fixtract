@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ export default function CoverImageUpload({
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const altId = useId();
 
   const ALLOWED_MIMES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   const MAX_BYTES = 5 * 1024 * 1024;
@@ -114,11 +115,11 @@ export default function CoverImageUpload({
       )}
       {onAltChange && (
         <div className="space-y-1.5 pt-1">
-          <label htmlFor="cover-image-alt" className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+          <label htmlFor={altId} className="text-xs font-semibold uppercase tracking-wide text-rose-700">
             Cover alt text
           </label>
           <input
-            id="cover-image-alt"
+            id={altId}
             value={altValue || ""}
             onChange={(e) => onAltChange(e.target.value)}
             placeholder="Describe the image for SEO & accessibility"

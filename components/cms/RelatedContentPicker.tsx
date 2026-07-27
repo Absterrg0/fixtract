@@ -140,6 +140,7 @@ export default function RelatedContentPicker({ value, onChange, excludeId, max =
       <div className="relative">
         <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" />
         <input
+          aria-label="Search published blogs and news"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search published blogs & news…"
@@ -189,15 +190,33 @@ export default function RelatedContentPicker({ value, onChange, excludeId, max =
   );
 }
 
-/** Normalize CMS relatedContent (populated objects or ids) into picker items. */
+/** Normalize CMS relatedContent (populated objects or raw ids) into picker items.
+ * Raw ids are kept as stubs so a subsequent save cannot wipe links; hydrate with adminGetCms. */
 export function relatedItemsFromCms(content?: CmsContent["relatedContent"]): RelatedItem[] {
   if (!Array.isArray(content)) return [];
   const out: RelatedItem[] = [];
+  const seen = new Set<string>();
   for (const r of content) {
-    if (!r || typeof r === "string") continue;
-    if (!r._id || !r.title || !r.slug || !r.type) continue;
-    if (r.type !== "blog" && r.type !== "news") continue;
-    out.push({ _id: r._id, title: r.title, slug: r.slug, type: r.type });
+    if (!r) continue;
+    if (typeof r === "string") {
+      if (!r || seen.has(r)) continue;
+      seen.add(r);
+      out.push({ _id: r, title: "Linked article", slug: "", type: "blog" });
+      continue;
+    }
+    if (!r._id || seen.has(r._id)) continue;
+    seen.add(r._id);
+    if (r.title && r.slug && (r.type === "blog" || r.type === "news")) {
+      out.push({ _id: r._id, title: r.title, slug: r.slug, type: r.type });
+    } else {
+      // Incomplete populate — keep the id so we don't drop the link on save
+      out.push({
+        _id: r._id,
+        title: r.title || "Linked article",
+        slug: r.slug || "",
+        type: r.type === "news" ? "news" : "blog",
+      });
+    }
   }
   return out;
 }

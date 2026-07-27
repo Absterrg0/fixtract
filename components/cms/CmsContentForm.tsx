@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, FileText, Loader2, Save, Send, Tag, Trash2, X 
 import {
   adminCreateCms,
   adminDeleteCms,
+  adminGetCms,
   adminListCmsServiceOptions,
   adminListFaqCategories,
   adminUpdateCms,
@@ -90,6 +91,28 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    const stubs = relatedItems.filter((item) => !item.slug);
+    if (stubs.length === 0) return;
+    let cancelled = false;
+    Promise.all(stubs.map((s) => adminGetCms(s._id).catch(() => null))).then((docs) => {
+      if (cancelled) return;
+      setRelatedItems((prev) =>
+        prev.map((item) => {
+          if (item.slug) return item;
+          const doc = docs.find((d) => d && d._id === item._id);
+          if (!doc || (doc.type !== "blog" && doc.type !== "news")) return item;
+          return { _id: doc._id, title: doc.title, slug: doc.slug, type: doc.type };
+        })
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Hydrate stubs once after mount / when initial related content is unpopulated
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial?._id]);
 
   useEffect(() => {
     adminListFaqCategories()
