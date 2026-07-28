@@ -177,20 +177,20 @@ export function MultiSelectCombobox({
               />
             ) : null}
 
-            {filtered.length > 0 ? (
-              filtered.map((option) => (
-                <OptionRow
-                  key={option.value}
-                  selected={value.includes(option.value)}
-                  label={option.label}
-                  hint={option.hint}
-                  onSelect={() => toggle(option.value)}
-                />
-              ))
-            ) : (
-              <p className="px-2 py-3 text-center text-sm text-muted-foreground">No matches</p>
-            )}
+            {filtered.map((option) => (
+              <OptionRow
+                key={option.value}
+                selected={value.includes(option.value)}
+                label={option.label}
+                hint={option.hint}
+                onSelect={() => toggle(option.value)}
+              />
+            ))}
           </div>
+
+          {filtered.length === 0 ? (
+            <p className="px-2 py-3 text-center text-sm text-muted-foreground">No matches</p>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

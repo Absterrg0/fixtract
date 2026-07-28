@@ -41,7 +41,7 @@ export function useSiteAnnouncementsAdmin() {
   const [reloadKey, setReloadKey] = useState(0);
   const [editor, setEditor] = useState<AnnouncementEditor>(null);
   const [saving, setSaving] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(() => new Set());
 
   // Auth gate — single redirect effect
   useEffect(() => {
@@ -124,7 +124,11 @@ export function useSiteAnnouncementsAdmin() {
 
   const toggleActive = async (item: AdminSiteAnnouncement, isActive: boolean) => {
     const previousIsActive = item.isActive;
-    setTogglingId(item._id);
+    setTogglingIds((prev) => {
+      const next = new Set(prev);
+      next.add(item._id);
+      return next;
+    });
     setItems((prev) =>
       prev.map((row) => (row._id === item._id ? { ...row, isActive } : row)),
     );
@@ -139,7 +143,11 @@ export function useSiteAnnouncementsAdmin() {
       );
       toast.error(err instanceof Error ? err.message : "Could not update");
     } finally {
-      setTogglingId(null);
+      setTogglingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item._id);
+        return next;
+      });
     }
   };
 
@@ -157,7 +165,7 @@ export function useSiteAnnouncementsAdmin() {
     patchForm,
     saving,
     save,
-    togglingId,
+    togglingIds,
     toggleActive,
   };
 }
