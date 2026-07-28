@@ -31,7 +31,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   const skip = shouldSkipAnnouncements(pathname);
 
   const [items, setItems] = useState<SiteAnnouncement[]>([]);
-  const [consent, setConsent] = useState({ marketingOk: false });
+  const [consent, setConsent] = useState({ marketingOk: false, analyticsOk: false });
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
   const [preview, setPreview] = useState<SiteAnnouncement | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -61,7 +61,10 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     const refresh = () => {
-      setConsent({ marketingOk: hasConsented("marketing") });
+      setConsent({
+        marketingOk: hasConsented("marketing"),
+        analyticsOk: hasConsented("analytics"),
+      });
     };
     refresh();
     window.addEventListener(CONSENT_EVENT, refresh);
@@ -93,9 +96,12 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
     setHiddenIds((prev) => new Set(prev).add(announcement._id));
   }, []);
 
-  const onCta = useCallback((announcement: SiteAnnouncement) => {
-    trackPromoClick(announcement);
-  }, []);
+  const onCta = useCallback(
+    (announcement: SiteAnnouncement) => {
+      if (consent.analyticsOk) trackPromoClick(announcement);
+    },
+    [consent.analyticsOk],
+  );
 
   const announcementsValue = useMemo<AnnouncementsCtx>(() => {
     const visible = skip

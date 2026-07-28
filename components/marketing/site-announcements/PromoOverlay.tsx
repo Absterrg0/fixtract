@@ -101,7 +101,13 @@ export function PromoOverlay({
                   {announcement.discountCode}
                 </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={copyCode}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copyCode}
+                aria-label="Copy promo code"
+              >
                 {copied ? (
                   <Check className="h-4 w-4 text-emerald-600" />
                 ) : (

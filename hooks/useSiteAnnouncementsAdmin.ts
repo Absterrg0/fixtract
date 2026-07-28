@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminAccess } from "@/hooks/useAdminAccess";
 import {
   type AdminSiteAnnouncement,
   type AnnouncementEditor,
@@ -27,10 +28,12 @@ export type { AnnouncementEditor };
 
 export function useSiteAnnouncementsAdmin() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { canAccessPath } = useAdminAccess();
   const router = useRouter();
 
   const isAdmin = Boolean(isAuthenticated && user?.role === "admin");
-  const showPage = !authLoading && isAdmin;
+  const canManage = canAccessPath("/admin/site-announcements");
+  const showPage = !authLoading && isAdmin && canManage;
 
   const [filters, setFilters] = useState<AnnouncementListFilters>(DEFAULT_FILTERS);
   const [items, setItems] = useState<AdminSiteAnnouncement[]>([]);
@@ -43,8 +46,12 @@ export function useSiteAnnouncementsAdmin() {
   // Auth gate — single redirect effect
   useEffect(() => {
     if (authLoading) return;
-    if (!isAdmin) router.replace("/login");
-  }, [authLoading, isAdmin, router]);
+    if (!isAdmin) {
+      router.replace("/login");
+      return;
+    }
+    if (!canManage) router.replace("/dashboard");
+  }, [authLoading, isAdmin, canManage, router]);
 
   // List fetch — one effect, debounce + AbortController
   useEffect(() => {
@@ -116,6 +123,7 @@ export function useSiteAnnouncementsAdmin() {
   };
 
   const toggleActive = async (item: AdminSiteAnnouncement, isActive: boolean) => {
+    const previousIsActive = item.isActive;
     setTogglingId(item._id);
     setItems((prev) =>
       prev.map((row) => (row._id === item._id ? { ...row, isActive } : row)),
@@ -125,7 +133,9 @@ export function useSiteAnnouncementsAdmin() {
       toast.success(isActive ? "Announcement is live" : "Announcement hidden");
     } catch (err) {
       setItems((prev) =>
-        prev.map((row) => (row._id === item._id ? { ...row, isActive: !isActive } : row)),
+        prev.map((row) =>
+          row._id === item._id ? { ...row, isActive: previousIsActive } : row,
+        ),
       );
       toast.error(err instanceof Error ? err.message : "Could not update");
     } finally {

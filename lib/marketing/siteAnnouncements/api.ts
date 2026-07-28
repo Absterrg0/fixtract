@@ -37,5 +37,5 @@ export async function fetchPublicSiteAnnouncements(
   }
 
   const data = (json as { data?: { announcements?: SiteAnnouncement[] } }).data;
-  return data?.announcements ?? [];
+  return Array.isArray(data?.announcements) ? data.announcements : [];
 }

@@ -57,7 +57,7 @@ function OptionRow({
       role="option"
       aria-selected={selected}
       onClick={onSelect}
-      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
     >
       <span
         aria-hidden
@@ -152,17 +152,23 @@ export function MultiSelectCombobox({
         align="start"
         className="w-[var(--radix-popover-trigger-width)] p-0"
       >
-        <div role="listbox" aria-label={ariaLabel} aria-multiselectable className="overflow-hidden">
+        <div className="overflow-hidden">
           <div className="border-b p-2">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={searchPlaceholder}
               className="h-8 border-0 bg-muted/50 text-sm shadow-none focus-visible:ring-0"
+              aria-label={`Search ${ariaLabel}`}
             />
           </div>
 
-          <div className="max-h-52 overflow-y-auto p-1">
+          <div
+            role="listbox"
+            aria-label={ariaLabel}
+            aria-multiselectable
+            className="max-h-52 overflow-y-auto p-1"
+          >
             {emptySelectionLabel && !query ? (
               <OptionRow
                 selected={value.length === 0}

@@ -45,12 +45,17 @@ function FormField({
 function FormFieldLabel({
   children,
   required,
+  htmlFor,
 }: {
   children: React.ReactNode;
   required?: boolean;
+  htmlFor?: string;
 }) {
   return (
-    <Label className="inline-flex gap-0 font-sans text-sm font-medium leading-5 text-slate-700">
+    <Label
+      htmlFor={htmlFor}
+      className="inline-flex gap-0 font-sans text-sm font-medium leading-5 text-slate-700"
+    >
       {children}
       {required ? <span className="ml-0.5 text-red-500">*</span> : null}
     </Label>
@@ -145,8 +150,11 @@ function AnnouncementFormDialogBody({
           </p>
 
           <FormField>
-            <FormFieldLabel required>Internal name</FormFieldLabel>
+            <FormFieldLabel htmlFor="announcement-name" required>
+              Internal name
+            </FormFieldLabel>
             <Input
+              id="announcement-name"
               value={form.name}
               onChange={(e) => patch({ name: e.target.value })}
               placeholder="Summer BE promo"
@@ -156,12 +164,14 @@ function AnnouncementFormDialogBody({
 
           <div className="grid w-full grid-cols-2 gap-4">
             <FormField>
-              <FormFieldLabel required>Placement</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-placement" required>
+                Placement
+              </FormFieldLabel>
               <Select
                 value={form.type}
                 onValueChange={(v) => patch({ type: v as typeof form.type })}
               >
-                <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                <SelectTrigger id="announcement-placement" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,9 +184,9 @@ function AnnouncementFormDialogBody({
               </Select>
             </FormField>
             <FormField>
-              <FormFieldLabel>Priority</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-priority">Priority</FormFieldLabel>
               <Select value={form.priority} onValueChange={(v) => patch({ priority: v })}>
-                <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                <SelectTrigger id="announcement-priority" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -191,8 +201,11 @@ function AnnouncementFormDialogBody({
           </div>
 
           <FormField>
-            <FormFieldLabel required>Headline</FormFieldLabel>
+            <FormFieldLabel htmlFor="announcement-headline" required>
+              Headline
+            </FormFieldLabel>
             <Input
+              id="announcement-headline"
               value={form.title}
               onChange={(e) => patch({ title: e.target.value })}
               placeholder="Summer 10% off painting"
@@ -201,8 +214,11 @@ function AnnouncementFormDialogBody({
           </FormField>
 
           <FormField>
-            <FormFieldLabel required>Supporting text</FormFieldLabel>
+            <FormFieldLabel htmlFor="announcement-message" required>
+              Supporting text
+            </FormFieldLabel>
             <Input
+              id="announcement-message"
               value={form.message}
               onChange={(e) => patch({ message: e.target.value })}
               placeholder="Book this month and save"
@@ -212,8 +228,9 @@ function AnnouncementFormDialogBody({
 
           <div className="grid w-full grid-cols-2 gap-4">
             <FormField>
-              <FormFieldLabel>Link</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-link">Link</FormFieldLabel>
               <Input
+                id="announcement-link"
                 value={form.ctaUrl}
                 onChange={(e) => patch({ ctaUrl: e.target.value })}
                 placeholder="/services"
@@ -221,8 +238,9 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel>Code</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-code">Code</FormFieldLabel>
               <Input
+                id="announcement-code"
                 value={form.discountCode}
                 onChange={(e) => patch({ discountCode: e.target.value.toUpperCase() })}
                 placeholder="SUMMER10"
@@ -233,8 +251,9 @@ function AnnouncementFormDialogBody({
 
           {form.type !== "top_bar" && (
             <FormField>
-              <FormFieldLabel>Button text</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-cta">Button text</FormFieldLabel>
               <Input
+                id="announcement-cta"
                 value={form.ctaLabel}
                 onChange={(e) => patch({ ctaLabel: e.target.value })}
                 placeholder="Claim offer"
@@ -262,9 +281,9 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel>Language</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-locale">Language</FormFieldLabel>
               <Select value={form.locale} onValueChange={(v) => patch({ locale: v })}>
-                <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -280,8 +299,11 @@ function AnnouncementFormDialogBody({
 
           <div className="grid w-full grid-cols-2 gap-4">
             <FormField>
-              <FormFieldLabel required>Starts</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-starts" required>
+                Starts
+              </FormFieldLabel>
               <Input
+                id="announcement-starts"
                 type="date"
                 value={form.startsAt}
                 onChange={(e) => patch({ startsAt: e.target.value })}
@@ -289,8 +311,11 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel required>Ends</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-ends" required>
+                Ends
+              </FormFieldLabel>
               <Input
+                id="announcement-ends"
                 type="date"
                 value={form.endsAt}
                 onChange={(e) => patch({ endsAt: e.target.value })}
@@ -301,12 +326,12 @@ function AnnouncementFormDialogBody({
 
           {showsOverlayOptions && (
             <FormField>
-              <FormFieldLabel>Show after</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-delay">Show after</FormFieldLabel>
               <Select
                 value={form.delaySeconds}
                 onValueChange={(v) => patch({ delaySeconds: v })}
               >
-                <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                <SelectTrigger id="announcement-delay" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
