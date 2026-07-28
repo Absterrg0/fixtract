@@ -66,6 +66,7 @@ function AdminChatInner() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const lastMessageIdRef = useRef<string | null>(null)
   const selectedIdRef = useRef<string>(selectedId)
+  const inboxRequestIdRef = useRef(0)
 
   useEffect(() => {
     selectedIdRef.current = selectedId
@@ -82,19 +83,25 @@ function AdminChatInner() {
   }, [queryConversationId])
 
   const loadConversations = useCallback(async (silent = false) => {
+    const requestId = ++inboxRequestIdRef.current
     if (!silent) setListLoading(true)
     try {
       const qs = inboxFilter === 'mine' ? '?mine=true' : ''
       const res = await authFetch(`${BACKEND}/api/admin/conversations${qs}`)
       const json = await res.json()
+      if (requestId !== inboxRequestIdRef.current) return
       if (!res.ok || !json?.success) {
         throw new Error(json?.msg || "Failed to load conversations")
       }
       setConversations(Array.isArray(json.data?.items) ? json.data.items : [])
     } catch {
-      if (!silent) toast.error("Failed to load conversations")
+      if (!silent && requestId === inboxRequestIdRef.current) {
+        toast.error("Failed to load conversations")
+      }
     } finally {
-      if (!silent) setListLoading(false)
+      if (!silent && requestId === inboxRequestIdRef.current) {
+        setListLoading(false)
+      }
     }
   }, [inboxFilter])
 

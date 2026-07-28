@@ -289,6 +289,7 @@ export default function AdminKpiDashboard() {
   })
   const columnsHydrated = useRef(false)
   const [loading, setLoading] = useState(true)
+  const [responseLoading, setResponseLoading] = useState(false)
   const [sendingReport, setSendingReport] = useState(false)
   const [showEmails, setShowEmails] = useState(false)
   const requestIdRef = useRef(0)
@@ -353,6 +354,7 @@ export default function AdminKpiDashboard() {
     setCustomers([])
     setResponseRows([])
     setLoading(true)
+    setResponseLoading(false)
     try {
       const [sumRes, regRes, svcRes, subRes, proRes, custRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/kpi/summary?${rangeQs}`),
@@ -381,29 +383,32 @@ export default function AdminKpiDashboard() {
       setSubprojects(subJson.data?.rows || [])
       setProfessionals(proJson.data?.rows || [])
       setCustomers(custJson.data?.rows || [])
-
-      // Isolate pro-response so a failure cannot blank the rest of the dashboard.
-      try {
-        const respRes = await authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`)
-        if (requestId !== requestIdRef.current) return
-        const respJson = respRes.ok ? await respRes.json() : { data: { rows: [] } }
-        if (requestId !== requestIdRef.current) return
-        setResponseRows(respJson.data?.rows || [])
-        if (!respRes.ok) {
-          toast.error('Failed to load pro response (top 50)')
-        }
-      } catch (respErr) {
-        if (requestId !== requestIdRef.current) return
-        console.error(respErr)
-        setResponseRows([])
-        toast.error('Failed to load pro response (top 50)')
-      }
     } catch (err) {
       if (requestId !== requestIdRef.current) return
       console.error(err)
       toast.error('Failed to load KPI data')
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
+    }
+
+    // Load pro-response independently so a stall/failure cannot hold primary loading.
+    setResponseLoading(true)
+    try {
+      const respRes = await authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`)
+      if (requestId !== requestIdRef.current) return
+      const respJson = respRes.ok ? await respRes.json() : { data: { rows: [] } }
+      if (requestId !== requestIdRef.current) return
+      setResponseRows(respJson.data?.rows || [])
+      if (!respRes.ok) {
+        toast.error('Failed to load pro response (top 50)')
+      }
+    } catch (respErr) {
+      if (requestId !== requestIdRef.current) return
+      console.error(respErr)
+      setResponseRows([])
+      toast.error('Failed to load pro response (top 50)')
+    } finally {
+      if (requestId === requestIdRef.current) setResponseLoading(false)
     }
   }, [])
 
@@ -962,7 +967,7 @@ export default function AdminKpiDashboard() {
                   <SortableTable
                     columns={columns}
                     sortedRows={sorted}
-                    loading={loading}
+                    loading={tab === 'response' ? responseLoading : loading}
                     sortKey={sort.key}
                     sortDir={sort.dir}
                     onToggleSort={(k) => toggleSortForTab(tab, k)}

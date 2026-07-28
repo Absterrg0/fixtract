@@ -153,15 +153,7 @@ export default function AdminAuditLogsPage() {
     return params.toString()
   }, [page, filterParams])
 
-  const statsQueryString = useMemo(() => {
-    const params = new URLSearchParams()
-    if (actionFilter !== 'all') params.set('action', actionFilter)
-    if (targetTypeFilter !== 'all') params.set('targetType', targetTypeFilter)
-    if (statusFilter !== 'all') params.set('status', statusFilter)
-    if (fromDate) params.set('from', fromDate)
-    if (untilDate) params.set('until', untilDate)
-    return params.toString()
-  }, [actionFilter, targetTypeFilter, statusFilter, fromDate, untilDate])
+  const statsQueryString = useMemo(() => filterParams.toString(), [filterParams])
 
   const fetchLogs = useCallback(async () => {
     logsAbortRef.current?.abort()
