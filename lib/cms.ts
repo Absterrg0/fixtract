@@ -31,6 +31,8 @@ export interface CmsContent {
   body: string;
   excerpt?: string;
   coverImage?: string;
+  /** Accessible/SEO alt text for the cover image. Falls back to title when empty. */
+  coverImageAlt?: string;
   category?: string;
   tags: string[];
   status: CmsContentStatus;
@@ -38,7 +40,21 @@ export interface CmsContent {
   authorOverride?: string;
   publishedAt?: string;
   seo: CmsSeo;
-  relatedContent?: Array<{ _id: string; title?: string; slug?: string; type?: CmsContentType } | string>;
+  relatedContent?: Array<
+    | string
+    | {
+        _id: string;
+        title?: string;
+        slug?: string;
+        type?: CmsContentType;
+        excerpt?: string;
+        coverImage?: string;
+        coverImageAlt?: string;
+        publishedAt?: string;
+        updatedAt?: string;
+        createdAt?: string;
+      }
+  >;
   relatedServices?: Array<{ _id: string; name?: string; slug?: string } | string>;
   relatedServiceSlug?: string;
   viewCount?: number;
@@ -54,6 +70,7 @@ export interface CmsUpsertPayload {
   body?: string;
   excerpt?: string;
   coverImage?: string;
+  coverImageAlt?: string;
   category?: string;
   tags?: string[];
   status?: CmsContentStatus;
@@ -79,6 +96,28 @@ export function cmsAuthorName(item: Pick<CmsContent, "author" | "authorOverride"
   }
   if (typeof item.author === "string" && item.author.trim()) return item.author.trim();
   return undefined;
+}
+
+/** Prefer explicit cover alt text; fall back to the content title for SEO/a11y. */
+export function cmsCoverAlt(item: Pick<CmsContent, "title" | "coverImageAlt">): string {
+  const alt = item.coverImageAlt?.trim();
+  return alt || item.title || "Cover image";
+}
+
+export function relatedContentIds(item: Pick<CmsContent, "relatedContent">): string[] {
+  if (!Array.isArray(item.relatedContent)) return [];
+  return item.relatedContent
+    .map((r) => (typeof r === "string" ? r : r?._id))
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+export function humanizeCmsSlug(slug: string): string {
+  const cleaned = (slug || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "Service";
+  return cleaned
+    .split(" ")
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(" ");
 }
 
 export interface FaqCategory {

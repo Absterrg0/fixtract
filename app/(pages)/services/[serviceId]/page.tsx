@@ -12,7 +12,7 @@ import ProfessionalFilters from '@/components/ProfessionalFilters';
 import JsonLd from '@/components/seo/JsonLd';
 import { breadcrumbSchema, serviceSchema } from '@/lib/seo/jsonLd';
 import { buildMetadata } from '@/lib/seo/metadata';
-import { CmsContent } from '@/lib/cms';
+import { CmsContent, cmsCoverAlt, humanizeCmsSlug } from '@/lib/cms';
 import { publicGetCms, publicListCms } from '@/lib/cms/public';
 import RichTextRenderer from '@/components/cms/RichTextRenderer';
 import BlogCard from '@/components/cms/BlogCard';
@@ -60,15 +60,6 @@ const fetchRelatedArticles = cache(async (serviceSlug: string) => {
   }
 });
 
-function humanizeSlug(slug: string): string {
-  const cleaned = (slug || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return "Service";
-  return cleaned
-    .split(" ")
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
-    .join(" ");
-}
-
 function hasMeaningfulBody(html: string | undefined | null): boolean {
   if (!html) return false;
   if (/<(img|video|iframe|picture|audio|object|embed)\b/i.test(html)) return true;
@@ -100,7 +91,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       path: `/services/${encodeURIComponent(serviceId)}`,
     });
   }
-  const fallbackTitle = landing?.title || humanizeSlug(serviceId);
+  const fallbackTitle = landing?.title || humanizeCmsSlug(serviceId);
   return buildMetadata({
     title: fallbackTitle,
     description: `Information for ${fallbackTitle} on Fixtract is being prepared. Browse our other services in the meantime.`,
@@ -161,7 +152,7 @@ export default async function Page({ params }: Props) {
 
   if (landing && hasMeaningfulBody(landing.body)) {
     const safePath = `/services/${encodeURIComponent(serviceId)}`;
-    const serviceName = landing.title || meta?.name || humanizeSlug(serviceId);
+    const serviceName = landing.title || meta?.name || humanizeCmsSlug(serviceId);
     const coverSrc = landing.coverImage || getServiceCoverImage(serviceId, meta?.categorySlug);
     const { html: bodyHtml, toc } = extractTocAndAddIds(landing.body);
     const { blogs, news } = await fetchRelatedArticles(serviceId);
@@ -177,7 +168,14 @@ export default async function Page({ params }: Props) {
           ])}
         />
         <div className="relative h-[28rem] md:h-[32rem] w-full">
-          <Image src={coverSrc} alt={landing.title} fill className="object-cover" priority unoptimized={Boolean(landing.coverImage)} />
+          <Image
+            src={coverSrc}
+            alt={landing.coverImage ? cmsCoverAlt(landing) : (landing.title || humanizeCmsSlug(serviceId))}
+            fill
+            className="object-cover"
+            priority
+            unoptimized={Boolean(landing.coverImage)}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
           <div className="absolute inset-0 flex flex-col justify-end">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-10 md:pb-14">
@@ -224,7 +222,7 @@ export default async function Page({ params }: Props) {
   }
 
   if (!meta) {
-    const serviceName = landing?.title || humanizeSlug(serviceId);
+    const serviceName = landing?.title || humanizeCmsSlug(serviceId);
     return (
       <div className="bg-gradient-to-b from-rose-50 via-white to-white min-h-screen">
         <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
