@@ -19,6 +19,7 @@ export type AdminPermission =
   | 'audit.read'
   | 'email_logs.read'
   | 'cms.manage'
+  | 'campaigns.manage'
   | 'discounts.manage'
   | 'loyalty.manage'
   | 'referrals.manage'
@@ -49,6 +50,7 @@ export const ADMIN_PAGE_PERMISSIONS: Array<{ prefix: string; permission: AdminPe
   { prefix: '/admin/kpi', permission: 'kpi.read' },
   { prefix: '/admin/audit-logs', permission: 'audit.read' },
   { prefix: '/admin/cms', permission: 'cms.manage' },
+  { prefix: '/admin/campaigns', permission: 'campaigns.manage' },
   { prefix: '/admin/discount-codes', permission: 'discounts.manage' },
   { prefix: '/admin/loyalty', permission: 'loyalty.manage' },
   { prefix: '/admin/professional-levels', permission: 'loyalty.manage' },
@@ -92,6 +94,7 @@ export const ADMIN_ROLE_ACCESS: Record<AdminRole, string[]> = {
   ],
   marketing: [
     'CMS',
+    'Email campaigns',
     'Discount codes',
     'Loyalty & points',
     'Referrals',

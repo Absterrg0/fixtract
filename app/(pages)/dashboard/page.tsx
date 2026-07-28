@@ -840,6 +840,25 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-violet-100 bg-gradient-to-br from-white via-violet-50 to-fuchsia-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-violet-500" />
+                    Email Campaigns
+                  </CardTitle>
+                  <CardDescription>Brevo newsletters, promos, and re-engagement by region/service</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => openAdmin('/admin/campaigns')}
+                    className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Manage Campaigns
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="border-orange-100 bg-gradient-to-br from-white via-orange-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

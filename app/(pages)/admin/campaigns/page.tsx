@@ -1,0 +1,758 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { authFetch } from "@/lib/utils";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Send,
+  RefreshCw,
+  Users,
+  Loader2,
+  Mail,
+  BarChart3,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+const LOCALES = ["en", "nl", "fr"] as const;
+type Locale = (typeof LOCALES)[number];
+type CampaignType = "newsletter" | "promotion" | "reengagement";
+
+interface LocaleContent {
+  subject: string;
+  htmlContent: string;
+  previewText?: string;
+  brevoTemplateId?: number;
+}
+
+interface Campaign {
+  _id: string;
+  name: string;
+  type: CampaignType;
+  status: string;
+  content: Partial<Record<Locale, LocaleContent>>;
+  audience: {
+    countries: string[];
+    interestedServices: string[];
+    locales: Locale[];
+    roles: Array<"customer" | "professional">;
+  };
+  inactiveDays?: number;
+  autoSend: boolean;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  deliveries: Array<{
+    locale: Locale;
+    recipientCount: number;
+    brevoCampaignId?: number;
+    stats?: {
+      sent: number;
+      delivered: number;
+      uniqueViews: number;
+      uniqueClicks: number;
+      unsubscriptions: number;
+    };
+    error?: string;
+  }>;
+  lastError?: string;
+  utmCampaign?: string;
+  updatedAt: string;
+}
+
+interface FormState {
+  name: string;
+  type: CampaignType;
+  countries: string;
+  interestedServices: string;
+  locales: Locale[];
+  roles: Array<"customer" | "professional">;
+  inactiveDays: string;
+  autoSend: boolean;
+  scheduledAt: string;
+  utmCampaign: string;
+  content: Record<Locale, LocaleContent>;
+}
+
+const emptyContent = (): LocaleContent => ({
+  subject: "",
+  htmlContent: "",
+  previewText: "",
+});
+
+const emptyForm = (): FormState => ({
+  name: "",
+  type: "newsletter",
+  countries: "",
+  interestedServices: "",
+  locales: ["en"],
+  roles: ["customer", "professional"],
+  inactiveDays: "60",
+  autoSend: false,
+  scheduledAt: "",
+  utmCampaign: "",
+  content: {
+    en: emptyContent(),
+    nl: emptyContent(),
+    fr: emptyContent(),
+  },
+});
+
+const statusColor = (status: string) => {
+  switch (status) {
+    case "sent":
+      return "bg-emerald-100 text-emerald-800";
+    case "scheduled":
+      return "bg-blue-100 text-blue-800";
+    case "failed":
+      return "bg-rose-100 text-rose-800";
+    case "sending":
+      return "bg-amber-100 text-amber-800";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+};
+
+export default function AdminCampaignsPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [activeLocaleTab, setActiveLocaleTab] = useState<Locale>("en");
+  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && user?.role !== "admin") router.replace("/");
+  }, [authLoading, user, router]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns?limit=50`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load");
+      setCampaigns(json.data.campaigns || []);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load campaigns");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?.role === "admin") load();
+  }, [user, load]);
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm());
+    setAudienceCount(null);
+    setActiveLocaleTab("en");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (c: Campaign) => {
+    setEditingId(c._id);
+    setForm({
+      name: c.name,
+      type: c.type,
+      countries: (c.audience?.countries || []).join(", "),
+      interestedServices: (c.audience?.interestedServices || []).join(", "),
+      locales: (c.audience?.locales?.length ? c.audience.locales : LOCALES.filter((l) => c.content?.[l])) as Locale[],
+      roles: c.audience?.roles?.length ? c.audience.roles : ["customer", "professional"],
+      inactiveDays: String(c.inactiveDays || 60),
+      autoSend: Boolean(c.autoSend),
+      scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : "",
+      utmCampaign: c.utmCampaign || "",
+      content: {
+        en: c.content?.en || emptyContent(),
+        nl: c.content?.nl || emptyContent(),
+        fr: c.content?.fr || emptyContent(),
+      },
+    });
+    setAudienceCount(null);
+    setActiveLocaleTab("en");
+    setDialogOpen(true);
+  };
+
+  const payload = useMemo(() => {
+    const content: Partial<Record<Locale, LocaleContent>> = {};
+    for (const locale of LOCALES) {
+      const block = form.content[locale];
+      if (block.subject.trim() && (block.htmlContent.trim() || block.brevoTemplateId)) {
+        content[locale] = {
+          subject: block.subject.trim(),
+          htmlContent: block.htmlContent,
+          previewText: block.previewText?.trim() || undefined,
+          brevoTemplateId: block.brevoTemplateId || undefined,
+        };
+      }
+    }
+    return {
+      name: form.name.trim(),
+      type: form.type,
+      audience: {
+        countries: form.countries
+          .split(",")
+          .map((c) => c.trim().toUpperCase())
+          .filter(Boolean),
+        interestedServices: form.interestedServices
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        locales: form.locales,
+        roles: form.roles,
+      },
+      content,
+      inactiveDays: form.type === "reengagement" ? Number(form.inactiveDays) || 60 : undefined,
+      autoSend: form.type === "reengagement" ? form.autoSend : false,
+      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+      utmCampaign: form.utmCampaign.trim() || undefined,
+    };
+  }, [form]);
+
+  const previewAudience = async () => {
+    setAudienceLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/preview-audience`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audience: payload.audience,
+          inactiveDays: payload.inactiveDays,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Preview failed");
+      setAudienceCount(json.data.count);
+    } catch (e: any) {
+      toast.error(e.message || "Audience preview failed");
+    } finally {
+      setAudienceLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!payload.name || Object.keys(payload.content).length === 0) {
+      toast.error("Name and at least one locale with subject + HTML are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const url = editingId
+        ? `${API_BASE}/api/admin/marketing-campaigns/${editingId}`
+        : `${API_BASE}/api/admin/marketing-campaigns`;
+      const res = await authFetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Save failed");
+      toast.success(editingId ? "Campaign updated" : "Campaign created");
+      setDialogOpen(false);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSend = async (id: string) => {
+    if (!confirm("Send this campaign now via Brevo to the matched audience?")) return;
+    setActionId(id);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}/send`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Send failed");
+      toast.success("Campaign sent");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Send failed");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleStats = async (id: string) => {
+    setActionId(id);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}/stats`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Refresh failed");
+      toast.success("Stats refreshed from Brevo");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Refresh failed");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this campaign?")) return;
+    setActionId(id);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Delete failed");
+      toast.success("Deleted");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Delete failed");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const syncSubscribers = async () => {
+    setSyncing(true);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/marketing-subscribers/sync`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.msg || "Sync failed");
+      toast.success(
+        `Synced subscribers (upserted ${json.data.upserted}, unsubscribed ${json.data.unsubscribed})`,
+      );
+    } catch (e: any) {
+      toast.error(e.message || "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  if (authLoading || (user && user.role !== "admin")) {
+    return (
+      <div className="p-8">
+        <Skeleton className="h-10 w-64 mb-4" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl p-6 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Email campaigns</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Multilingual newsletters, promotions, and re-engagement via Brevo — filtered by region
+            and interested service.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={syncSubscribers} disabled={syncing}>
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Users className="h-4 w-4 mr-2" />}
+            Sync subscribers
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            New campaign
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      ) : campaigns.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>No campaigns yet</CardTitle>
+            <CardDescription>
+              Create a draft, sync subscribers from opted-in users, preview the audience, then send
+              through Brevo.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {campaigns.map((c) => {
+            const totals = (c.deliveries || []).reduce(
+              (acc, d) => {
+                acc.recipients += d.recipientCount || 0;
+                acc.sent += d.stats?.sent || 0;
+                acc.opens += d.stats?.uniqueViews || 0;
+                acc.clicks += d.stats?.uniqueClicks || 0;
+                return acc;
+              },
+              { recipients: 0, sent: 0, opens: 0, clicks: 0 },
+            );
+            return (
+              <Card key={c._id}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Mail className="h-4 w-4" />
+                        {c.name}
+                      </CardTitle>
+                      <CardDescription className="mt-1 flex flex-wrap gap-2 items-center">
+                        <Badge variant="outline">{c.type}</Badge>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${statusColor(c.status)}`}>
+                          {c.status}
+                        </span>
+                        {c.autoSend && <Badge variant="secondary">auto re-engagement</Badge>}
+                        {c.lastError && <span className="text-rose-600">{c.lastError}</span>}
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {["draft", "scheduled", "failed"].includes(c.status) && (
+                        <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Edit
+                        </Button>
+                      )}
+                      {["draft", "scheduled", "failed"].includes(c.status) && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSend(c._id)}
+                          disabled={actionId === c._id}
+                        >
+                          {actionId === c._id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Send now
+                        </Button>
+                      )}
+                      {c.status === "sent" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStats(c._id)}
+                          disabled={actionId === c._id}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                          Refresh stats
+                        </Button>
+                      )}
+                      {c.status !== "sending" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(c._id)}
+                          disabled={actionId === c._id}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground grid gap-1 sm:grid-cols-4">
+                  <div>Recipients (send): {totals.recipients}</div>
+                  <div>Sent: {totals.sent}</div>
+                  <div>Unique opens: {totals.opens}</div>
+                  <div>Unique clicks: {totals.clicks}</div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit campaign" : "New campaign"}</DialogTitle>
+            <DialogDescription>
+              Audience is a closed set: promotions-opted-in subscribers matching region / service /
+              locale filters.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Spring promo BE"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(v: CampaignType) => setForm((f) => ({ ...f, type: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newsletter">Newsletter</SelectItem>
+                    <SelectItem value="promotion">Promotion</SelectItem>
+                    <SelectItem value="reengagement">Re-engagement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Countries (comma ISO, empty = all)</Label>
+                <Input
+                  value={form.countries}
+                  onChange={(e) => setForm((f) => ({ ...f, countries: e.target.value }))}
+                  placeholder="BE, NL, FR"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Interested services (comma, empty = all)</Label>
+                <Input
+                  value={form.interestedServices}
+                  onChange={(e) => setForm((f) => ({ ...f, interestedServices: e.target.value }))}
+                  placeholder="Plumbing, Painting"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              {LOCALES.map((locale) => (
+                <label key={locale} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={form.locales.includes(locale)}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({
+                        ...f,
+                        locales: checked
+                          ? Array.from(new Set([...f.locales, locale]))
+                          : f.locales.filter((l) => l !== locale),
+                      }))
+                    }
+                  />
+                  Audience locale {locale.toUpperCase()}
+                </label>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              {(["customer", "professional"] as const).map((role) => (
+                <label key={role} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={form.roles.includes(role)}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({
+                        ...f,
+                        roles: checked
+                          ? Array.from(new Set([...f.roles, role]))
+                          : f.roles.filter((r) => r !== role),
+                      }))
+                    }
+                  />
+                  {role}
+                </label>
+              ))}
+            </div>
+
+            {form.type === "reengagement" && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Inactive days</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.inactiveDays}
+                    onChange={(e) => setForm((f) => ({ ...f, inactiveDays: e.target.value }))}
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm mt-7">
+                  <Checkbox
+                    checked={form.autoSend}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, autoSend: Boolean(checked) }))
+                    }
+                  />
+                  Auto-send via daily cron
+                </label>
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Schedule (optional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.scheduledAt}
+                  onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>UTM campaign</Label>
+                <Input
+                  value={form.utmCampaign}
+                  onChange={(e) => setForm((f) => ({ ...f, utmCampaign: e.target.value }))}
+                  placeholder="spring_2026"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 border-b">
+              {LOCALES.map((locale) => (
+                <button
+                  key={locale}
+                  type="button"
+                  className={`px-3 py-2 text-sm ${
+                    activeLocaleTab === locale
+                      ? "border-b-2 border-foreground font-medium"
+                      : "text-muted-foreground"
+                  }`}
+                  onClick={() => setActiveLocaleTab(locale)}
+                >
+                  {locale.toUpperCase()}
+                  {form.content[locale].subject ? " ✓" : ""}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Subject ({activeLocaleTab})</Label>
+                <Input
+                  value={form.content[activeLocaleTab].subject}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      content: {
+                        ...f.content,
+                        [activeLocaleTab]: {
+                          ...f.content[activeLocaleTab],
+                          subject: e.target.value,
+                        },
+                      },
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Preview text</Label>
+                <Input
+                  value={form.content[activeLocaleTab].previewText || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      content: {
+                        ...f.content,
+                        [activeLocaleTab]: {
+                          ...f.content[activeLocaleTab],
+                          previewText: e.target.value,
+                        },
+                      },
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>HTML body (or leave minimal if using Brevo template id)</Label>
+                <Textarea
+                  className="min-h-[160px] font-mono text-xs"
+                  value={form.content[activeLocaleTab].htmlContent}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      content: {
+                        ...f.content,
+                        [activeLocaleTab]: {
+                          ...f.content[activeLocaleTab],
+                          htmlContent: e.target.value,
+                        },
+                      },
+                    }))
+                  }
+                  placeholder="<h1>Hello</h1><p>...</p>"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Brevo template id (optional)</Label>
+                <Input
+                  type="number"
+                  value={form.content[activeLocaleTab].brevoTemplateId ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      content: {
+                        ...f.content,
+                        [activeLocaleTab]: {
+                          ...f.content[activeLocaleTab],
+                          brevoTemplateId: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        },
+                      },
+                    }))
+                  }
+                  placeholder="Leave empty to use HTML above"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="outline" onClick={previewAudience} disabled={audienceLoading}>
+                {audienceLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Preview audience
+              </Button>
+              {audienceCount != null && (
+                <span className="text-sm text-muted-foreground">{audienceCount} matching subscribers</span>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
