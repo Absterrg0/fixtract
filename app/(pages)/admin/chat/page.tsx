@@ -99,7 +99,9 @@ function AdminChatInner() {
         toast.error("Failed to load conversations")
       }
     } finally {
-      if (!silent && requestId === inboxRequestIdRef.current) {
+      // Always clear when this request is latest — a silent poll can supersede a
+      // slow initial load and must not leave the spinner stuck.
+      if (requestId === inboxRequestIdRef.current) {
         setListLoading(false)
       }
     }

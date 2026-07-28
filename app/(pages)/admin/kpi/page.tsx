@@ -289,7 +289,7 @@ export default function AdminKpiDashboard() {
   })
   const columnsHydrated = useRef(false)
   const [loading, setLoading] = useState(true)
-  const [responseLoading, setResponseLoading] = useState(false)
+  const [responseLoading, setResponseLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
   const [showEmails, setShowEmails] = useState(false)
   const requestIdRef = useRef(0)
@@ -354,7 +354,8 @@ export default function AdminKpiDashboard() {
     setCustomers([])
     setResponseRows([])
     setLoading(true)
-    setResponseLoading(false)
+    // Keep response tab in loading until its deferred fetch finishes (not while primary is pending).
+    setResponseLoading(true)
     try {
       const [sumRes, regRes, svcRes, subRes, proRes, custRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/kpi/summary?${rangeQs}`),
@@ -392,7 +393,6 @@ export default function AdminKpiDashboard() {
     }
 
     // Load pro-response independently so a stall/failure cannot hold primary loading.
-    setResponseLoading(true)
     try {
       const respRes = await authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`)
       if (requestId !== requestIdRef.current) return
