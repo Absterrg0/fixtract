@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
-import { cmsAuthorName } from "@/lib/cms";
+import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
@@ -81,7 +82,7 @@ export default async function NewsDetailPage({ params }: Props) {
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
             <img
               src={post.coverImage}
-              alt={post.title}
+              alt={cmsCoverAlt(post)}
               fetchPriority="high"
               decoding="async"
               className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
@@ -105,6 +106,10 @@ export default async function NewsDetailPage({ params }: Props) {
         <div className="mt-8">
           <RichTextRenderer html={post.body} className="prose-lg" />
         </div>
+        <ArticleRelatedSections
+          relatedServiceSlug={post.relatedServiceSlug}
+          relatedContent={post.relatedContent}
+        />
       </div>
     </article>
   );

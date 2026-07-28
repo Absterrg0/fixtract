@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, FileText, Loader2, Save, Send, Tag, Trash2, X 
 import {
   adminCreateCms,
   adminDeleteCms,
+  adminGetCms,
   adminListCmsServiceOptions,
   adminListFaqCategories,
   adminUpdateCms,
@@ -27,6 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import RichTextEditor from "./RichTextEditor";
 import CoverImageUpload from "./CoverImageUpload";
 import SeoPanel from "./SeoPanel";
+import RelatedContentPicker, { relatedItemsFromCms } from "./RelatedContentPicker";
 
 interface Props {
   mode: "create" | "edit";
@@ -52,6 +54,7 @@ const EMPTY: Partial<CmsContent> = {
   body: "",
   excerpt: "",
   coverImage: "",
+  coverImageAlt: "",
   category: "",
   tags: [],
   authorOverride: "",
@@ -68,6 +71,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         ...initial,
         tags: Array.isArray(initial.tags) ? initial.tags : [],
         seo: initial.seo || {},
+        coverImageAlt: initial.coverImageAlt || "",
       };
     }
     return {
@@ -83,9 +87,32 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [faqCategoriesError, setFaqCategoriesError] = useState<string | null>(null);
   const [serviceOptions, setServiceOptions] = useState<CmsServiceOption[]>([]);
   const [serviceOptionsError, setServiceOptionsError] = useState<string | null>(null);
+  const [relatedItems, setRelatedItems] = useState(() => relatedItemsFromCms(initial?.relatedContent));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    const stubs = relatedItems.filter((item) => !item.slug);
+    if (stubs.length === 0) return;
+    let cancelled = false;
+    Promise.all(stubs.map((s) => adminGetCms(s._id).catch(() => null))).then((docs) => {
+      if (cancelled) return;
+      setRelatedItems((prev) =>
+        prev.map((item) => {
+          if (item.slug) return item;
+          const doc = docs.find((d) => d && d._id === item._id);
+          if (!doc || (doc.type !== "blog" && doc.type !== "news")) return item;
+          return { _id: doc._id, title: doc.title, slug: doc.slug, type: doc.type };
+        })
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Hydrate stubs once after mount / when initial related content is unpopulated
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial?._id]);
 
   useEffect(() => {
     adminListFaqCategories()
@@ -166,12 +193,14 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         body: form.body || "",
         excerpt: form.excerpt || "",
         coverImage: form.coverImage || undefined,
+        coverImageAlt: (form.coverImageAlt || "").trim() || undefined,
         category: isFaq ? form.category : undefined,
         tags: hasTags ? form.tags || [] : [],
         authorOverride: hasTags ? (form.authorOverride || "").trim() : undefined,
         status,
         seo: form.seo || {},
         relatedServiceSlug: hasTags ? (form.relatedServiceSlug || "").trim() : undefined,
+        relatedContent: hasTags ? relatedItems.map((r) => r._id) : [],
       };
       if (mode === "create") {
         const created = await adminCreateCms(payload);
@@ -183,7 +212,9 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
           ...updated,
           tags: Array.isArray(updated.tags) ? updated.tags : [],
           seo: updated.seo || {},
+          coverImageAlt: updated.coverImageAlt || "",
         });
+        setRelatedItems(relatedItemsFromCms(updated.relatedContent));
         toast.success(status === "published" ? "Published!" : "Draft saved");
       }
     } catch (err) {
@@ -387,7 +418,9 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-700">Cover</h3>
               <CoverImageUpload
                 value={form.coverImage}
-                onChange={(url) => update({ coverImage: url })}
+                altValue={form.coverImageAlt}
+                onChange={(url) => update({ coverImage: url, ...(url ? {} : { coverImageAlt: "" }) })}
+                onAltChange={(alt) => update({ coverImageAlt: alt })}
                 required={requiresCover}
                 recommendedSize={coverRecommendation}
               />
@@ -434,7 +467,23 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                     ))}
                   </select>
                 )}
-                <p className="text-[11px] text-rose-400">Optional. Surfaces this {CMS_TYPE_LABELS[type].toLowerCase()} in the matching service landing page&apos;s related-articles section.</p>
+                <p className="text-[11px] text-rose-400">Optional. Surfaces this {CMS_TYPE_LABELS[type].toLowerCase()} in the matching service landing page&apos;s related-articles section, and links back from the article.</p>
+              </div>
+            </GradientCard>
+          )}
+
+          {hasTags && (
+            <GradientCard>
+              <div className="p-6 space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-700">Related reading</h3>
+                <p className="text-[11px] text-rose-400">
+                  Link other published blogs/news for internal SEO. Shown at the bottom of this article.
+                </p>
+                <RelatedContentPicker
+                  value={relatedItems}
+                  onChange={setRelatedItems}
+                  excludeId={initial?._id}
+                />
               </div>
             </GradientCard>
           )}

@@ -21,6 +21,7 @@ import {
   Code,
   Link as LinkIcon,
   Image as ImageIcon,
+  TextCursorInput,
   Undo,
   Redo,
   Minus,
@@ -40,6 +41,15 @@ interface Props {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+}
+
+function suggestAltFromFilename(name: string): string {
+  return name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
 }
 
 export default function RichTextEditor({ value, onChange, placeholder }: Props) {
@@ -83,6 +93,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
+  const editImageAlt = useCallback(() => {
+    if (!editor || !editor.isActive("image")) return;
+    const prev = (editor.getAttributes("image").alt as string | undefined) || "";
+    const next = window.prompt("Image alt text (for SEO & accessibility)", prev);
+    if (next === null) return;
+    editor.chain().focus().updateAttributes("image", { alt: next.trim().slice(0, 200) }).run();
+  }, [editor]);
+
   const insertImage = useCallback(async () => {
     if (!editor) return;
     const input = document.createElement("input");
@@ -91,10 +109,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      const suggested = suggestAltFromFilename(file.name);
+      const altInput = window.prompt("Image alt text (for SEO & accessibility)", suggested);
+      if (altInput === null) return;
+      const alt = altInput.trim().slice(0, 200) || suggested || "Image";
       try {
         toast.loading("Uploading image...", { id: "cms-img" });
         const { url } = await adminUploadCmsImage(file);
-        editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+        editor.chain().focus().setImage({ src: url, alt }).run();
         toast.success("Image inserted", { id: "cms-img" });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Upload failed", { id: "cms-img" });
@@ -110,6 +132,8 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
       </div>
     );
   }
+
+  const imageSelected = editor.isActive("image");
 
   return (
     <div className={cn("rounded-2xl bg-gradient-to-br from-rose-100 via-pink-100 to-orange-100 p-[1.5px] shadow-sm", styles.editor)}>
@@ -130,6 +154,9 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
           <Divider />
           <ToolbarBtn active={editor.isActive("link")} onClick={setLink} title="Link"><LinkIcon size={16} /></ToolbarBtn>
           <ToolbarBtn onClick={insertImage} title="Insert image"><ImageIcon size={16} /></ToolbarBtn>
+          {imageSelected && (
+            <ToolbarBtn active onClick={editImageAlt} title="Edit image alt text"><TextCursorInput size={16} /></ToolbarBtn>
+          )}
           <ToolbarBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider"><Minus size={16} /></ToolbarBtn>
           <Divider />
           <ToolbarBtn active={editor.isActive("table")} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert table"><TableIcon size={16} /></ToolbarBtn>
