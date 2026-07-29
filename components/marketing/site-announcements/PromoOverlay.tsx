@@ -42,6 +42,7 @@ export function PromoOverlay({
       await navigator.clipboard.writeText(announcement.discountCode);
       setCopied(true);
       toast.success("Code copied");
+      if (!canDismiss) onCta();
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Could not copy code");

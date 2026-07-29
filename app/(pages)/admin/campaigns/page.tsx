@@ -51,6 +51,12 @@ function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function toScheduledIso(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function requireApiBase(): string {
   if (!API_BASE) {
     throw new Error("NEXT_PUBLIC_BACKEND_URL is not configured");
@@ -63,6 +69,14 @@ interface LocaleContent {
   htmlContent: string;
   previewText?: string;
   brevoTemplateId?: number;
+}
+
+interface BrevoTemplate {
+  id: number;
+  name: string;
+  subject: string;
+  tag: string;
+  modifiedAt: string;
 }
 
 interface Campaign {
@@ -161,17 +175,26 @@ export default function AdminCampaignsPage() {
   const showPage = !authLoading && isAdmin && canManage;
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [activeLocaleTab, setActiveLocaleTab] = useState<Locale>("en");
-  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [audiencePreview, setAudiencePreview] = useState<{
+    count: number;
+    truncated: boolean;
+  } | null>(null);
   const [audienceLoading, setAudienceLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [templates, setTemplates] = useState<BrevoTemplate[] | null>(null);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [actionIds, setActionIds] = useState<Set<string>>(() => new Set());
   const latestLoadId = useRef(0);
+  const latestPreviewId = useRef(0);
+  const previewAudienceKey = useRef("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -202,10 +225,18 @@ export default function AdminCampaignsPage() {
     const loadId = ++latestLoadId.current;
     setLoading(true);
     try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns?limit=50`);
+      const res = await authFetch(
+        `${requireApiBase()}/api/admin/marketing-campaigns?page=${page}&limit=25`,
+      );
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load");
       if (loadId === latestLoadId.current) {
+        const nextTotalPages = Math.max(1, Number(json.data.pagination?.totalPages) || 1);
+        setTotalPages(nextTotalPages);
+        if (page > nextTotalPages) {
+          setPage(nextTotalPages);
+          return;
+        }
         setCampaigns(json.data.campaigns || []);
       }
     } catch (e: unknown) {
@@ -217,17 +248,52 @@ export default function AdminCampaignsPage() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     if (showPage) load();
   }, [showPage, load]);
 
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const controller = new AbortController();
+    setTemplatesLoading(true);
+    let base: string;
+    try {
+      base = requireApiBase();
+    } catch (error) {
+      setTemplates([]);
+      setTemplatesLoading(false);
+      toast.error(errMessage(error, "Failed to load Brevo templates"));
+      return;
+    }
+    authFetch(`${base}/api/admin/marketing-campaigns/templates`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) throw new Error(json?.msg || "Template lookup failed");
+        if (!controller.signal.aborted) setTemplates(json.data?.templates || []);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setTemplates([]);
+        toast.error(errMessage(error, "Failed to load Brevo templates"));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTemplatesLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen]);
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
-    setAudienceCount(null);
+    setAudiencePreview(null);
     setActiveLocaleTab("en");
+    setTemplates(null);
     setDialogOpen(true);
   };
 
@@ -250,8 +316,9 @@ export default function AdminCampaignsPage() {
         fr: c.content?.fr || emptyContent(),
       },
     });
-    setAudienceCount(null);
+    setAudiencePreview(null);
     setActiveLocaleTab("en");
+    setTemplates(null);
     setDialogOpen(true);
   };
 
@@ -286,12 +353,30 @@ export default function AdminCampaignsPage() {
       content,
       inactiveDays: form.type === "reengagement" ? Number(form.inactiveDays) || 60 : undefined,
       autoSend: form.type === "reengagement" ? form.autoSend : false,
-      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+      scheduledAt: toScheduledIso(form.scheduledAt),
       utmCampaign: form.utmCampaign.trim() || undefined,
     };
   }, [form]);
 
+  const audienceKey = useMemo(
+    () => JSON.stringify([payload.audience, payload.inactiveDays]),
+    [payload.audience, payload.inactiveDays],
+  );
+
+  useEffect(() => {
+    previewAudienceKey.current = audienceKey;
+    latestPreviewId.current += 1;
+    setAudiencePreview(null);
+    setAudienceLoading(false);
+  }, [audienceKey]);
+
   const previewAudience = async () => {
+    if (form.locales.length === 0 || form.roles.length === 0) {
+      toast.error("Select at least one audience locale and role");
+      return;
+    }
+    const requestId = ++latestPreviewId.current;
+    const requestKey = audienceKey;
     setAudienceLoading(true);
     try {
       const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/preview-audience`, {
@@ -304,17 +389,42 @@ export default function AdminCampaignsPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Preview failed");
-      setAudienceCount(json.data.count);
+      const nextPreview = {
+        count: Number(json.data.count) || 0,
+        truncated: Boolean(json.data.truncated),
+      };
+      if (
+        requestId !== latestPreviewId.current ||
+        requestKey !== previewAudienceKey.current
+      ) {
+        return;
+      }
+      setAudiencePreview(nextPreview);
+      if (nextPreview.truncated) {
+        toast.error("Audience exceeds the 5,000-recipient delivery limit");
+      }
     } catch (e: unknown) {
-      toast.error(errMessage(e, "Audience preview failed"));
+      if (requestId === latestPreviewId.current) {
+        toast.error(errMessage(e, "Audience preview failed"));
+      }
     } finally {
-      setAudienceLoading(false);
+      if (requestId === latestPreviewId.current) {
+        setAudienceLoading(false);
+      }
     }
   };
 
   const handleSave = async () => {
     if (!payload.name || Object.keys(payload.content).length === 0) {
-      toast.error("Name and at least one locale with subject + HTML are required");
+      toast.error("Name and at least one locale with subject and content are required");
+      return;
+    }
+    if (form.locales.length === 0 || form.roles.length === 0) {
+      toast.error("Select at least one audience locale and role");
+      return;
+    }
+    if (form.scheduledAt && !payload.scheduledAt) {
+      toast.error("Enter a valid schedule date and time");
       return;
     }
     setSaving(true);
@@ -385,7 +495,11 @@ export default function AdminCampaignsPage() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Delete failed");
       toast.success("Deleted");
-      await load();
+      if (campaigns.length === 1 && page > 1) {
+        setPage((current) => current - 1);
+      } else {
+        await load();
+      }
     } catch (e: unknown) {
       toast.error(errMessage(e, "Delete failed"));
     } finally {
@@ -458,8 +572,13 @@ export default function AdminCampaignsPage() {
           </CardHeader>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {campaigns.map((c) => {
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {campaigns.map((c) => {
+            const hasStartedDelivery = (c.deliveries || []).some((delivery) =>
+              Boolean(delivery.brevoCampaignId),
+            );
+            const canMutate = ["draft", "scheduled", "failed"].includes(c.status) && !hasStartedDelivery;
             const totals = (c.deliveries || []).reduce(
               (acc, d) => {
                 acc.recipients += d.recipientCount || 0;
@@ -489,7 +608,7 @@ export default function AdminCampaignsPage() {
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {["draft", "scheduled", "failed"].includes(c.status) && (
+                      {canMutate && (
                         <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />
                           Edit
@@ -520,7 +639,7 @@ export default function AdminCampaignsPage() {
                           Refresh stats
                         </Button>
                       )}
-                      {c.status !== "sending" && (
+                      {canMutate && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -538,10 +657,43 @@ export default function AdminCampaignsPage() {
                   <div>Sent: {totals.sent}</div>
                   <div>Unique opens: {totals.opens}</div>
                   <div>Unique clicks: {totals.clicks}</div>
+                  {c.scheduledAt && (
+                    <div className="sm:col-span-4">
+                      Scheduled: {new Date(c.scheduledAt).toLocaleString()}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
-          })}
+            })}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages || loading}
+                onClick={() =>
+                  setPage((current) => Math.min(totalPages, current + 1))
+                }
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -612,7 +764,9 @@ export default function AdminCampaignsPage() {
                         ...f,
                         locales: checked
                           ? Array.from(new Set([...f.locales, locale]))
-                          : f.locales.filter((l) => l !== locale),
+                          : f.locales.length > 1
+                            ? f.locales.filter((l) => l !== locale)
+                            : f.locales,
                       }))
                     }
                   />
@@ -631,7 +785,9 @@ export default function AdminCampaignsPage() {
                         ...f,
                         roles: checked
                           ? Array.from(new Set([...f.roles, role]))
-                          : f.roles.filter((r) => r !== role),
+                          : f.roles.length > 1
+                            ? f.roles.filter((r) => r !== role)
+                            : f.roles,
                       }))
                     }
                   />
@@ -738,7 +894,7 @@ export default function AdminCampaignsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>HTML body (or leave minimal if using Brevo template id)</Label>
+                <Label>HTML body</Label>
                 <Textarea
                   className="min-h-[160px] font-mono text-xs"
                   value={form.content[activeLocaleTab].htmlContent}
@@ -758,26 +914,56 @@ export default function AdminCampaignsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Brevo template id (optional)</Label>
-                <Input
-                  type="number"
-                  value={form.content[activeLocaleTab].brevoTemplateId ?? ""}
-                  onChange={(e) =>
+                <Label>Brevo template</Label>
+                <Select
+                  value={String(form.content[activeLocaleTab].brevoTemplateId || "inline")}
+                  disabled={templatesLoading}
+                  onValueChange={(value) =>
                     setForm((f) => ({
                       ...f,
                       content: {
                         ...f.content,
                         [activeLocaleTab]: {
                           ...f.content[activeLocaleTab],
-                          brevoTemplateId: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
+                          brevoTemplateId: value === "inline" ? undefined : Number(value),
+                          subject:
+                            f.content[activeLocaleTab].subject ||
+                            templates?.find((template) => String(template.id) === value)?.subject ||
+                            "",
                         },
                       },
                     }))
                   }
-                  placeholder="Leave empty to use HTML above"
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={templatesLoading ? "Loading templates..." : "Use inline HTML"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inline">Use inline HTML</SelectItem>
+                    {form.content[activeLocaleTab].brevoTemplateId &&
+                      !(templates || []).some(
+                        (template) =>
+                          template.id ===
+                          form.content[activeLocaleTab].brevoTemplateId,
+                      ) && (
+                        <SelectItem
+                          value={String(
+                            form.content[activeLocaleTab].brevoTemplateId,
+                          )}
+                        >
+                          Template #
+                          {form.content[activeLocaleTab].brevoTemplateId} (inactive)
+                        </SelectItem>
+                      )}
+                    {(templates || []).map((template) => (
+                      <SelectItem key={template.id} value={String(template.id)}>
+                        {template.name} (#{template.id})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -790,8 +976,17 @@ export default function AdminCampaignsPage() {
                 )}
                 Preview audience
               </Button>
-              {audienceCount != null && (
-                <span className="text-sm text-muted-foreground">{audienceCount} matching subscribers</span>
+              {audiencePreview && (
+                <span
+                  className={
+                    audiencePreview.truncated
+                      ? "text-sm text-rose-600"
+                      : "text-sm text-muted-foreground"
+                  }
+                >
+                  {audiencePreview.count} matching subscribers
+                  {audiencePreview.truncated ? " (over 5,000 limit)" : ""}
+                </span>
               )}
             </div>
           </div>

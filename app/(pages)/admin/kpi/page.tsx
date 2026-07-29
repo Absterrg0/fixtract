@@ -423,7 +423,10 @@ export default function AdminKpiDashboard() {
       return
     }
     try {
-      const res = await authFetch(`${BACKEND}/api/admin/kpi/export?section=${section}&format=${fmt}&${appliedRange}`)
+      const limit = section === 'response' ? '&limit=50' : ''
+      const res = await authFetch(
+        `${BACKEND}/api/admin/kpi/export?section=${section}&format=${fmt}&${appliedRange}${limit}`,
+      )
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         toast.error(json?.error?.message || 'Failed to download')

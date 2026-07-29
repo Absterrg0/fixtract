@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,18 @@ function UnsubscribeInner() {
 
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const requestRef = useRef<AbortController | null>(null);
+  const paramsKey = `${token}:${email}:${subscriberToken}`;
+  const paramsKeyRef = useRef(paramsKey);
+
+  useEffect(() => {
+    paramsKeyRef.current = paramsKey;
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setStatus("idle");
+    setMessage("");
+    return () => requestRef.current?.abort();
+  }, [paramsKey]);
 
   const runUnsubscribe = async () => {
     if (!API_BASE) {
@@ -29,22 +41,36 @@ function UnsubscribeInner() {
       setStatus("error");
       return;
     }
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const requestParamsKey = paramsKey;
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
     setStatus("loading");
     try {
       const res = await fetch(`${API_BASE}/api/public/marketing/unsubscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, email, subscriberToken }),
+        signal: controller.signal,
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
         throw new Error(json?.msg || "Unsubscribe failed");
       }
-      setMessage(json.data?.message || "You have been unsubscribed.");
-      setStatus("done");
+      if (requestParamsKey === paramsKeyRef.current) {
+        setMessage(json.data?.message || "You have been unsubscribed.");
+        setStatus("done");
+      }
     } catch (e: unknown) {
-      setMessage(errMessage(e, "Unsubscribe failed"));
-      setStatus("error");
+      if (requestParamsKey === paramsKeyRef.current) {
+        const aborted = e instanceof DOMException && e.name === "AbortError";
+        setMessage(aborted ? "The request timed out. Please try again." : errMessage(e, "Unsubscribe failed"));
+        setStatus("error");
+      }
+    } finally {
+      window.clearTimeout(timeout);
+      if (requestRef.current === controller) requestRef.current = null;
     }
   };
 

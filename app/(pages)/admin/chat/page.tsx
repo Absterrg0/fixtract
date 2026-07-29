@@ -54,6 +54,8 @@ function AdminChatInner() {
   const conversationId = selectedId
 
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all')
+  const [inboxPage, setInboxPage] = useState(1)
+  const [inboxTotal, setInboxTotal] = useState(0)
   const [conversations, setConversations] = useState<AdminConversationListItem[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [conversation, setConversation] = useState<AdminConversation | null>(null)
@@ -86,12 +88,23 @@ function AdminChatInner() {
     const requestId = ++inboxRequestIdRef.current
     if (!silent) setListLoading(true)
     try {
-      const qs = inboxFilter === 'mine' ? '?mine=true' : ''
-      const res = await authFetch(`${BACKEND}/api/admin/conversations${qs}`)
+      const qs = new URLSearchParams({
+        page: String(inboxPage),
+        limit: '20',
+      })
+      if (inboxFilter === 'mine') qs.set('mine', 'true')
+      const res = await authFetch(`${BACKEND}/api/admin/conversations?${qs}`)
       const json = await res.json()
       if (requestId !== inboxRequestIdRef.current) return
       if (!res.ok || !json?.success) {
         throw new Error(json?.msg || "Failed to load conversations")
+      }
+      const nextTotal = Math.max(0, Number(json.data?.total) || 0)
+      const lastPage = Math.max(1, Math.ceil(nextTotal / 20))
+      setInboxTotal(nextTotal)
+      if (inboxPage > lastPage) {
+        setInboxPage(lastPage)
+        return
       }
       setConversations(Array.isArray(json.data?.items) ? json.data.items : [])
     } catch {
@@ -105,6 +118,10 @@ function AdminChatInner() {
         setListLoading(false)
       }
     }
+  }, [inboxFilter, inboxPage])
+
+  useEffect(() => {
+    setInboxPage(1)
   }, [inboxFilter])
 
   const load = useCallback(async (silent = false) => {
@@ -124,12 +141,16 @@ function AdminChatInner() {
       const convJson = await convRes.json()
       const msgJson = await msgRes.json()
       if (conversationId !== selectedIdRef.current) return
-      if (convJson?.success) setConversation(convJson.data)
-      if (msgJson?.success) {
-        const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
-        setMessages(items)
-        markAdminConversationSeen(conversationId)
+      if (!convRes.ok || !convJson?.success) {
+        throw new Error(convJson?.msg || "Failed to load conversation")
       }
+      if (!msgRes.ok || !msgJson?.success) {
+        throw new Error(msgJson?.msg || "Failed to load messages")
+      }
+      setConversation(convJson.data)
+      const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
+      setMessages(items)
+      markAdminConversationSeen(conversationId)
       setLoadError(null)
     } catch {
       if (!silent) {
@@ -329,6 +350,37 @@ function AdminChatInner() {
                     )
                   })}
                 </ul>
+              )}
+              {(inboxTotal > 20 || inboxPage > 1) && (
+                <div className="sticky bottom-0 flex items-center justify-between border-t bg-white px-3 py-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    disabled={inboxPage <= 1 || listLoading}
+                    onClick={() => setInboxPage((current) => Math.max(1, current - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-gray-500">
+                    {inboxPage} / {Math.max(1, Math.ceil(inboxTotal / 20))}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    disabled={inboxPage >= Math.max(1, Math.ceil(inboxTotal / 20)) || listLoading}
+                    onClick={() =>
+                      setInboxPage((current) =>
+                        Math.min(Math.max(1, Math.ceil(inboxTotal / 20)), current + 1),
+                      )
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

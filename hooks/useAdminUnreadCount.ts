@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
 import { authFetch } from "@/lib/utils";
+import { useAdminAccess } from "@/hooks/useAdminAccess";
 import {
   getMigratedItem,
   migratePrefixedItems,
@@ -94,9 +95,11 @@ export const markAdminConversationSeen = (
 
 export const useAdminUnreadCount = () => {
   const { user, isAuthenticated } = useAuth();
+  const { can } = useAdminAccess();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const enabled = isAuthenticated && user?.role === "admin";
+  const enabled =
+    isAuthenticated && user?.role === "admin" && can("chat.support");
   const consecutiveFailuresRef = useRef(0);
   const cooldownUntilRef = useRef(0);
 

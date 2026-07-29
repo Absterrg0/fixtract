@@ -17,6 +17,9 @@ export default function AdminSiteAnnouncementsPage() {
     filters,
     patchFilters,
     items,
+    page,
+    total,
+    setPage,
     listLoading,
     editor,
     openCreate,
@@ -56,6 +59,9 @@ export default function AdminSiteAnnouncementsPage() {
 
       <AnnouncementsCard
         items={items}
+        page={page}
+        total={total}
+        onPageChange={setPage}
         loading={listLoading}
         filters={filters}
         onFiltersChange={patchFilters}

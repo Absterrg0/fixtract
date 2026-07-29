@@ -489,6 +489,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
+    if (isAuthRoute(pathname)) return
     const isUserAuthenticated = !!currentUser
 
     // Check if this is a role-restricted route
@@ -543,7 +544,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const allowedRoles = getAllowedRoles(pathname)
       const isRoleRestrictedRoute = allowedRoles.length > 0
-      const needsProtection = isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname)
+      const needsProtection =
+        !isAuthRoute(pathname) &&
+        (isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname))
       if (needsProtection) {
         await handleRouteProtection(currentUser)
       }
@@ -679,4 +682,3 @@ export const AuthLoadingScreen: React.FC = () => (
     </div>
   </div>
 )
-

@@ -27,6 +27,9 @@ import {
 
 interface AnnouncementsCardProps {
   items: AdminSiteAnnouncement[];
+  page: number;
+  total: number;
+  onPageChange: (page: number) => void;
   loading: boolean;
   filters: AnnouncementListFilters;
   onFiltersChange: (partial: Partial<AnnouncementListFilters>) => void;
@@ -38,6 +41,9 @@ interface AnnouncementsCardProps {
 
 export function AnnouncementsCard({
   items,
+  page,
+  total,
+  onPageChange,
   loading,
   filters,
   onFiltersChange,
@@ -51,7 +57,7 @@ export function AnnouncementsCard({
       <CardHeader className="space-y-4">
         <div>
           <CardTitle>Announcements</CardTitle>
-          <CardDescription>{items.length} result(s)</CardDescription>
+          <CardDescription>{total} result(s)</CardDescription>
         </div>
         <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_11rem]">
           <Input
@@ -170,6 +176,33 @@ export function AnnouncementsCard({
               );
             })}
           </ul>
+        )}
+        {!loading && (total > 20 || page > 1) && (
+          <div className="flex items-center justify-between border-t pt-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => onPageChange(Math.max(1, page - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-slate-500">
+              Page {page} of {Math.max(1, Math.ceil(total / 20))}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={page >= Math.max(1, Math.ceil(total / 20))}
+              onClick={() =>
+                onPageChange(Math.min(Math.max(1, Math.ceil(total / 20)), page + 1))
+              }
+            >
+              Next
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2, MessageSquare, Megaphone } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
@@ -153,6 +153,25 @@ export default function DashboardPage() {
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [warrantyClaimsLoading, setWarrantyClaimsLoading] = useState(false)
   const [warrantyClaimsError, setWarrantyClaimsError] = useState<string | null>(null)
+  const canViewAdminOverview = can('dashboard.overview')
+  const canManageLoyalty = can('loyalty.manage')
+  const canApproveProfessionals = can('professionals.approve')
+  const canApproveProjects = can('projects.approve')
+  const canManageWarranty = can('warranty.manage')
+  const canManageServices = can('services.manage')
+  const canManagePayments = can('payments.manage')
+  const canRunMaintenance = can('maintenance.run')
+  const defaultAdminTab = canViewAdminOverview
+    ? 'overview'
+    : canManageServices
+      ? 'services'
+      : canManageLoyalty
+        ? 'loyalty'
+        : canApproveProfessionals
+          ? 'approvals'
+          : canManagePayments
+            ? 'payments'
+            : undefined
 
   const actionItems = useMemo(() => getProfessionalActionItems(bookings), [bookings])
   const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
@@ -176,13 +195,6 @@ export default function DashboardPage() {
       router.push('/login?redirect=/dashboard')
     }
   }, [isAuthenticated, loading, router])
-
-  // Fetch admin-specific data
-  useEffect(() => {
-    if (user?.role === 'admin') {
-      fetchAdminData()
-    }
-  }, [user])
 
   // Fetch bookings for professional dashboard only (CustomerDashboard fetches its own)
   useEffect(() => {
@@ -270,8 +282,13 @@ export default function DashboardPage() {
     void loadClaims()
   }, [user, isAuthenticated])
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     setIsLoadingStats(true)
+    if (!canManageLoyalty) setLoyaltyStats(null)
+    if (!canApproveProfessionals) setApprovalStats(null)
+    if (!canApproveProjects) setProjectStats(null)
+    if (!canManageWarranty) setWarrantyAnalytics(null)
+
     try {
       // Get token for Authorization header fallback
       const token = getAuthToken()
@@ -281,28 +298,34 @@ export default function DashboardPage() {
       }
 
       const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, fetchOptions),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, fetchOptions),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, fetchOptions),
+        canManageLoyalty
+          ? fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, fetchOptions)
+          : Promise.resolve(null),
+        canApproveProfessionals
+          ? fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, fetchOptions)
+          : Promise.resolve(null),
+        canApproveProjects
+          ? fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, fetchOptions)
+          : Promise.resolve(null),
       ])
 
-      if (loyaltyResponse.ok) {
+      if (loyaltyResponse?.ok) {
         const loyaltyData = await loyaltyResponse.json()
         setLoyaltyStats(loyaltyData.data)
       }
 
-      if (approvalResponse.ok) {
+      if (approvalResponse?.ok) {
         const approvalData = await approvalResponse.json()
         setApprovalStats(approvalData.data.stats)
       }
 
-      if (projectsResponse.ok) {
+      if (projectsResponse?.ok) {
         const projectsData = await projectsResponse.json()
         setProjectStats({ pendingProjects: projectsData.length })
       }
 
       // Fetch warranty analytics separately so its failure doesn't block other cards
-      try {
+      if (canManageWarranty) try {
         const warrantyResponse = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
           fetchOptions
@@ -324,9 +347,20 @@ export default function DashboardPage() {
     } finally {
       setIsLoadingStats(false)
     }
-  }
+  }, [canApproveProfessionals, canApproveProjects, canManageLoyalty, canManageWarranty])
+
+  // Fetch only the admin data represented by the current permission pack.
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      void fetchAdminData()
+    }
+  }, [fetchAdminData, user?.role])
 
   const runSchedulerCheck = async (type: 'warranty' | 'rfq' | 'notif' | 'autoaccept') => {
+    if (!canRunMaintenance) {
+      toast.error('Your role cannot run maintenance jobs')
+      return
+    }
     const loadingMap = {
       warranty: setIsRunningWarrantyCheck,
       rfq: setIsRunningRfqCheck,
@@ -475,29 +509,34 @@ export default function DashboardPage() {
                   Staff & roles
                 </Link>
               )}
-              <Link
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
-                href='/admin/kpi'
-              >
-                <BarChart3 className="h-4 w-4" />
-                View KPI Dashboard
-              </Link>
-              <Link
-                className="text-pink-800 underline flex items-center gap-2"
-                href='/admin/projects/approval'
-              >
-                Approve Projects
-                {projectStats && projectStats.pendingProjects > 0 && (
-                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
-                    {projectStats.pendingProjects}
-                  </span>
-                )}
-              </Link>
+              {can('kpi.read') && (
+                <Link
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+                  href='/admin/kpi'
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  View KPI Dashboard
+                </Link>
+              )}
+              {canApproveProjects && (
+                <Link
+                  className="text-pink-800 underline flex items-center gap-2"
+                  href='/admin/projects/approval'
+                >
+                  Approve Projects
+                  {projectStats && projectStats.pendingProjects > 0 && (
+                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                      {projectStats.pendingProjects}
+                    </span>
+                  )}
+                </Link>
+              )}
             </div>
           </div>
 
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs defaultValue={defaultAdminTab} className="space-y-6">
             <TabsList className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 sm:grid-cols-2 xl:grid-cols-5">
+              {canViewAdminOverview && (
               <TabsTrigger
                 value="overview"
                 className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-fuchsia-500 via-pink-500 to-rose-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-fuchsia-200/70 data-[state=active]:shadow-fuchsia-200/80 data-[state=active]:shadow-2xl"
@@ -512,149 +551,170 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </TabsTrigger>
-              <TabsTrigger
-                value="services"
-                className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-violet-200/70 data-[state=active]:shadow-violet-200/80 data-[state=active]:shadow-2xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
-                    <Package className="h-5 w-5 text-white" />
+              )}
+              {canManageServices && (
+                <TabsTrigger
+                  value="services"
+                  className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-violet-200/70 data-[state=active]:shadow-violet-200/80 data-[state=active]:shadow-2xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
+                      <Package className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">Services</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open service setup</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-white">Services</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open service setup</div>
+                </TabsTrigger>
+              )}
+              {canManageLoyalty && (
+                <TabsTrigger
+                  value="loyalty"
+                  className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-amber-200/70 data-[state=active]:shadow-amber-200/80 data-[state=active]:shadow-2xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
+                      <Award className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">Loyalty System</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open loyalty controls</div>
+                    </div>
                   </div>
-                </div>
-              </TabsTrigger>
-              <TabsTrigger
-                value="loyalty"
-                className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-amber-200/70 data-[state=active]:shadow-amber-200/80 data-[state=active]:shadow-2xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
-                    <Award className="h-5 w-5 text-white" />
+                </TabsTrigger>
+              )}
+              {canApproveProfessionals && (
+                <TabsTrigger
+                  value="approvals"
+                  className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-sky-200/70 data-[state=active]:shadow-sky-200/80 data-[state=active]:shadow-2xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">Professional Approvals</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open approval queues</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-white">Loyalty System</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open loyalty controls</div>
+                </TabsTrigger>
+              )}
+              {canManagePayments && (
+                <TabsTrigger
+                  value="payments"
+                  className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-emerald-200/70 data-[state=active]:shadow-emerald-200/80 data-[state=active]:shadow-2xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
+                      <CreditCard className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">Payments</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open payment oversight</div>
+                    </div>
                   </div>
-                </div>
-              </TabsTrigger>
-              <TabsTrigger
-                value="approvals"
-                className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-sky-200/70 data-[state=active]:shadow-sky-200/80 data-[state=active]:shadow-2xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
-                    <Users className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Professional Approvals</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open approval queues</div>
-                  </div>
-                </div>
-              </TabsTrigger>
-              <TabsTrigger
-                value="payments"
-                className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl data-[state=active]:ring-4 data-[state=active]:ring-emerald-200/70 data-[state=active]:shadow-emerald-200/80 data-[state=active]:shadow-2xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 shadow-sm backdrop-blur-sm">
-                    <CreditCard className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Payments</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open payment oversight</div>
-                  </div>
-                </div>
-              </TabsTrigger>
+                </TabsTrigger>
+              )}
             </TabsList>
 
+            {canViewAdminOverview && (
             <TabsContent value="overview" className="space-y-6">
               <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {/* Quick Stats */}
-                <Card
-                  className="cursor-pointer border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-                  onClick={() => openAdmin('/admin/projects/approval')}
-                >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Briefcase className="h-4 w-4 text-blue-500" />
-                      Pending Projects
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {isLoadingStats ? '...' : projectStats?.pendingProjects || 0}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Click to review</p>
-                  </CardContent>
-                </Card>
+                {canApproveProjects && (
+                  <Card
+                    className="cursor-pointer border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                    onClick={() => openAdmin('/admin/projects/approval')}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Briefcase className="h-4 w-4 text-blue-500" />
+                        Pending Projects
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {isLoadingStats ? '...' : projectStats?.pendingProjects || 0}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Click to review</p>
+                    </CardContent>
+                  </Card>
+                )}
 
-                <Card className="border-emerald-100 bg-gradient-to-br from-white via-emerald-50 to-teal-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Users className="h-4 w-4 text-green-500" />
-                      Total Customers
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {isLoadingStats ? '...' : loyaltyStats?.overallStats.totalCustomers || 0}
-                    </div>
-                  </CardContent>
-                </Card>
+                {canManageLoyalty && (
+                  <>
+                    <Card className="border-emerald-100 bg-gradient-to-br from-white via-emerald-50 to-teal-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <Users className="h-4 w-4 text-green-500" />
+                          Total Customers
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {isLoadingStats ? '...' : loyaltyStats?.overallStats.totalCustomers || 0}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                <Card className="border-cyan-100 bg-gradient-to-br from-white via-cyan-50 to-sky-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <TrendingUp className="h-4 w-4 text-emerald-500" />
-                      Total Revenue
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      ${isLoadingStats ? '...' : (loyaltyStats?.overallStats.totalRevenue || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
+                    <Card className="border-cyan-100 bg-gradient-to-br from-white via-cyan-50 to-sky-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <TrendingUp className="h-4 w-4 text-emerald-500" />
+                          Total Revenue
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          ${isLoadingStats ? '...' : (loyaltyStats?.overallStats.totalRevenue || 0).toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
 
-                <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-orange-500" />
-                      Pending Professionals
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {isLoadingStats ? '...' : approvalStats?.pending || 0}
-                    </div>
-                  </CardContent>
-                </Card>
+                {canApproveProfessionals && (
+                  <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-orange-500" />
+                        Pending Professionals
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {isLoadingStats ? '...' : approvalStats?.pending || 0}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-                <Card
-                  className="cursor-pointer border-rose-100 bg-gradient-to-br from-white via-rose-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-                  onClick={() => openAdmin('/admin/warranty-claims')}
-                >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <AlertTriangle className="h-4 w-4 text-rose-500" />
-                      Warranty Claims
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-rose-600">
-                      {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Escalated: {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated ?? '\u2014'}
-                    </p>
-                  </CardContent>
-                </Card>
+                {canManageWarranty && (
+                  <Card
+                    className="cursor-pointer border-rose-100 bg-gradient-to-br from-white via-rose-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                    onClick={() => openAdmin('/admin/warranty-claims')}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <AlertTriangle className="h-4 w-4 text-rose-500" />
+                        Warranty Claims
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-rose-600">
+                        {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Escalated: {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated ?? '\u2014'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {canAccessPath('/admin/referral') && (
               <Card className="border-purple-100 bg-gradient-to-br from-white via-purple-50 to-fuchsia-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -683,7 +743,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/backlinks') && (
               <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -712,7 +774,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/reviews') && (
               <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50 to-rose-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -744,7 +808,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/favorites') && (
               <Card className="border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -763,7 +829,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/settings') && (
               <Card className="border-slate-200 bg-gradient-to-br from-white via-slate-50 to-gray-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -782,7 +850,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/cms') && (
               <Card className="border-rose-100 bg-gradient-to-br from-white via-rose-50 to-pink-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -801,7 +871,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/support') && (
               <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -820,7 +892,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/chat') && (
               <Card className="border-sky-100 bg-gradient-to-br from-white via-sky-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -839,7 +913,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/discount-codes') && (
               <Card className="border-rose-100 bg-gradient-to-br from-white via-rose-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -858,7 +934,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/campaigns') && (
               <Card className="border-violet-100 bg-gradient-to-br from-white via-violet-50 to-fuchsia-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -877,7 +955,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/site-announcements') && (
               <Card className="border-orange-100 bg-gradient-to-br from-white via-orange-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -896,7 +976,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/professionals/manage') && (
               <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-cyan-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -915,7 +997,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/customers') && (
               <Card className="border-emerald-100 bg-gradient-to-br from-white via-emerald-50 to-teal-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -934,7 +1018,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/warranty-claims') && (
               <Card className="border-rose-100 bg-gradient-to-br from-white via-rose-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -968,14 +1054,20 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/bookings') && (
               <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-blue-600" />
                     Booking Management
                   </CardTitle>
-                  <CardDescription>Browse and search any booking, force its status, and open a chat with the customer or professional</CardDescription>
+                  <CardDescription>
+                    Browse and search bookings
+                    {can('bookings.write') ? ', update their status' : ''}
+                    {can('chat.support') ? ', and open customer or professional support chats' : ''}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -986,7 +1078,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/disputes') && (
               <Card className="border-red-100 bg-gradient-to-br from-white via-red-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1004,7 +1098,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/cancellation-requests') && (
               <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50 to-orange-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1022,7 +1118,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/chat-reports') && (
               <Card className="border-purple-100 bg-gradient-to-br from-white via-purple-50 to-pink-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1040,7 +1138,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canAccessPath('/admin/audit-logs') && (
               <Card className="border-slate-200 bg-gradient-to-br from-white via-slate-50 to-zinc-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1058,7 +1158,9 @@ export default function DashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
+              {canRunMaintenance && (
               <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl xl:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1186,9 +1288,12 @@ export default function DashboardPage() {
                   </div>
                 </CardContent>
               </Card>
+              )}
               </div>
             </TabsContent>
+            )}
 
+            {canManageServices && (
             <TabsContent value="services" className="space-y-6">
               {/* Service Configuration Management */}
               <Card className="border-purple-100 bg-gradient-to-br from-white via-purple-50 to-pink-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
@@ -1234,7 +1339,9 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
 
+            {canManageLoyalty && (
             <TabsContent value="loyalty" className="space-y-6">
               {/* Loyalty System Management */}
               <div className="grid md:grid-cols-3 gap-6">
@@ -1350,7 +1457,9 @@ export default function DashboardPage() {
                 </Card>
               </div>
             </TabsContent>
+            )}
 
+            {canApproveProfessionals && (
             <TabsContent value="approvals" className="space-y-6">
               {/* Professional Approvals */}
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1447,7 +1556,9 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
 
+            {canManagePayments && (
             <TabsContent value="payments" className="space-y-6">
               {/* Payment Oversight */}
               <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
@@ -1494,6 +1605,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
 
           </Tabs>
         </div>
