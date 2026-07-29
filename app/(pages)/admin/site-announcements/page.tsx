@@ -25,7 +25,7 @@ export default function AdminSiteAnnouncementsPage() {
     patchForm,
     saving,
     save,
-    togglingId,
+    togglingIds,
     toggleActive,
   } = useSiteAnnouncementsAdmin();
 
@@ -59,7 +59,7 @@ export default function AdminSiteAnnouncementsPage() {
         loading={listLoading}
         filters={filters}
         onFiltersChange={patchFilters}
-        togglingId={togglingId}
+        togglingIds={togglingIds}
         onPreview={(item) => startPreview(toLiveAnnouncement(item))}
         onEdit={openEdit}
         onToggleActive={toggleActive}

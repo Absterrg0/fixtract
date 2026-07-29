@@ -26,9 +26,9 @@ const LEGACY_KPI_COLUMNS_STORAGE_KEY = 'fixera-kpi-columns-v1'
 
 type Preset = 'month' | 'quarter' | 'year' | 'last30' | 'custom'
 type SortDir = 'asc' | 'desc'
-type TabKey = 'city' | 'service' | 'subproject' | 'professional' | 'customer'
+type TabKey = 'city' | 'service' | 'subproject' | 'professional' | 'customer' | 'response'
 
-const TAB_KEYS: TabKey[] = ['city', 'service', 'subproject', 'professional', 'customer']
+const TAB_KEYS: TabKey[] = ['city', 'service', 'subproject', 'professional', 'customer', 'response']
 
 interface Summary {
   signUps: number
@@ -229,6 +229,7 @@ const TAB_SECTION_MAP: Record<TabKey, string> = {
   subproject: 'subproject',
   professional: 'professional',
   customer: 'customer',
+  response: 'response',
 }
 
 const TAB_LABEL_KEY: Record<TabKey, string> = {
@@ -237,6 +238,7 @@ const TAB_LABEL_KEY: Record<TabKey, string> = {
   subproject: 'subprojectName',
   professional: 'name',
   customer: 'name',
+  response: 'name',
 }
 
 const TAB_ROWKEY_FIELDS: Record<TabKey, string[]> = {
@@ -245,6 +247,7 @@ const TAB_ROWKEY_FIELDS: Record<TabKey, string[]> = {
   subproject: ['projectTitle', 'subprojectName'],
   professional: ['professionalId', 'email', 'name'],
   customer: ['customerId', 'email', 'name'],
+  response: ['professionalId', 'email', 'name'],
 }
 
 const makeRowKey = (tab: TabKey, row: Row) => TAB_ROWKEY_FIELDS[tab].map((f) => String(row[f] ?? '')).join('|')
@@ -268,6 +271,7 @@ export default function AdminKpiDashboard() {
   const [subprojects, setSubprojects] = useState<Row[]>([])
   const [professionals, setProfessionals] = useState<Row[]>([])
   const [customers, setCustomers] = useState<Row[]>([])
+  const [responseRows, setResponseRows] = useState<Row[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('city')
   const [sortByTab, setSortByTab] = useState<Record<TabKey, { key: string; dir: SortDir }>>({
     city: { key: 'platformRevenue', dir: 'desc' },
@@ -275,15 +279,17 @@ export default function AdminKpiDashboard() {
     subproject: { key: 'platformRevenue', dir: 'desc' },
     professional: { key: 'platformRevenue', dir: 'desc' },
     customer: { key: 'platformRevenue', dir: 'desc' },
+    response: { key: 'avgHours', dir: 'asc' },
   })
   const [selectedByTab, setSelectedByTab] = useState<Record<TabKey, string | null>>({
-    city: null, service: null, subproject: null, professional: null, customer: null,
+    city: null, service: null, subproject: null, professional: null, customer: null, response: null,
   })
   const [visibleColsByTab, setVisibleColsByTab] = useState<Record<TabKey, string[]>>({
-    city: [], service: [], subproject: [], professional: [], customer: [],
+    city: [], service: [], subproject: [], professional: [], customer: [], response: [],
   })
   const columnsHydrated = useRef(false)
   const [loading, setLoading] = useState(true)
+  const [responseLoading, setResponseLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
   const [showEmails, setShowEmails] = useState(false)
   const requestIdRef = useRef(0)
@@ -346,7 +352,10 @@ export default function AdminKpiDashboard() {
     setSubprojects([])
     setProfessionals([])
     setCustomers([])
+    setResponseRows([])
     setLoading(true)
+    // Keep response tab in loading until its deferred fetch finishes (not while primary is pending).
+    setResponseLoading(true)
     try {
       const [sumRes, regRes, svcRes, subRes, proRes, custRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/kpi/summary?${rangeQs}`),
@@ -381,6 +390,25 @@ export default function AdminKpiDashboard() {
       toast.error('Failed to load KPI data')
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
+    }
+
+    // Load pro-response independently so a stall/failure cannot hold primary loading.
+    try {
+      const respRes = await authFetch(`${BACKEND}/api/admin/kpi/professional-response?${rangeQs}&limit=50`)
+      if (requestId !== requestIdRef.current) return
+      const respJson = respRes.ok ? await respRes.json() : { data: { rows: [] } }
+      if (requestId !== requestIdRef.current) return
+      setResponseRows(respJson.data?.rows || [])
+      if (!respRes.ok) {
+        toast.error('Failed to load pro response (top 50)')
+      }
+    } catch (respErr) {
+      if (requestId !== requestIdRef.current) return
+      console.error(respErr)
+      setResponseRows([])
+      toast.error('Failed to load pro response (top 50)')
+    } finally {
+      if (requestId === requestIdRef.current) setResponseLoading(false)
     }
   }, [])
 
@@ -442,7 +470,8 @@ export default function AdminKpiDashboard() {
     subproject: subprojects,
     professional: professionals,
     customer: customers,
-  }), [regions, serviceBookings, subprojects, professionals, customers])
+    response: responseRows,
+  }), [regions, serviceBookings, subprojects, professionals, customers, responseRows])
 
   const activeSorted = useMemo(
     () => sortRows(tabRowsMap[activeTab], sortByTab[activeTab].key, sortByTab[activeTab].dir),
@@ -484,10 +513,12 @@ export default function AdminKpiDashboard() {
       ],
       service: [
         { key: 'serviceType', label: 'Service' },
+        { key: 'views', label: 'Views', numeric: true },
         { key: 'totalRfqs', label: 'RFQs', numeric: true },
         { key: 'quotedCount', label: 'Quotes', numeric: true },
         { key: 'bookingsCount', label: 'Bookings', numeric: true },
         { key: 'completedCount', label: 'Completed', numeric: true },
+        { key: 'bookingRate', label: 'Book rate %', numeric: true, format: fmtPct },
         { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
         { key: 'platformRevenue', label: 'Platform €', numeric: true, format: fmtMoney },
         { key: 'refundAmount', label: 'Refund €', numeric: true, format: fmtMoney },
@@ -604,6 +635,15 @@ export default function AdminKpiDashboard() {
         { key: 'completionOverdueRate', label: 'Compl overdue %', numeric: true, format: fmtPct },
         { key: 'avgCompletionOverdueDays', label: 'Avg compl overdue (d)', numeric: true },
       ],
+      response: [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email', format: emailFormat },
+        { key: 'city', label: 'City' },
+        { key: 'quotesSent', label: 'Quotes sent', numeric: true },
+        { key: 'avgHours', label: 'Avg hours', numeric: true },
+        { key: 'minHours', label: 'Min hours', numeric: true },
+        { key: 'maxHours', label: 'Max hours', numeric: true },
+      ],
     }
   }, [showEmails])
 
@@ -647,7 +687,11 @@ export default function AdminKpiDashboard() {
         const vis = visibleColsByTab[tab]
         if (!vis || vis.length === 0) return
         if (!vis.includes(prev[tab].key)) {
-          const fallback = vis.includes('platformRevenue') ? 'platformRevenue' : vis[vis.length - 1]
+          const fallback = vis.includes('platformRevenue')
+            ? 'platformRevenue'
+            : vis.includes('avgHours')
+              ? 'avgHours'
+              : vis[vis.length - 1]
           next[tab] = { key: fallback, dir: 'desc' }
           changed = true
         }
@@ -684,7 +728,7 @@ export default function AdminKpiDashboard() {
     const columns = columnsByTab[activeTab]
     const sort = sortByTab[activeTab]
     const sortColumn = columns.find((c) => c.key === sort.key)
-    const chartKey = sortColumn?.numeric ? sort.key : 'platformRevenue'
+    const chartKey = sortColumn?.numeric ? sort.key : (activeTab === 'response' ? 'avgHours' : 'platformRevenue')
     const labelKey = TAB_LABEL_KEY[activeTab]
     return activeSorted.slice(0, 12).map((r) => ({
       name: String(r[labelKey] ?? '—'),
@@ -820,15 +864,16 @@ export default function AdminKpiDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 gap-1">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 h-auto">
             <TabsTrigger value="city">By City</TabsTrigger>
             <TabsTrigger value="service">By Service</TabsTrigger>
             <TabsTrigger value="subproject">By Subproject</TabsTrigger>
             <TabsTrigger value="professional">By Professional</TabsTrigger>
             <TabsTrigger value="customer">By Customer</TabsTrigger>
+            <TabsTrigger value="response">Pro response (top 50)</TabsTrigger>
           </TabsList>
 
-          {(['city', 'service', 'subproject', 'professional', 'customer'] as TabKey[]).map((tab) => {
+          {(['city', 'service', 'subproject', 'professional', 'customer', 'response'] as TabKey[]).map((tab) => {
             const allCols: KpiColumn[] = columnsByTab[tab]
             const columns: KpiColumn[] = getVisibleColumns(tab)
             const identityKey = allCols[0]?.key
@@ -837,16 +882,21 @@ export default function AdminKpiDashboard() {
             const sorted = isActive ? activeSorted : []
             const selectedKey = selectedByTab[tab]
             const sortColumn = allCols.find((c) => c.key === sort.key)
-            const chartKey = sortColumn?.numeric ? sort.key : 'platformRevenue'
+            const chartKey = sortColumn?.numeric ? sort.key : (tab === 'response' ? 'avgHours' : 'platformRevenue')
             const chartColumn = allCols.find((c) => c.key === chartKey)
-            const chartLabel = chartColumn?.label || 'Platform €'
+            const chartLabel = chartColumn?.label || (tab === 'response' ? 'Avg hours' : 'Platform €')
             const chartFmt = chartColumn?.format
             const chartData = isActive ? activeChartData : []
+            const tabTitle = tab === 'city'
+              ? 'By Region (City)'
+              : tab === 'response'
+                ? 'Pro response (top 50)'
+                : `By ${tab.charAt(0).toUpperCase() + tab.slice(1)}`
             return (
             <TabsContent value={tab} key={tab}>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-                  <CardTitle className="text-base capitalize">{tab === 'city' ? 'By Region (City)' : `By ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}</CardTitle>
+                  <CardTitle className="text-base capitalize">{tabTitle}</CardTitle>
                   <div className="flex gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -917,7 +967,7 @@ export default function AdminKpiDashboard() {
                   <SortableTable
                     columns={columns}
                     sortedRows={sorted}
-                    loading={loading}
+                    loading={tab === 'response' ? responseLoading : loading}
                     sortKey={sort.key}
                     sortDir={sort.dir}
                     onToggleSort={(k) => toggleSortForTab(tab, k)}

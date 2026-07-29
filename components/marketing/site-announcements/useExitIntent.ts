@@ -25,7 +25,9 @@ export function useExitIntent(enabled: boolean, armAfterMs: number): boolean {
 
     const onMouseOut = (event: MouseEvent) => {
       if (!armed) return;
-      if (event.clientY <= 0) setTriggered(true);
+      if (event.clientY <= 0 && event.relatedTarget === null) {
+        setTriggered(true);
+      }
     };
 
     const onScroll = () => {

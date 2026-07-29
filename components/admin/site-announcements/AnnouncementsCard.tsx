@@ -30,7 +30,7 @@ interface AnnouncementsCardProps {
   loading: boolean;
   filters: AnnouncementListFilters;
   onFiltersChange: (partial: Partial<AnnouncementListFilters>) => void;
-  togglingId: string | null;
+  togglingIds: Set<string>;
   onPreview: (item: AdminSiteAnnouncement) => void;
   onEdit: (item: AdminSiteAnnouncement) => void;
   onToggleActive: (item: AdminSiteAnnouncement, isActive: boolean) => void;
@@ -41,7 +41,7 @@ export function AnnouncementsCard({
   loading,
   filters,
   onFiltersChange,
-  togglingId,
+  togglingIds,
   onPreview,
   onEdit,
   onToggleActive,
@@ -160,7 +160,7 @@ export function AnnouncementsCard({
                       <Switch
                         id={`live-${item._id}`}
                         checked={item.isActive}
-                        disabled={togglingId === item._id}
+                        disabled={togglingIds.has(item._id)}
                         onCheckedChange={(checked) => onToggleActive(item, checked)}
                         aria-label={`Toggle live for ${item.name}`}
                       />

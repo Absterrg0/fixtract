@@ -39,7 +39,6 @@ export function AnnouncementTopBar({
         href={href}
         data-testid="site-announce-top-bar"
         className={`${barClass} block transition hover:bg-[#d64535]`}
-        aria-label="Site promotion"
         onClick={onCta}
       >
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-center px-3 sm:px-6">

@@ -249,6 +249,9 @@ export function validateAnnouncementForm(form: AnnouncementFormState): string | 
   if (!form.name.trim() || !form.title.trim() || !form.message.trim()) {
     return "Name, title, and message are required";
   }
+  if (!form.startsAt.trim() || !form.endsAt.trim()) {
+    return "Start and end dates are required";
+  }
   if (form.endsAt < form.startsAt) {
     return "End date must be on or after the start date";
   }
@@ -268,11 +271,30 @@ export async function fetchSiteAnnouncements(
     `${API_BASE}/api/admin/site-announcements?${params}`,
     init,
   );
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.msg || "Failed to load announcements");
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Failed to load announcements");
   }
-  return (json.data.announcements || []) as AdminSiteAnnouncement[];
+  if (
+    !res.ok ||
+    typeof json !== "object" ||
+    json === null ||
+    !("success" in json) ||
+    !(json as { success: unknown }).success
+  ) {
+    const msg =
+      typeof json === "object" &&
+      json !== null &&
+      "msg" in json &&
+      typeof (json as { msg: unknown }).msg === "string"
+        ? (json as { msg: string }).msg
+        : "Failed to load announcements";
+    throw new Error(msg);
+  }
+  const announcements = (json as { data?: { announcements?: unknown } }).data?.announcements;
+  return (Array.isArray(announcements) ? announcements : []) as AdminSiteAnnouncement[];
 }
 
 export async function saveSiteAnnouncement(
@@ -289,9 +311,15 @@ export async function saveSiteAnnouncement(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.msg || "Save failed");
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Save failed");
+  }
+  const j = json as { success?: unknown; msg?: string } | null;
+  if (!res.ok || !j?.success) {
+    throw new Error(j?.msg || "Save failed");
   }
 }
 
@@ -301,8 +329,14 @@ export async function setSiteAnnouncementActive(id: string, isActive: boolean) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ isActive }),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.msg || "Update failed");
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Update failed");
+  }
+  const j = json as { success?: unknown; msg?: string } | null;
+  if (!res.ok || !j?.success) {
+    throw new Error(j?.msg || "Update failed");
   }
 }
