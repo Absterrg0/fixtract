@@ -311,9 +311,15 @@ export async function saveSiteAnnouncement(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.msg || "Save failed");
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Save failed");
+  }
+  const j = json as { success?: unknown; msg?: string } | null;
+  if (!res.ok || !j?.success) {
+    throw new Error(j?.msg || "Save failed");
   }
 }
 
@@ -323,8 +329,14 @@ export async function setSiteAnnouncementActive(id: string, isActive: boolean) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ isActive }),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.msg || "Update failed");
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Update failed");
+  }
+  const j = json as { success?: unknown; msg?: string } | null;
+  if (!res.ok || !j?.success) {
+    throw new Error(j?.msg || "Update failed");
   }
 }
