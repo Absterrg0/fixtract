@@ -111,7 +111,7 @@ function AcceptInviteContent() {
       // Acceptance already succeeded — session sync failures must not look like activation failures
       setAuthToken(json.token);
       try {
-        const currentUser = await checkAuth();
+        const currentUser = await checkAuth({ strict: true });
         if (!currentUser) throw new Error('Session refresh failed');
         toast.success('Account activated — welcome to the team');
         router.push('/dashboard');

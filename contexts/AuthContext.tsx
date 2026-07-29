@@ -144,7 +144,7 @@ interface AuthContextType {
   login: (email: string, password: string, options?: { skipRedirect?: boolean }) => Promise<boolean>
   signup: (userData: SignupData) => Promise<boolean>
   logout: () => Promise<void>
-  checkAuth: () => Promise<User | null>
+  checkAuth: (options?: { strict?: boolean }) => Promise<User | null>
   isAuthenticated: boolean
 }
 
@@ -354,7 +354,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const checkAuth = async (): Promise<User | null> => {
+  const checkAuth = async (options?: { strict?: boolean }): Promise<User | null> => {
     try {
       let result = await fetchCurrentUser()
 
@@ -374,7 +374,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null
       }
 
-      return userRef.current
+      return options?.strict ? null : userRef.current
     } finally {
       setLoading(false)
     }

@@ -75,6 +75,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (skip) return;
 
+    setClock(Date.now());
     const controller = new AbortController();
     let loading = false;
     const refresh = async () => {
