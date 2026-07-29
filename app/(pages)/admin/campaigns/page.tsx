@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
@@ -171,6 +171,7 @@ export default function AdminCampaignsPage() {
   const [audienceLoading, setAudienceLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [actionIds, setActionIds] = useState<Set<string>>(() => new Set());
+  const latestLoadId = useRef(0);
 
   useEffect(() => {
     if (authLoading) return;
@@ -198,16 +199,23 @@ export default function AdminCampaignsPage() {
   };
 
   const load = useCallback(async () => {
+    const loadId = ++latestLoadId.current;
     setLoading(true);
     try {
       const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns?limit=50`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load");
-      setCampaigns(json.data.campaigns || []);
+      if (loadId === latestLoadId.current) {
+        setCampaigns(json.data.campaigns || []);
+      }
     } catch (e: unknown) {
-      toast.error(errMessage(e, "Failed to load campaigns"));
+      if (loadId === latestLoadId.current) {
+        toast.error(errMessage(e, "Failed to load campaigns"));
+      }
     } finally {
-      setLoading(false);
+      if (loadId === latestLoadId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
