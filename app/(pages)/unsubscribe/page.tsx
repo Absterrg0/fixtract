@@ -1,24 +1,34 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
+function errMessage(e: unknown, fallback: string): string {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 
 function UnsubscribeInner() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const email = searchParams.get("email") || "";
   const subscriberToken = searchParams.get("subscriberToken") || "";
+  const hasParams = Boolean(token || (email && subscriberToken));
 
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
 
   const runUnsubscribe = async () => {
+    if (!API_BASE) {
+      setMessage("Server URL is not configured");
+      setStatus("error");
+      return;
+    }
     setStatus("loading");
     try {
       const res = await fetch(`${API_BASE}/api/public/marketing/unsubscribe`, {
@@ -26,22 +36,17 @@ function UnsubscribeInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, email, subscriberToken }),
       });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Unsubscribe failed");
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.msg || "Unsubscribe failed");
+      }
       setMessage(json.data?.message || "You have been unsubscribed.");
       setStatus("done");
-    } catch (e: any) {
-      setMessage(e.message || "Unsubscribe failed");
+    } catch (e: unknown) {
+      setMessage(errMessage(e, "Unsubscribe failed"));
       setStatus("error");
     }
   };
-
-  useEffect(() => {
-    if (token || (email && subscriberToken)) {
-      void runUnsubscribe();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <Card className="w-full max-w-md">
@@ -50,7 +55,7 @@ function UnsubscribeInner() {
         <CardDescription>Manage Fixtract promotional email subscription</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {status === "idle" && !token && !(email && subscriberToken) && (
+        {status === "idle" && !hasParams && (
           <>
             <p className="text-sm text-muted-foreground">
               Open the unsubscribe link from a campaign email, or manage preferences in your
@@ -59,6 +64,15 @@ function UnsubscribeInner() {
             <Button asChild>
               <Link href="/profile?tab=notifications">Open notification settings</Link>
             </Button>
+          </>
+        )}
+        {status === "idle" && hasParams && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Confirm to stop receiving Fixtract promotional emails. Transactional booking emails
+              are unaffected.
+            </p>
+            <Button onClick={runUnsubscribe}>Unsubscribe from promotions</Button>
           </>
         )}
         {status === "loading" && (

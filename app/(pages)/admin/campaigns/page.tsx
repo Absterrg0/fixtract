@@ -33,11 +33,30 @@ import {
   BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAdminAccess } from "@/hooks/useAdminAccess";
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 const LOCALES = ["en", "nl", "fr"] as const;
 type Locale = (typeof LOCALES)[number];
 type CampaignType = "newsletter" | "promotion" | "reengagement";
+
+function errMessage(e: unknown, fallback: string): string {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function requireApiBase(): string {
+  if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_BACKEND_URL is not configured");
+  }
+  return API_BASE;
+}
 
 interface LocaleContent {
   subject: string;
@@ -135,7 +154,12 @@ const statusColor = (status: string) => {
 
 export default function AdminCampaignsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { canAccessPath } = useAdminAccess();
+  const canManage = canAccessPath("/admin/campaigns");
+  const isAdmin = Boolean(isAuthenticated && user?.role === "admin");
+  const showPage = !authLoading && isAdmin && canManage;
+
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -146,29 +170,50 @@ export default function AdminCampaignsPage() {
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [audienceLoading, setAudienceLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [actionId, setActionId] = useState<string | null>(null);
+  const [actionIds, setActionIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    if (!authLoading && user?.role !== "admin") router.replace("/");
-  }, [authLoading, user, router]);
+    if (authLoading) return;
+    if (!isAdmin) {
+      router.replace("/login");
+      return;
+    }
+    if (!canManage) router.replace("/dashboard");
+  }, [authLoading, isAdmin, canManage, router]);
+
+  const beginAction = (id: string) => {
+    setActionIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+
+  const endAction = (id: string) => {
+    setActionIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns?limit=50`);
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns?limit=50`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load");
       setCampaigns(json.data.campaigns || []);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to load campaigns");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Failed to load campaigns"));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (user?.role === "admin") load();
-  }, [user, load]);
+    if (showPage) load();
+  }, [showPage, load]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -189,7 +234,7 @@ export default function AdminCampaignsPage() {
       roles: c.audience?.roles?.length ? c.audience.roles : ["customer", "professional"],
       inactiveDays: String(c.inactiveDays || 60),
       autoSend: Boolean(c.autoSend),
-      scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : "",
+      scheduledAt: c.scheduledAt ? toDatetimeLocalValue(c.scheduledAt) : "",
       utmCampaign: c.utmCampaign || "",
       content: {
         en: c.content?.en || emptyContent(),
@@ -241,7 +286,7 @@ export default function AdminCampaignsPage() {
   const previewAudience = async () => {
     setAudienceLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/preview-audience`, {
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/preview-audience`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -252,8 +297,8 @@ export default function AdminCampaignsPage() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Preview failed");
       setAudienceCount(json.data.count);
-    } catch (e: any) {
-      toast.error(e.message || "Audience preview failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Audience preview failed"));
     } finally {
       setAudienceLoading(false);
     }
@@ -266,9 +311,10 @@ export default function AdminCampaignsPage() {
     }
     setSaving(true);
     try {
+      const base = requireApiBase();
       const url = editingId
-        ? `${API_BASE}/api/admin/marketing-campaigns/${editingId}`
-        : `${API_BASE}/api/admin/marketing-campaigns`;
+        ? `${base}/api/admin/marketing-campaigns/${editingId}`
+        : `${base}/api/admin/marketing-campaigns`;
       const res = await authFetch(url, {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -279,8 +325,8 @@ export default function AdminCampaignsPage() {
       toast.success(editingId ? "Campaign updated" : "Campaign created");
       setDialogOpen(false);
       await load();
-    } catch (e: any) {
-      toast.error(e.message || "Save failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Save failed"));
     } finally {
       setSaving(false);
     }
@@ -288,61 +334,61 @@ export default function AdminCampaignsPage() {
 
   const handleSend = async (id: string) => {
     if (!confirm("Send this campaign now via Brevo to the matched audience?")) return;
-    setActionId(id);
+    beginAction(id);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}/send`, {
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/send`, {
         method: "POST",
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Send failed");
       toast.success("Campaign sent");
       await load();
-    } catch (e: any) {
-      toast.error(e.message || "Send failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Send failed"));
     } finally {
-      setActionId(null);
+      endAction(id);
     }
   };
 
   const handleStats = async (id: string) => {
-    setActionId(id);
+    beginAction(id);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}/stats`, {
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/stats`, {
         method: "POST",
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Refresh failed");
       toast.success("Stats refreshed from Brevo");
       await load();
-    } catch (e: any) {
-      toast.error(e.message || "Refresh failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Refresh failed"));
     } finally {
-      setActionId(null);
+      endAction(id);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this campaign?")) return;
-    setActionId(id);
+    beginAction(id);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-campaigns/${id}`, {
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}`, {
         method: "DELETE",
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Delete failed");
       toast.success("Deleted");
       await load();
-    } catch (e: any) {
-      toast.error(e.message || "Delete failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Delete failed"));
     } finally {
-      setActionId(null);
+      endAction(id);
     }
   };
 
   const syncSubscribers = async () => {
     setSyncing(true);
     try {
-      const res = await authFetch(`${API_BASE}/api/admin/marketing-subscribers/sync`, {
+      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers/sync`, {
         method: "POST",
       });
       const json = await res.json();
@@ -350,14 +396,14 @@ export default function AdminCampaignsPage() {
       toast.success(
         `Synced subscribers (upserted ${json.data.upserted}, unsubscribed ${json.data.unsubscribed})`,
       );
-    } catch (e: any) {
-      toast.error(e.message || "Sync failed");
+    } catch (e: unknown) {
+      toast.error(errMessage(e, "Sync failed"));
     } finally {
       setSyncing(false);
     }
   };
 
-  if (authLoading || (user && user.role !== "admin")) {
+  if (authLoading || !showPage) {
     return (
       <div className="p-8">
         <Skeleton className="h-10 w-64 mb-4" />
@@ -445,9 +491,9 @@ export default function AdminCampaignsPage() {
                         <Button
                           size="sm"
                           onClick={() => handleSend(c._id)}
-                          disabled={actionId === c._id}
+                          disabled={actionIds.has(c._id)}
                         >
-                          {actionId === c._id ? (
+                          {actionIds.has(c._id) ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                           ) : (
                             <Send className="h-3.5 w-3.5 mr-1" />
@@ -460,7 +506,7 @@ export default function AdminCampaignsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleStats(c._id)}
-                          disabled={actionId === c._id}
+                          disabled={actionIds.has(c._id)}
                         >
                           <BarChart3 className="h-3.5 w-3.5 mr-1" />
                           Refresh stats
@@ -471,7 +517,7 @@ export default function AdminCampaignsPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDelete(c._id)}
-                          disabled={actionId === c._id}
+                          disabled={actionIds.has(c._id)}
                         >
                           <Trash2 className="h-3.5 w-3.5 text-rose-500" />
                         </Button>
