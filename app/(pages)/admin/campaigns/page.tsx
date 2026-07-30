@@ -662,7 +662,7 @@ export default function AdminCampaignsPage() {
                   <div>Unique clicks: {totals.clicks}</div>
                   {c.scheduledAt && (
                     <div className="sm:col-span-4">
-                      Scheduled: {new Date(c.scheduledAt).toLocaleString()}
+                      Eligible after: {new Date(c.scheduledAt).toLocaleString()}
                     </div>
                   )}
                 </CardContent>
@@ -824,12 +824,15 @@ export default function AdminCampaignsPage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Schedule (optional)</Label>
+                <Label>Eligible after (optional)</Label>
                 <Input
                   type="datetime-local"
                   value={form.scheduledAt}
                   onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Delivery is attempted during the first daily campaign run after this time (08:00 UTC).
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>UTM campaign</Label>
