@@ -346,21 +346,23 @@ export default function DashboardPage() {
       }
 
       // Fetch warranty analytics separately so its failure doesn't block other cards
-      if (canManageWarranty) try {
-        const warrantyResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
-          fetchOptions
-        )
-        if (warrantyResponse.ok) {
-          const warrantyData = await warrantyResponse.json()
-          if (warrantyData.success) {
-            setWarrantyAnalytics(warrantyData.data || null)
-          } else {
-            console.error('[Dashboard] Warranty analytics returned success: false', warrantyData.msg)
+      if (canManageWarranty) {
+        try {
+          const warrantyResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
+            fetchOptions
+          )
+          if (warrantyResponse.ok) {
+            const warrantyData = await warrantyResponse.json()
+            if (warrantyData.success) {
+              setWarrantyAnalytics(warrantyData.data || null)
+            } else {
+              console.error('[Dashboard] Warranty analytics returned success: false', warrantyData.msg)
+            }
           }
+        } catch (warrantyErr) {
+          console.error('[Dashboard] Failed to fetch warranty analytics:', warrantyErr)
         }
-      } catch (warrantyErr) {
-        console.error('[Dashboard] Failed to fetch warranty analytics:', warrantyErr)
       }
 
     } catch (error) {
