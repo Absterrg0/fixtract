@@ -76,11 +76,14 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
     if (skip) return;
 
     setClock(Date.now());
-    const controller = new AbortController();
+    let activeController: AbortController | null = null;
     let loading = false;
     const refresh = async () => {
-      if (loading) return;
+      if (loading || document.visibilityState === "hidden") return;
       loading = true;
+      const controller = new AbortController();
+      activeController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 15_000);
       try {
         const announcements = await fetchPublicSiteAnnouncements({
           signal: controller.signal,
@@ -91,15 +94,22 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.warn("[site-announcements] fetch failed", err);
       } finally {
+        window.clearTimeout(timeout);
+        if (activeController === controller) activeController = null;
         loading = false;
       }
     };
     void refresh();
     const refreshTimer = window.setInterval(() => void refresh(), 5 * 60 * 1000);
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", refreshOnVisibility);
     const clockTimer = window.setInterval(() => setClock(Date.now()), 60 * 1000);
 
     return () => {
-      controller.abort();
+      activeController?.abort();
+      document.removeEventListener("visibilitychange", refreshOnVisibility);
       window.clearInterval(refreshTimer);
       window.clearInterval(clockTimer);
     };

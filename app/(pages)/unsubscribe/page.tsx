@@ -36,6 +36,7 @@ function UnsubscribeInner() {
   }, [paramsKey]);
 
   const runUnsubscribe = async () => {
+    if (status === "loading") return;
     if (!API_BASE) {
       setMessage("Server URL is not configured");
       setStatus("error");

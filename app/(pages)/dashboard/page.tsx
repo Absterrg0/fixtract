@@ -161,6 +161,25 @@ export default function DashboardPage() {
   const canManageServices = can('services.manage')
   const canManagePayments = can('payments.manage')
   const canRunMaintenance = can('maintenance.run')
+  const adminToolLinks = [
+    { path: '/admin/campaigns', label: 'Email Campaigns' },
+    { path: '/admin/cms', label: 'CMS Content' },
+    { path: '/admin/site-announcements', label: 'Site Announcements' },
+    { path: '/admin/chat', label: 'Support Chat' },
+    { path: '/admin/customers', label: 'Customers' },
+    { path: '/admin/bookings', label: 'Bookings' },
+    { path: '/admin/disputes', label: 'Disputes' },
+    { path: '/admin/cancellation-requests', label: 'Cancellation Requests' },
+    { path: '/admin/warranty-claims', label: 'Warranty Claims' },
+    { path: '/admin/support', label: 'Support Tickets' },
+    { path: '/admin/discount-codes', label: 'Discount Codes' },
+    { path: '/admin/referral', label: 'Referrals' },
+    { path: '/admin/backlinks', label: 'Backlinks' },
+    { path: '/admin/favorites', label: 'Favorites' },
+    { path: '/admin/kpi', label: 'KPI Reports' },
+    { path: '/admin/audit-logs', label: 'Audit Logs' },
+    { path: '/admin/email-logs', label: 'Email Logs' },
+  ].filter(({ path }) => canAccessPath(path))
   const defaultAdminTab = canViewAdminOverview
     ? 'overview'
     : canManageServices
@@ -171,7 +190,9 @@ export default function DashboardPage() {
           ? 'approvals'
           : canManagePayments
             ? 'payments'
-            : undefined
+            : adminToolLinks.length > 0
+              ? 'tools'
+              : undefined
 
   const actionItems = useMemo(() => getProfessionalActionItems(bookings), [bookings])
   const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
@@ -613,6 +634,17 @@ export default function DashboardPage() {
                       <div className="font-semibold text-white">Payments</div>
                       <div className="mt-0.5 text-xs leading-5 text-white/85">Open payment oversight</div>
                     </div>
+                  </div>
+                </TabsTrigger>
+              )}
+              {defaultAdminTab === 'tools' && (
+                <TabsTrigger
+                  value="tools"
+                  className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-slate-600 to-slate-800 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <div>
+                    <div className="font-semibold">Admin tools</div>
+                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open permitted areas</div>
                   </div>
                 </TabsTrigger>
               )}
@@ -1605,6 +1637,24 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
+
+            {defaultAdminTab === 'tools' && (
+              <TabsContent value="tools" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Available admin tools</CardTitle>
+                    <CardDescription>Choose an area your role is allowed to manage.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {adminToolLinks.map((tool) => (
+                      <Button key={tool.path} variant="outline" onClick={() => openAdmin(tool.path)}>
+                        {tool.label}
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+              </TabsContent>
             )}
 
           </Tabs>

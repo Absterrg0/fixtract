@@ -255,7 +255,7 @@ export default function AdminCampaignsPage() {
   }, [showPage, load]);
 
   useEffect(() => {
-    if (!dialogOpen) return;
+    if (!dialogOpen || templates !== null) return;
     const controller = new AbortController();
     setTemplatesLoading(true);
     let base: string;
@@ -286,14 +286,13 @@ export default function AdminCampaignsPage() {
     return () => {
       controller.abort();
     };
-  }, [dialogOpen]);
+  }, [dialogOpen, templates]);
 
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
     setAudiencePreview(null);
     setActiveLocaleTab("en");
-    setTemplates(null);
     setDialogOpen(true);
   };
 
@@ -318,7 +317,6 @@ export default function AdminCampaignsPage() {
     });
     setAudiencePreview(null);
     setActiveLocaleTab("en");
-    setTemplates(null);
     setDialogOpen(true);
   };
 
@@ -373,6 +371,11 @@ export default function AdminCampaignsPage() {
   const previewAudience = async () => {
     if (form.locales.length === 0 || form.roles.length === 0) {
       toast.error("Select at least one audience locale and role");
+      return;
+    }
+    const missingLocaleContent = form.locales.filter((locale) => !payload.content[locale]);
+    if (missingLocaleContent.length > 0) {
+      toast.error(`Provide content for every selected locale: ${missingLocaleContent.join(", ")}`);
       return;
     }
     const requestId = ++latestPreviewId.current;
