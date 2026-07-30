@@ -639,7 +639,7 @@ export default function DashboardPage() {
                   </div>
                 </TabsTrigger>
               )}
-              {defaultAdminTab === 'tools' && (
+              {adminToolLinks.length > 0 && (
                 <TabsTrigger
                   value="tools"
                   className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-slate-600 to-slate-800 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
@@ -1641,7 +1641,7 @@ export default function DashboardPage() {
             </TabsContent>
             )}
 
-            {defaultAdminTab === 'tools' && (
+            {adminToolLinks.length > 0 && (
               <TabsContent value="tools" className="space-y-6">
                 <Card>
                   <CardHeader>

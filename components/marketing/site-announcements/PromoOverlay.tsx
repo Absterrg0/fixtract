@@ -46,9 +46,9 @@ export function PromoOverlay({
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Could not copy code");
-      // The code remains visible, so a non-dismissible offer still needs an
-      // acknowledgement path when the Clipboard API is unavailable.
-      if (!canDismiss) onCta();
+      // Failed copy must not count as a CTA click for analytics; still acknowledge
+      // non-dismissible offers so the overlay can clear.
+      if (!canDismiss) onClose();
     }
   };
 

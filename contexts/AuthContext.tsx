@@ -315,6 +315,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
+  const checkAuthGenerationRef = useRef(0)
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
@@ -355,12 +356,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const checkAuth = async (options?: { strict?: boolean }): Promise<User | null> => {
+    const generation = ++checkAuthGenerationRef.current
     try {
       let result = await fetchCurrentUser()
 
       if (result.status === 'transient') {
         await new Promise(resolve => setTimeout(resolve, 600))
+        // Bail if a newer checkAuth started while we waited.
+        if (generation !== checkAuthGenerationRef.current) {
+          return options?.strict ? null : userRef.current
+        }
         result = await fetchCurrentUser()
+      }
+
+      // Superseded checks must not clear or overwrite a newer session.
+      if (generation !== checkAuthGenerationRef.current) {
+        return options?.strict ? null : userRef.current
       }
 
       if (result.status === 'ok') {
@@ -376,7 +387,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return options?.strict ? null : userRef.current
     } finally {
-      setLoading(false)
+      if (generation === checkAuthGenerationRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -538,6 +551,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let cancelled = false
 
     const initializeAuth = async () => {
+      // Invite acceptance stores a fresh token then runs a strict checkAuth.
+      // Skip the boot-time /me probe so a pre-token 401 cannot race and clear it.
+      if (pathname.startsWith('/admin/accept-invite')) {
+        setLoading(false)
+        if (!cancelled) setIsInitialized(true)
+        return
+      }
+
       const currentUser = await checkAuth()
 
       if (cancelled) return

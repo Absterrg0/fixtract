@@ -262,7 +262,7 @@ export default function AdminCampaignsPage() {
     try {
       base = requireApiBase();
     } catch (error) {
-      setTemplates([]);
+      // Keep templates null so reopening the dialog can retry.
       setTemplatesLoading(false);
       toast.error(errMessage(error, "Failed to load Brevo templates"));
       return;
@@ -277,7 +277,7 @@ export default function AdminCampaignsPage() {
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setTemplates([]);
+        // Keep templates null so a transient failure can retry on reopen.
         toast.error(errMessage(error, "Failed to load Brevo templates"));
       })
       .finally(() => {
@@ -373,11 +373,6 @@ export default function AdminCampaignsPage() {
       toast.error("Select at least one audience locale and role");
       return;
     }
-    const missingLocaleContent = form.locales.filter((locale) => !payload.content[locale]);
-    if (missingLocaleContent.length > 0) {
-      toast.error(`Provide content for every selected locale: ${missingLocaleContent.join(", ")}`);
-      return;
-    }
     const requestId = ++latestPreviewId.current;
     const requestKey = audienceKey;
     setAudienceLoading(true);
@@ -424,6 +419,11 @@ export default function AdminCampaignsPage() {
     }
     if (form.locales.length === 0 || form.roles.length === 0) {
       toast.error("Select at least one audience locale and role");
+      return;
+    }
+    const missingLocaleContent = form.locales.filter((locale) => !payload.content[locale]);
+    if (missingLocaleContent.length > 0) {
+      toast.error(`Provide content for every selected locale: ${missingLocaleContent.join(", ")}`);
       return;
     }
     if (form.scheduledAt && !payload.scheduledAt) {
