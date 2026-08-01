@@ -1,16 +1,21 @@
 import { DISMISS_STORAGE_PREFIX } from "./constants";
+import type { SiteAnnouncement } from "./types";
 
-export function isAnnouncementDismissed(id: string): boolean {
+function storageKey(announcement: SiteAnnouncement): string {
+  return `${DISMISS_STORAGE_PREFIX}${announcement._id}:${announcement.updatedAt}`;
+}
+
+export function isAnnouncementDismissed(announcement: SiteAnnouncement): boolean {
   try {
-    return localStorage.getItem(`${DISMISS_STORAGE_PREFIX}${id}`) === "1";
+    return localStorage.getItem(storageKey(announcement)) === "1";
   } catch {
     return false;
   }
 }
 
-export function dismissAnnouncement(id: string): void {
+export function dismissAnnouncement(announcement: SiteAnnouncement): void {
   try {
-    localStorage.setItem(`${DISMISS_STORAGE_PREFIX}${id}`, "1");
+    localStorage.setItem(storageKey(announcement), "1");
   } catch {
     // Private mode / blocked storage — session hide still works via React state.
   }

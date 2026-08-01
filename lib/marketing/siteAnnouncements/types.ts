@@ -14,4 +14,7 @@ export interface SiteAnnouncement {
   delaySeconds: number;
   dismissible: boolean;
   requireMarketingConsent: boolean;
+  startsAt: string;
+  endsAt: string;
+  updatedAt: string;
 }

@@ -34,6 +34,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   const [consent, setConsent] = useState({ marketingOk: false, analyticsOk: false });
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
   const [preview, setPreview] = useState<SiteAnnouncement | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const clearPreview = useCallback(() => {
@@ -74,8 +75,15 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (skip) return;
 
-    const controller = new AbortController();
-    void (async () => {
+    setClock(Date.now());
+    let activeController: AbortController | null = null;
+    let loading = false;
+    const refresh = async () => {
+      if (loading || document.visibilityState === "hidden") return;
+      loading = true;
+      const controller = new AbortController();
+      activeController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 15_000);
       try {
         const announcements = await fetchPublicSiteAnnouncements({
           signal: controller.signal,
@@ -85,29 +93,61 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
         if (controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.warn("[site-announcements] fetch failed", err);
+      } finally {
+        window.clearTimeout(timeout);
+        if (activeController === controller) activeController = null;
+        loading = false;
       }
-    })();
+    };
+    void refresh();
+    const refreshTimer = window.setInterval(() => void refresh(), 5 * 60 * 1000);
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", refreshOnVisibility);
+    const clockTimer = window.setInterval(() => setClock(Date.now()), 60 * 1000);
 
-    return () => controller.abort();
+    return () => {
+      activeController?.abort();
+      document.removeEventListener("visibilitychange", refreshOnVisibility);
+      window.clearInterval(refreshTimer);
+      window.clearInterval(clockTimer);
+    };
   }, [skip]);
 
   const hide = useCallback((announcement: SiteAnnouncement) => {
-    if (announcement.dismissible) dismissAnnouncement(announcement._id);
-    setHiddenIds((prev) => new Set(prev).add(announcement._id));
+    if (announcement.dismissible) dismissAnnouncement(announcement);
+    setHiddenIds((prev) =>
+      new Set(prev).add(`${announcement._id}:${announcement.updatedAt}`),
+    );
   }, []);
 
   const onCta = useCallback(
     (announcement: SiteAnnouncement) => {
+      hide(announcement);
       if (consent.analyticsOk) trackPromoClick(announcement);
     },
-    [consent.analyticsOk],
+    [consent.analyticsOk, hide],
   );
 
   const announcementsValue = useMemo<AnnouncementsCtx>(() => {
     const visible = skip
       ? []
       : items.filter((item) => {
-          if (hiddenIds.has(item._id) || isAnnouncementDismissed(item._id)) {
+          const startsAt = new Date(item.startsAt).getTime();
+          const endsAt = new Date(item.endsAt).getTime();
+          if (
+            !Number.isFinite(startsAt) ||
+            !Number.isFinite(endsAt) ||
+            startsAt > clock ||
+            endsAt < clock
+          ) {
+            return false;
+          }
+          if (
+            hiddenIds.has(`${item._id}:${item.updatedAt}`) ||
+            isAnnouncementDismissed(item)
+          ) {
             return false;
           }
           if (item.requireMarketingConsent && !consent.marketingOk) {
@@ -124,7 +164,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
       hide,
       onCta,
     };
-  }, [skip, consent.marketingOk, items, hiddenIds, hide, onCta]);
+  }, [skip, consent.marketingOk, items, hiddenIds, hide, onCta, clock]);
 
   const previewValue = useMemo<PreviewCtx>(
     () => ({ preview, startPreview, clearPreview }),

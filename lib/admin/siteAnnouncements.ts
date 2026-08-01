@@ -115,8 +115,6 @@ export function toAnnouncementScheduleIso(value: string, isEnd: boolean): string
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
 export type AdminSiteAnnouncement = LiveSiteAnnouncement & {
-  startsAt: string;
-  endsAt: string;
   isActive: boolean;
   priority: number;
   createdAt: string;
@@ -234,6 +232,9 @@ export function toLiveAnnouncement(a: AdminSiteAnnouncement): LiveSiteAnnounceme
     delaySeconds: a.delaySeconds,
     dismissible: a.dismissible,
     requireMarketingConsent: a.requireMarketingConsent,
+    startsAt: a.startsAt,
+    endsAt: a.endsAt,
+    updatedAt: a.updatedAt,
   };
 }
 
@@ -255,17 +256,28 @@ export function validateAnnouncementForm(form: AnnouncementFormState): string | 
   if (form.endsAt < form.startsAt) {
     return "End date must be on or after the start date";
   }
+  if (
+    announcementUsesOverlay(form.type) &&
+    !form.dismissible &&
+    !form.ctaUrl.trim() &&
+    !form.discountCode.trim()
+  ) {
+    return "A non-closable popup requires a link or discount code";
+  }
   return null;
 }
 
 export async function fetchSiteAnnouncements(
   filters: AnnouncementListFilters,
+  page = 1,
   init?: RequestInit,
 ) {
   const params = new URLSearchParams();
   if (filters.status !== "all") params.set("status", filters.status);
   if (filters.type !== "all") params.set("type", filters.type);
   if (filters.search.trim()) params.set("search", filters.search.trim());
+  params.set("page", String(page));
+  params.set("limit", "20");
 
   const res = await authFetch(
     `${API_BASE}/api/admin/site-announcements?${params}`,
@@ -293,8 +305,16 @@ export async function fetchSiteAnnouncements(
         : "Failed to load announcements";
     throw new Error(msg);
   }
-  const announcements = (json as { data?: { announcements?: unknown } }).data?.announcements;
-  return (Array.isArray(announcements) ? announcements : []) as AdminSiteAnnouncement[];
+  const data = (json as {
+    data?: { announcements?: unknown; total?: unknown; page?: unknown; limit?: unknown };
+  }).data;
+  const announcements = data?.announcements;
+  return {
+    items: (Array.isArray(announcements) ? announcements : []) as AdminSiteAnnouncement[],
+    total: Math.max(0, Number(data?.total) || 0),
+    page: Math.max(1, Number(data?.page) || page),
+    limit: Math.max(1, Number(data?.limit) || 20),
+  };
 }
 
 export async function saveSiteAnnouncement(

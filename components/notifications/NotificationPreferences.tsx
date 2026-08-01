@@ -28,7 +28,7 @@ interface Preferences {
 const DEFAULT_PREFS: Preferences = {
   booking_updates: { push: true, email: true },
   messages: { push: true, email: true },
-  promotions: { push: false, email: true },
+  promotions: { push: false, email: false },
   system: { push: true, email: true },
 };
 
@@ -76,7 +76,13 @@ async function fetchPrefs(): Promise<Preferences | null> {
   });
   if (!res.ok) return null;
   const json = await res.json();
-  return { ...DEFAULT_PREFS, ...(json.data ?? {}) };
+  const data = json.data ?? {};
+  return {
+    booking_updates: { ...DEFAULT_PREFS.booking_updates, ...data.booking_updates },
+    messages: { ...DEFAULT_PREFS.messages, ...data.messages },
+    promotions: { ...DEFAULT_PREFS.promotions, ...data.promotions },
+    system: { ...DEFAULT_PREFS.system, ...data.system },
+  };
 }
 
 async function patchPref(type: NotificationType, channel: Channel, enabled: boolean): Promise<boolean> {

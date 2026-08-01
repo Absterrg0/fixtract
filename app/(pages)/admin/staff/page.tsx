@@ -93,7 +93,7 @@ function StaffPageInner() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load().catch(() => undefined);
   }, [load]);
 
   const applyInviteResponse = (

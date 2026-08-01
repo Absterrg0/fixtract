@@ -144,7 +144,7 @@ interface AuthContextType {
   login: (email: string, password: string, options?: { skipRedirect?: boolean }) => Promise<boolean>
   signup: (userData: SignupData) => Promise<boolean>
   logout: () => Promise<void>
-  checkAuth: () => Promise<User | null>
+  checkAuth: (options?: { strict?: boolean }) => Promise<User | null>
   isAuthenticated: boolean
 }
 
@@ -315,6 +315,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
+  const checkAuthGenerationRef = useRef(0)
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
@@ -354,13 +355,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const checkAuth = async (): Promise<User | null> => {
+  const checkAuth = async (options?: { strict?: boolean }): Promise<User | null> => {
+    const generation = ++checkAuthGenerationRef.current
     try {
       let result = await fetchCurrentUser()
 
       if (result.status === 'transient') {
         await new Promise(resolve => setTimeout(resolve, 600))
+        // Bail if a newer checkAuth started while we waited.
+        if (generation !== checkAuthGenerationRef.current) {
+          return options?.strict ? null : userRef.current
+        }
         result = await fetchCurrentUser()
+      }
+
+      // Superseded checks must not clear or overwrite a newer session.
+      if (generation !== checkAuthGenerationRef.current) {
+        return options?.strict ? null : userRef.current
       }
 
       if (result.status === 'ok') {
@@ -374,9 +385,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null
       }
 
-      return userRef.current
+      return options?.strict ? null : userRef.current
     } finally {
-      setLoading(false)
+      if (generation === checkAuthGenerationRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -489,6 +502,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
+    if (isAuthRoute(pathname)) return
     const isUserAuthenticated = !!currentUser
 
     // Check if this is a role-restricted route
@@ -537,13 +551,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let cancelled = false
 
     const initializeAuth = async () => {
+      // Invite acceptance stores a fresh token then runs a strict checkAuth.
+      // Skip the boot-time /me probe so a pre-token 401 cannot race and clear it.
+      if (pathname.startsWith('/admin/accept-invite')) {
+        setLoading(false)
+        if (!cancelled) setIsInitialized(true)
+        return
+      }
+
       const currentUser = await checkAuth()
 
       if (cancelled) return
 
       const allowedRoles = getAllowedRoles(pathname)
       const isRoleRestrictedRoute = allowedRoles.length > 0
-      const needsProtection = isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname)
+      const needsProtection =
+        !isAuthRoute(pathname) &&
+        (isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname))
       if (needsProtection) {
         await handleRouteProtection(currentUser)
       }
@@ -679,4 +703,3 @@ export const AuthLoadingScreen: React.FC = () => (
     </div>
   </div>
 )
-

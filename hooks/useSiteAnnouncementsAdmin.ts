@@ -37,6 +37,8 @@ export function useSiteAnnouncementsAdmin() {
 
   const [filters, setFilters] = useState<AnnouncementListFilters>(DEFAULT_FILTERS);
   const [items, setItems] = useState<AdminSiteAnnouncement[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [editor, setEditor] = useState<AnnouncementEditor>(null);
@@ -61,11 +63,17 @@ export function useSiteAnnouncementsAdmin() {
     const timer = window.setTimeout(async () => {
       setListLoading(true);
       try {
-        const announcements = await fetchSiteAnnouncements(filters, {
+        const result = await fetchSiteAnnouncements(filters, page, {
           signal: controller.signal,
         });
         if (!controller.signal.aborted) {
-          setItems(announcements);
+          setTotal(result.total);
+          const lastPage = Math.max(1, Math.ceil(result.total / 20));
+          if (page > lastPage) {
+            setPage(lastPage);
+            return;
+          }
+          setItems(result.items);
         }
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -82,9 +90,10 @@ export function useSiteAnnouncementsAdmin() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [showPage, filters, reloadKey]);
+  }, [showPage, filters, page, reloadKey]);
 
   const patchFilters = (partial: Partial<AnnouncementListFilters>) => {
+    setPage(1);
     setFilters((prev) => ({ ...prev, ...partial }));
   };
 
@@ -157,6 +166,9 @@ export function useSiteAnnouncementsAdmin() {
     filters,
     patchFilters,
     items,
+    page,
+    total,
+    setPage,
     listLoading,
     editor,
     openCreate,
