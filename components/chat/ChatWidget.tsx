@@ -38,6 +38,21 @@ import { getMigratedItem, removeMigratedItem } from "@/lib/storageMigration";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
+const clearPendingChatRequestIfCurrent = (expected: string) => {
+  const current = getMigratedItem(
+    "session",
+    PENDING_CHAT_START_KEY,
+    LEGACY_PENDING_CHAT_START_KEY
+  );
+  if (current === expected) {
+    removeMigratedItem(
+      "session",
+      PENDING_CHAT_START_KEY,
+      LEGACY_PENDING_CHAT_START_KEY
+    );
+  }
+};
+
 const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: string) => {
   if (userRole === "professional") {
     return conversation.customerId?.name || "Customer";
@@ -312,8 +327,10 @@ export default function ChatWidget() {
       return;
     }
 
-    void loadConversationList(true);
-  }, [isAuthenticated, loadConversationList, userRole]);
+    if (open) {
+      void loadConversationList(true);
+    }
+  }, [isAuthenticated, loadConversationList, open, userRole]);
 
   useEffect(() => {
     if (!shouldShowNewChatPanel || userRole !== "customer") return;
@@ -351,7 +368,10 @@ export default function ChatWidget() {
         return;
       }
 
-      void ensureConversation(detail);
+      const serializedDetail = JSON.stringify(detail);
+      void ensureConversation(detail).finally(() => {
+        clearPendingChatRequestIfCurrent(serializedDetail);
+      });
     };
 
     window.addEventListener(CHAT_WIDGET_OPEN_EVENT, handler as EventListener);
@@ -371,36 +391,32 @@ export default function ChatWidget() {
     );
     if (!raw) return;
 
-    removeMigratedItem(
-      "session",
-      PENDING_CHAT_START_KEY,
-      LEGACY_PENDING_CHAT_START_KEY
-    );
-
     try {
       const detail = JSON.parse(raw) as ChatWidgetOpenDetail;
       setOpen(true);
-      void ensureConversation(detail);
+      void ensureConversation(detail).finally(() => {
+        clearPendingChatRequestIfCurrent(raw);
+      });
     } catch {
-      // ignore invalid payload
+      removeMigratedItem(
+        "session",
+        PENDING_CHAT_START_KEY,
+        LEGACY_PENDING_CHAT_START_KEY
+      );
     }
   }, [ensureConversation, isAuthenticated, userRole]);
 
   useChatPolling(
-    () => {
-      void loadConversationList(false);
-    },
+    () => loadConversationList(false),
     10000,
-    isAuthenticated && isAllowedRole(userRole),
+    isAuthenticated && isAllowedRole(userRole) && open,
     [userRole, open]
   );
 
   useChatPolling(
-    () => {
-      if (open && selectedConversationId) {
-        void loadMessages(selectedConversationId, false);
-      }
-    },
+    () => open && selectedConversationId
+      ? loadMessages(selectedConversationId, false)
+      : Promise.resolve(),
     10000,
     isAuthenticated && isAllowedRole(userRole) && open && Boolean(selectedConversationId),
     [open, selectedConversationId]

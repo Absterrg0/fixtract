@@ -1,5 +1,5 @@
 'use client'
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
@@ -320,7 +320,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter()
   const pathname = usePathname()
 
-  const fetchCurrentUser = async (): Promise<
+  const fetchCurrentUser = useCallback(async (): Promise<
     | { status: 'ok'; user: User }
     | { status: 'unauthorized' }
     | { status: 'transient' }
@@ -352,9 +352,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Auth check failed:', error)
       return { status: 'transient' }
     }
-  }
+  }, [])
 
-  const checkAuth = async (): Promise<User | null> => {
+  const checkAuth = useCallback(async (): Promise<User | null> => {
     try {
       let result = await fetchCurrentUser()
 
@@ -378,9 +378,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false)
     }
-  }
+  }, [fetchCurrentUser])
 
-  const login = async (email: string, password: string, options?: { skipRedirect?: boolean }): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string, options?: { skipRedirect?: boolean }): Promise<boolean> => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`, {
         method: 'POST',
@@ -425,9 +425,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error('Login failed. Please try again.')
       return false
     }
-  }
+  }, [pathname, router])
 
-  const signup = async (userData: SignupData): Promise<boolean> => {
+  const signup = useCallback(async (userData: SignupData): Promise<boolean> => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
@@ -463,9 +463,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error('Signup failed. Please try again.')
       return false
     }
-  }
+  }, [])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
         method: 'POST',
@@ -485,7 +485,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Logged out successfully')
       router.push('/login')
     }
-  }
+  }, [router])
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
@@ -640,7 +640,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     idExpiryToastRef.current = toast.warning(message, { duration: Infinity, closeButton: true })
   }, [user])
 
-  const value: AuthContextType = {
+  const value = useMemo<AuthContextType>(() => ({
     user,
     loading,
     login,
@@ -648,7 +648,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     checkAuth,
     isAuthenticated: !!user,
-  }
+  }), [user, loading, login, signup, logout, checkAuth])
 
   const isPublic = isPublicRoute(pathname)
   const isAuth = isAuthRoute(pathname)

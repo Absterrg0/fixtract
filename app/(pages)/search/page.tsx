@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, ComponentProps, useMemo } from 'react';
+import React, { useState, useEffect, Suspense, ComponentProps, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +13,7 @@ import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 import { trackProjectSearch } from '@/lib/analytics';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
 type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
@@ -177,6 +178,7 @@ const extractLocationDetails = (raw?: string | null) => {
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const initialQuery = searchParams.get('q') || '';
   const initialLocation = searchParams.get('loc') || '';
   const initialType = (searchParams.get('type') || 'professionals') as 'professionals' | 'projects';
@@ -230,10 +232,8 @@ function SearchPageContent() {
     lng: number;
   } | null>(initialCoordinates);
 
-  // Store whether user location has been loaded
-  const [userLocationLoaded, setUserLocationLoaded] = useState(false);
-
-  const [categories, setCategories] = useState<string[]>([]);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const profileLocationHydratedRef = useRef(Boolean(initialLocation));
 
   // Fetch dynamic filter options using the custom hook
   const { filterOptions } = useFilterOptions({ country: 'BE' });
@@ -262,71 +262,29 @@ function SearchPageContent() {
     return buildProjectFacets(projectResults);
   }, [projectResults, searchType]);
 
-  // Fetch categories on mount (kept for backward compatibility)
+  // Reuse the globally loaded auth principal instead of issuing another /me request.
   useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  // Fetch user location if logged in and no location in URL
-  useEffect(() => {
-    const fetchUserLocation = async () => {
-      // Skip if location already set from URL params or already loaded
-      if (initialLocation || userLocationLoaded) {
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/me`,
-          { credentials: 'include' }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const user = data.data;
-
-          // Check if user has location set
-          if (user?.location?.coordinates && user.location.coordinates.length === 2) {
-            const [longitude, latitude] = user.location.coordinates;
-
-            // Format location string from user data
-            const locationParts = [
-              user.location.city,
-              user.location.country
-            ].filter(Boolean);
-
-            if (locationParts.length > 0) {
-              const userLocation = locationParts.join(', ');
-
-              console.log('✅ Pre-filling user location:', userLocation, { latitude, longitude });
-
-              // Update filters with user location
-              setFilters(prev => ({
-                ...prev,
-                location: userLocation
-              }));
-
-              // Set coordinates
-              setLocationCoordinates({ lat: latitude, lng: longitude });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch user location:', error);
-      } finally {
-        setUserLocationLoaded(true);
-      }
-    };
-
-    fetchUserLocation();
-  }, [initialLocation, userLocationLoaded]);
+    if (authLoading || !user || profileLocationHydratedRef.current) return;
+    profileLocationHydratedRef.current = true;
+    if (initialLocation || filters.location) return;
+    const coordinates = user?.location?.coordinates;
+    if (!coordinates || coordinates.length !== 2) return;
+    const [longitude, latitude] = coordinates;
+    const locationParts = [user.location?.city, user.location?.country].filter(Boolean);
+    if (locationParts.length === 0) return;
+    setFilters((prev) => ({ ...prev, location: locationParts.join(', ') }));
+    setLocationCoordinates({ lat: latitude, lng: longitude });
+  }, [authLoading, filters.location, initialLocation, user]);
 
   // Fetch results when filters or search type changes
   useEffect(() => {
     const timer = setTimeout(() => {
       performSearch();
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      searchAbortRef.current?.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     searchType,
@@ -352,23 +310,10 @@ function SearchPageContent() {
     locationCoordinates
   ]);
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`,
-        { credentials: 'include' }
-      );
-      if (response.ok) {
-        const data = (await response.json()) as Array<{ name: string }>;
-        const categoryNames = data.map((cat) => cat.name);
-        setCategories(categoryNames);
-      }
-    } catch (err) {
-      console.error('Failed to fetch categories:', err);
-    }
-  };
-
   const performSearch = async () => {
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     setIsLoading(true);
     setError(null);
 
@@ -413,16 +358,16 @@ function SearchPageContent() {
         if (locationCoordinates) {
           params.append('customerLat', locationCoordinates.lat.toString());
           params.append('customerLon', locationCoordinates.lng.toString());
-          console.log('📍 Sending customer coordinates for distance filtering:', locationCoordinates);
         }
       }
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
 
-      console.log('Searching:', searchUrl);
-
-      const response = await fetch(searchUrl, { credentials: 'include' });
+      const response = await fetch(searchUrl, {
+        credentials: 'include',
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -434,8 +379,7 @@ function SearchPageContent() {
         results?: SearchResult[];
         pagination?: PaginationState;
       };
-      console.log('Search response:', data);
-      console.log('Results count:', data.results?.length || 0);
+      if (controller.signal.aborted) return;
        if (searchType === 'projects' && Array.isArray(data.results)) {
         const availabilityDebug = data.results
           .map((project) => {
@@ -480,20 +424,17 @@ function SearchPageContent() {
         page: pagination.page,
         filtersCount: countActiveFilters(filters),
       });
-      if (searchType === 'projects' && data.results?.length) {
-        const priceModelsOnPage = data.results.map((project) => {
-          const projectData = project as ProjectResult;
-          return projectData?.priceModel || 'unknown';
-        });
-        console.log('Project price models on page:', priceModelsOnPage);
-      }
     } catch (err) {
+      if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
       console.error('Search error:', err);
       const message =
         err instanceof Error ? err.message : 'Failed to perform search. Please try again.';
       setError(message);
     } finally {
-      setIsLoading(false);
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -576,7 +517,7 @@ function SearchPageContent() {
                 onFilterChange={handleFilterChange}
                 onClearFilters={handleClearFilters}
                 searchType={searchType}
-                categories={categories}
+                categories={filterOptions.categories}
                 filterOptions={filterOptions}
                 facets={projectFacets}
                 onLocationCoordinatesChange={setLocationCoordinates}

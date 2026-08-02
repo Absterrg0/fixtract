@@ -98,6 +98,22 @@ export const fetchConversations = async (params?: { page?: number; limit?: numbe
   return data.data;
 };
 
+export const fetchUnreadConversationCount = async (): Promise<number> => {
+  const response = await fetch(`${API_BASE}/conversations/unread-count`, {
+    method: "GET",
+    credentials: "include",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await parseJson<{ success?: boolean; data?: { count?: number }; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.msg || `Failed to load unread conversations (${response.status})`);
+  }
+
+  const count = Number(data.data?.count);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+};
+
 export const fetchConversationMessages = async (
   conversationId: string,
   params?: { before?: string; limit?: number }

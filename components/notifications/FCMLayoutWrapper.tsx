@@ -5,6 +5,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FCMProvider } from '@/contexts/FCMProvider';
 import { NotificationInboxProvider } from '@/contexts/NotificationInboxProvider';
 import NotificationPermissionPrompt from '@/components/notifications/NotificationPermissionPrompt';
+import dynamic from 'next/dynamic';
+
+const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget'), {
+  ssr: false,
+});
 
 /**
  * FCMLayoutWrapper
@@ -24,6 +29,7 @@ const FCMLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children })
     <FCMProvider isAuthenticated={isAuthenticated}>
       <NotificationInboxProvider isAuthenticated={isAuthenticated}>
         {children}
+        {isAuthenticated && <ChatWidget />}
         {isAuthenticated && <NotificationPermissionPrompt />}
       </NotificationInboxProvider>
     </FCMProvider>

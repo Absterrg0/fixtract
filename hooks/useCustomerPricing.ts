@@ -2,11 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAuthToken } from '@/lib/utils'
 import { useCommissionRate } from './useCommissionRate'
+import { cachedClientRequest } from '@/lib/clientRequestCache'
 
 interface LoyaltyDiscountInfo {
   level: string
   percentage: number
   maxDiscountAmount: number | null
+}
+
+interface LoyaltyStatusResponse {
+  success?: boolean
+  msg?: string
+  error?: string
+  data?: {
+    userStats?: {
+      tierInfo?: {
+        name?: string
+        discountPercentage?: number
+        maxDiscountAmount?: number | null
+      }
+    }
+    loyaltyStatus?: { level?: string }
+  }
 }
 
 export interface CustomerPricing {
@@ -36,30 +53,26 @@ export function useCustomerPricing(): CustomerPricing {
     }
     setLoyalty(null)
     setLoyaltyLoaded(false)
-    const controller = new AbortController()
+    let active = true
     const token = getAuthToken()
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/loyalty/status`, {
-      credentials: 'include',
-      headers,
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (controller.signal.aborted) return null
+    cachedClientRequest<LoyaltyStatusResponse>(
+      `loyalty-status:${user._id}`,
+      async () => {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/loyalty/status`, {
+          credentials: 'include',
+          headers,
+        })
         if (!res.ok) {
-          let body = ''
-          try { body = await res.text() } catch { /* ignore */ }
-          if (controller.signal.aborted) return null
-          console.error(`Loyalty status request failed: ${res.status} ${res.statusText}`, body)
-          setLoyalty(null)
-          return null
+          throw new Error(`Loyalty status request failed (${res.status})`)
         }
         return res.json()
-      })
+      },
+      0,
+    )
       .then((json) => {
-        if (controller.signal.aborted) return
-        if (!json) return
+        if (!active) return
         if (!json.success) {
           console.error('Loyalty status payload error:', json?.msg || json?.error || json)
           setLoyalty(null)
@@ -76,15 +89,15 @@ export function useCustomerPricing(): CustomerPricing {
         }
       })
       .catch((error) => {
-        if (controller.signal.aborted) return
-        if (error instanceof Error && error.name === 'AbortError') return
+        if (!active) return
         console.error('Failed to fetch loyalty status:', error)
       })
       .finally(() => {
-        if (controller.signal.aborted) return
-        setLoyaltyLoaded(true)
+        if (active) setLoyaltyLoaded(true)
       })
-    return () => controller.abort()
+    return () => {
+      active = false
+    }
   }, [isAuthenticated, user?.role, user?._id])
 
   const applyLoyaltyDiscount = useCallback(

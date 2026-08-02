@@ -38,7 +38,9 @@ export async function publicListCms(
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.tag) qs.set("tag", params.tag);
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
-  const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
+    next: { revalidate: 60, tags: ["cms", `cms:${type}`] },
+  });
   const data = await parseJsonRequired<CmsListResponse>(res);
   data.items = data.items.map((item) => ({ ...item, body: sanitizeRichText(item.body || "") }));
   return data;
@@ -48,7 +50,9 @@ export async function publicGetCms(
   type: CmsContentType,
   slug: string
 ): Promise<CmsContent | null> {
-  const res = await fetch(`${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`, {
+    next: { revalidate: 60, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
+  });
   if (res.status === 404) return null;
   const data = await parseJsonRequired<CmsContent>(res);
   return { ...data, body: sanitizeRichText(data.body || "") };
@@ -67,7 +71,9 @@ export async function fetchCmsPostWithError(
 }
 
 export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
-  const res = await fetch(`${API}/api/public/cms/faq`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/public/cms/faq`, {
+    next: { revalidate: 60, tags: ["cms", "cms:faq"] },
+  });
   const data = await parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);
   data.groups = data.groups.map((g) => ({
     ...g,

@@ -366,16 +366,16 @@ export default function ChatPage() {
   }, [selectedConversationId]);
 
   useChatPolling(
-    () => void loadConversationList(false),
+    () => loadConversationList(false),
     10000,
     isAuthenticated && isAllowedRole(userRole),
     [userRole, chatFilter]
   );
 
   useChatPolling(
-    () => {
-      if (selectedConversationId) void loadMessages(selectedConversationId, false);
-    },
+    () => selectedConversationId
+      ? loadMessages(selectedConversationId, false)
+      : Promise.resolve(),
     10000,
     isAuthenticated && isAllowedRole(userRole) && Boolean(selectedConversationId),
     [selectedConversationId]

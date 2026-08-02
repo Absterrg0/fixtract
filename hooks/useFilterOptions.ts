@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FilterOptions, DEFAULT_PRICE_MODELS } from '@/types/filters';
 import { logError } from '@/lib/logger';
+import { cachedClientRequest } from '@/lib/clientRequestCache';
 
 export type { FilterOptions } from '@/types/filters';
 
@@ -42,16 +43,19 @@ export const useFilterOptions = ({
           throw new Error('NEXT_PUBLIC_BACKEND_URL is not configured');
         }
 
-        const response = await fetch(
-          `${backendUrl}/api/service-categories/active?country=${country}`,
-          { credentials: 'include' }
+        const data = await cachedClientRequest<ServiceCategoryResponse[]>(
+          `service-categories:${country}`,
+          async () => {
+            const response = await fetch(
+              `${backendUrl}/api/service-categories/active?country=${country}`,
+            );
+            if (!response.ok) {
+              throw new Error(`Failed to fetch filter options: ${response.status}`);
+            }
+            return response.json() as Promise<ServiceCategoryResponse[]>;
+          },
+          5 * 60 * 1000,
         );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch filter options: ${response.status}`);
-        }
-
-        const data = await response.json() as ServiceCategoryResponse[];
 
         // Extract unique categories
         const categories = data.map(cat => cat.name);

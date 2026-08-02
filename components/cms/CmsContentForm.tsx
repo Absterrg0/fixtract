@@ -25,10 +25,15 @@ import {
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import RichTextEditor from "./RichTextEditor";
+import dynamic from "next/dynamic";
 import CoverImageUpload from "./CoverImageUpload";
 import SeoPanel from "./SeoPanel";
 import RelatedContentPicker, { relatedItemsFromCms } from "./RelatedContentPicker";
+
+const RichTextEditor = dynamic(() => import("./RichTextEditor"), {
+  ssr: false,
+  loading: () => <div className="min-h-80 animate-pulse rounded-xl border bg-muted/30" />,
+});
 
 interface Props {
   mode: "create" | "edit";

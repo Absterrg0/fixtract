@@ -10,7 +10,6 @@ import React, {
   useMemo,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken, onMessage, deleteToken } from 'firebase/messaging';
 import { toast } from 'sonner';
 import { firebaseConfig, getFirebaseMessaging } from '@/lib/firebase';
 import { getAuthToken } from '@/lib/utils';
@@ -191,10 +190,10 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   const authSession = useRef(0);
 
   const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration): Promise<boolean> => {
-    const messaging = getFirebaseMessaging();
-    if (!messaging) return false;
-
     try {
+      const messaging = await getFirebaseMessaging();
+      if (!messaging) return false;
+      const { getToken } = await import('firebase/messaging');
       const token = await getToken(messaging, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: swReg,
@@ -258,28 +257,38 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   useEffect(() => {
     if (!permissionGranted) return;
 
-    const messaging = getFirebaseMessaging();
-    if (!messaging) return;
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
 
-    const unsubscribe = onMessage(messaging, (payload) => {
-      const { title = 'Fixtract', body = '' } = payload.notification ?? {};
-      const data = (payload.data ?? {}) as Record<string, string>;
-      const url = data.clickUrl || '/';
+    void Promise.all([getFirebaseMessaging(), import('firebase/messaging')])
+      .then(([messaging, { onMessage }]) => {
+        if (!active || !messaging) return;
+        unsubscribe = onMessage(messaging, (payload) => {
+          const { title = 'Fixtract', body = '' } = payload.notification ?? {};
+          const data = (payload.data ?? {}) as Record<string, string>;
+          const url = data.clickUrl || '/';
 
-      setUnreadPushCount((n) => n + 1);
-      window.dispatchEvent(new CustomEvent('fixtract:inbox-refresh'));
+          setUnreadPushCount((n) => n + 1);
+          window.dispatchEvent(new CustomEvent('fixtract:inbox-refresh'));
 
-      toast(title, {
-        description: body,
-        duration: 6000,
-        action: {
-          label: 'View',
-          onClick: () => navigateToUrl(router, url),
-        },
+          toast(title, {
+            description: body,
+            duration: 6000,
+            action: {
+              label: 'View',
+              onClick: () => navigateToUrl(router, url),
+            },
+          });
+        });
+      })
+      .catch((err) => {
+        if (active) console.warn('[FCM] Failed to register foreground messages:', err);
       });
-    });
 
-    return unsubscribe;
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [permissionGranted, router]);
 
   useEffect(() => {
@@ -310,13 +319,14 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
 
       if (authSession.current !== logoutSession) return;
 
-      const messaging = getFirebaseMessaging();
-      if (messaging) {
-        try {
+      try {
+        const messaging = await getFirebaseMessaging();
+        if (messaging) {
+          const { deleteToken } = await import('firebase/messaging');
           await deleteToken(messaging);
-        } catch (err) {
-          console.warn('[FCM] Failed to delete browser token:', err);
         }
+      } catch (err) {
+        console.warn('[FCM] Failed to delete browser token:', err);
       }
 
       if (authSession.current !== logoutSession) return;
