@@ -8,6 +8,7 @@ import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 export const revalidate = 60;
 
@@ -15,9 +16,10 @@ async function fetchAboutContent() {
   try {
     const landing = await publicGetCms("landing", "about");
     if (landing) return landing;
-    return await publicGetCms("policy", "about");
-  } catch {
-    return null;
+    return publicGetCms("policy", "about");
+  } catch (error) {
+    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return null;
+    throw error;
   }
 }
 

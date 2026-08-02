@@ -27,13 +27,15 @@ export async function cachedClientRequest<T>(
       entry.value = value;
       entry.expiresAt = Date.now() + ttlMs;
       entry.promise = undefined;
-      if (ttlMs <= 0) {
+      if (ttlMs <= 0 && entries.get(key) === entry) {
         entries.delete(key);
       }
       return value;
     })
     .catch((error) => {
-      entries.delete(key);
+      if (entries.get(key) === entry) {
+        entries.delete(key);
+      }
       throw error;
     });
   entries.set(key, entry);

@@ -7,6 +7,7 @@ import FaqAccordion from "@/components/cms/FaqAccordion";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema, faqSchema } from "@/lib/seo/jsonLd";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 export const revalidate = 60;
 
@@ -21,11 +22,12 @@ function stripHtml(html: string): string {
 }
 
 export default async function FaqPage() {
-  let groups: FaqGroup[] = [];
+  let groups: FaqGroup[];
   try {
     const res = await publicGetFaq();
     groups = res.groups;
-  } catch {
+  } catch (error) {
+    if (process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD) throw error;
     groups = [];
   }
 

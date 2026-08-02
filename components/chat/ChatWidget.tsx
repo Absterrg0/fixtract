@@ -165,6 +165,7 @@ export default function ChatWidget() {
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const conversationListRef = useRef<ChatConversation[]>([]);
+  const pendingStartInFlightRef = useRef<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
@@ -327,10 +328,7 @@ export default function ChatWidget() {
       return;
     }
 
-    if (open) {
-      void loadConversationList(true);
-    }
-  }, [isAuthenticated, loadConversationList, open, userRole]);
+  }, [isAuthenticated, open, userRole]);
 
   useEffect(() => {
     if (!shouldShowNewChatPanel || userRole !== "customer") return;
@@ -363,6 +361,7 @@ export default function ChatWidget() {
       const detail = customEvent.detail || {};
 
       setOpen(detail.open !== false);
+      if (detail.open === false) return;
 
       if (!isAuthenticated || !isAllowedRole(userRole)) {
         return;
@@ -390,14 +389,20 @@ export default function ChatWidget() {
       LEGACY_PENDING_CHAT_START_KEY
     );
     if (!raw) return;
+    if (pendingStartInFlightRef.current === raw) return;
+    pendingStartInFlightRef.current = raw;
 
     try {
       const detail = JSON.parse(raw) as ChatWidgetOpenDetail;
       setOpen(true);
       void ensureConversation(detail).finally(() => {
         clearPendingChatRequestIfCurrent(raw);
+        if (pendingStartInFlightRef.current === raw) {
+          pendingStartInFlightRef.current = null;
+        }
       });
     } catch {
+      pendingStartInFlightRef.current = null;
       removeMigratedItem(
         "session",
         PENDING_CHAT_START_KEY,

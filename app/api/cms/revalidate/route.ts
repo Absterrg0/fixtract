@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
   const authorization = request.headers.get("authorization") || "";
   const authResponse = await fetch(`${backendUrl}/api/auth/me`, {
     cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
     headers: {
       ...(cookie ? { cookie } : {}),
       ...(authorization ? { authorization } : {}),

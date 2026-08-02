@@ -171,6 +171,7 @@ async function revalidatePublicCms(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ type, slugs: slugs.filter(Boolean) }),
+    signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) {
     throw new Error(`CMS cache revalidation failed (${response.status})`);
@@ -211,7 +212,11 @@ export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsCont
     body: JSON.stringify(payload),
   });
   const created = await parseJsonRequired<CmsContent>(res);
-  await revalidatePublicCms(created.type, [created.slug]);
+  try {
+    await revalidatePublicCms(created.type, [created.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after create:", error);
+  }
   return created;
 }
 
@@ -223,7 +228,11 @@ export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Pro
     body: JSON.stringify(payload),
   });
   const updated = await parseJsonRequired<CmsContent>(res);
-  await revalidatePublicCms(updated.type, [previous.slug, updated.slug]);
+  try {
+    await revalidatePublicCms(updated.type, [previous.slug, updated.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after update:", error);
+  }
   return updated;
 }
 
@@ -231,7 +240,11 @@ export async function adminDeleteCms(id: string): Promise<void> {
   const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, { method: "DELETE" });
   await parseJson<void>(res);
-  await revalidatePublicCms(previous.type, [previous.slug]);
+  try {
+    await revalidatePublicCms(previous.type, [previous.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after delete:", error);
+  }
 }
 
 export async function adminUploadCmsImage(file: File): Promise<{ url: string; key: string }> {

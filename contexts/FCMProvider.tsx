@@ -321,6 +321,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
 
       try {
         const messaging = await getFirebaseMessaging();
+        if (authSession.current !== logoutSession) return;
         if (messaging) {
           const { deleteToken } = await import('firebase/messaging');
           await deleteToken(messaging);

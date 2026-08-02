@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) {
-    return buildMetadata({ title: "Blog", path: `/blog/${slug}` });
+    throw new Error(`Failed to load blog metadata for ${slug}`);
   }
   if (!post) {
     return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
@@ -43,16 +43,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
+  if (fetchError) throw new Error(`Failed to load blog post ${slug}`);
   if (!post && !fetchError) notFound();
-  if (!post) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
-        <h1 className="text-3xl font-bold text-rose-700">This post is temporarily unavailable</h1>
-        <p className="mt-3 text-rose-500">Please try again in a moment.</p>
-        <Link href="/blog" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">Back to blog</Link>
-      </div>
-    );
-  }
+  if (!post) notFound();
 
   const authorName = cmsAuthorName(post);
   const date = post.publishedAt || post.updatedAt;

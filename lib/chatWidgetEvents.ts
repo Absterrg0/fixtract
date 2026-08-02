@@ -18,6 +18,13 @@ export const emitChatWidgetOpen = (detail: ChatWidgetOpenDetail) => {
     } catch {
       // The event still works when storage is unavailable.
     }
+  } else {
+    try {
+      window.sessionStorage.removeItem(PENDING_CHAT_START_KEY);
+      window.sessionStorage.removeItem(LEGACY_PENDING_CHAT_START_KEY);
+    } catch {
+      // The close event still works when storage is unavailable.
+    }
   }
   window.dispatchEvent(
     new CustomEvent<ChatWidgetOpenDetail>(CHAT_WIDGET_OPEN_EVENT, { detail })
