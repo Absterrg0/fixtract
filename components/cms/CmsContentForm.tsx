@@ -198,7 +198,10 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         body: form.body || "",
         excerpt: form.excerpt || "",
         coverImage: form.coverImage || undefined,
-        coverImageAlt: (form.coverImageAlt || "").trim() || undefined,
+        coverImageAlt:
+          mode === "edit"
+            ? (form.coverImageAlt || "").trim() || null
+            : (form.coverImageAlt || "").trim() || undefined,
         category: isFaq ? form.category : undefined,
         tags: hasTags ? form.tags || [] : [],
         authorOverride: hasTags ? (form.authorOverride || "").trim() : undefined,

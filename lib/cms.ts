@@ -70,7 +70,7 @@ export interface CmsUpsertPayload {
   body?: string;
   excerpt?: string;
   coverImage?: string;
-  coverImageAlt?: string;
+  coverImageAlt?: string | null;
   category?: string;
   tags?: string[];
   status?: CmsContentStatus;

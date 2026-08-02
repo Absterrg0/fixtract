@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, RefreshCw, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
 import { FORCEABLE_BOOKING_STATUSES } from "@/lib/constants/adminBookingStatus"
+import { useAdminAccess } from "@/hooks/useAdminAccess"
 
 interface Refund {
   amount: number
@@ -92,12 +93,16 @@ export default function AdminBookingDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const id = params?.id
+  const { can } = useAdminAccess()
+  const canWriteBookings = can('bookings.write')
+  const canUseSupportChat = can('chat.support')
 
   const [data, setData] = useState<BookingDetailPayload | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [forceStatusValue, setForceStatusValue] = useState("")
   const [forcingStatus, setForcingStatus] = useState(false)
   const [startingChat, setStartingChat] = useState<'customer' | 'professional' | null>(null)
+  const [openingProChat, setOpeningProChat] = useState(false)
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -185,6 +190,32 @@ export default function AdminBookingDetailPage() {
     }
   }, [data])
 
+  const viewCustomerProChat = useCallback(async () => {
+    if (!id) return
+    const chatWindow = window.open('about:blank', '_blank')
+    setOpeningProChat(true)
+    try {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${id}/conversation`)
+      const json = await res.json()
+      if (!res.ok || !json?.success || !json?.data?.conversationId) {
+        chatWindow?.close()
+        toast.error(json?.msg || 'No customer↔professional chat found for this booking')
+        return
+      }
+      const url = `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`
+      if (chatWindow) {
+        chatWindow.location.href = url
+      } else {
+        window.open(url, '_blank', 'noopener')
+      }
+    } catch {
+      chatWindow?.close()
+      toast.error('Failed to open customer↔professional chat')
+    } finally {
+      setOpeningProChat(false)
+    }
+  }, [id])
+
   if (loading || !user) return null
 
   return (
@@ -234,26 +265,40 @@ export default function AdminBookingDetailPage() {
                   >
                     Open customer view
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={startingChat === 'customer' || !data.booking.customer?._id}
-                    onClick={() => handleStartSupportChat('customer')}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    {startingChat === 'customer' ? 'Opening…' : 'Chat customer'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={startingChat === 'professional' || !data.booking.professional?._id}
-                    onClick={() => handleStartSupportChat('professional')}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    {startingChat === 'professional' ? 'Opening…' : 'Chat professional'}
-                  </Button>
+                  {canUseSupportChat && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={startingChat === 'customer' || !data.booking.customer?._id}
+                        onClick={() => handleStartSupportChat('customer')}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        {startingChat === 'customer' ? 'Opening…' : 'Chat customer'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={startingChat === 'professional' || !data.booking.professional?._id}
+                        onClick={() => handleStartSupportChat('professional')}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        {startingChat === 'professional' ? 'Opening…' : 'Chat professional'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={openingProChat}
+                        onClick={viewCustomerProChat}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        {openingProChat ? 'Opening…' : 'View customer↔pro chat'}
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t mt-3">
+                {canWriteBookings && (
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t mt-3">
                   <span className="text-xs text-gray-500">Force status:</span>
                   <Select value={forceStatusValue} onValueChange={setForceStatusValue}>
                     <SelectTrigger className="h-8 w-52 text-xs">
@@ -273,7 +318,8 @@ export default function AdminBookingDetailPage() {
                     {forcingStatus ? 'Applying…' : 'Apply'}
                   </Button>
                   <span className="text-[11px] text-gray-400">Status override only — does not trigger payments/refunds.</span>
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

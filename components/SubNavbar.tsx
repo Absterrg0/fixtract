@@ -4,6 +4,8 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
+import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
+import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
 
 interface Service {
   name: string;
@@ -75,10 +77,14 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
   }, []);
 
   const hoveredCategoryData = categories.find(c => c.slug === hoveredCategory);
+  const { bar: announceBar } = useActiveTopBar();
+  const stickyTop = announceBar
+    ? `calc(4rem + ${ANNOUNCE_BANNER_HEIGHT_PX})`
+    : "4rem";
 
   return (
     <>
-      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky top-16 z-40">
+      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40" style={{ top: stickyTop }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto scrollbar-hide">
           <div className="flex justify-between items-center h-12 min-w-full">
             {categories.map((category) => {

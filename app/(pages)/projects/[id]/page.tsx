@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/utils';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -343,7 +344,6 @@ export default function ProjectDetailPage() {
     let cancelled = false;
     (async () => {
       try {
-        const { authFetch } = await import('@/lib/utils');
         const res = await authFetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/favorites/status`,
           {

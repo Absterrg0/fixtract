@@ -340,7 +340,19 @@ export default function AdminChatReportsPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 flex-wrap">
+                {drawerReport?.conversationId?._id && (
+                  <Button variant="outline" asChild>
+                    <a
+                      href={`/admin/chat?conversationId=${drawerReport.conversationId._id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Open full thread
+                    </a>
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => { setDrawerOpen(false); setDrawerReport(null) }}>
                   Cancel
                 </Button>
