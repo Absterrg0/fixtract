@@ -195,11 +195,18 @@ export default function ChatWidget() {
   }, [conversations, userRole]);
 
   const loadConversationList = useCallback(
-    async (busy: boolean) => {
+    async (busy: boolean, forceRefresh = false) => {
       if (!isAuthenticated || !isAllowedRole(userRole)) return;
 
       if (conversationListRequestRef.current) {
-        return conversationListRequestRef.current;
+        if (!forceRefresh) {
+          return conversationListRequestRef.current;
+        }
+        try {
+          await conversationListRequestRef.current;
+        } catch {
+          // Start a fresh refresh even if the superseded request failed.
+        }
       }
 
       if (busy) {
@@ -303,7 +310,7 @@ export default function ChatWidget() {
             const conversation = await createOrGetConversation({
               customerId: detail.customerId,
             });
-            await loadConversationList(false);
+            await loadConversationList(false, true);
             setManualNewChatPanel(false);
             setSelectedConversationId(conversation._id);
           } catch {
@@ -321,7 +328,7 @@ export default function ChatWidget() {
           professionalId: detail.professionalId,
         });
 
-        await loadConversationList(false);
+        await loadConversationList(false, true);
         setManualNewChatPanel(false);
         setSelectedConversationId(conversation._id);
       } catch (error) {

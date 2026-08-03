@@ -316,6 +316,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
   const checkAuthGenerationRef = useRef(0)
+  const authSessionEpochRef = useRef(0)
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
@@ -357,20 +358,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuth = useCallback(async (options?: { strict?: boolean }): Promise<User | null> => {
     const generation = ++checkAuthGenerationRef.current
+    const sessionEpoch = authSessionEpochRef.current
     try {
       let result = await fetchCurrentUser()
 
       if (result.status === 'transient') {
         await new Promise(resolve => setTimeout(resolve, 600))
         // Bail if a newer checkAuth started while we waited.
-        if (generation !== checkAuthGenerationRef.current) {
+        if (
+          generation !== checkAuthGenerationRef.current ||
+          sessionEpoch !== authSessionEpochRef.current
+        ) {
           return options?.strict ? null : userRef.current
         }
         result = await fetchCurrentUser()
       }
 
       // Superseded checks must not clear or overwrite a newer session.
-      if (generation !== checkAuthGenerationRef.current) {
+      if (
+        generation !== checkAuthGenerationRef.current ||
+        sessionEpoch !== authSessionEpochRef.current
+      ) {
         return options?.strict ? null : userRef.current
       }
 
@@ -407,6 +415,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
 
       if (response.ok && data.success) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Login successful!')
@@ -454,6 +464,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
 
       if (response.ok && data.success) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Account created successfully!')
@@ -479,6 +491,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   const logout = useCallback(async () => {
+    authSessionEpochRef.current += 1
+    checkAuthGenerationRef.current += 1
     try {
       await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
         method: 'POST',
@@ -554,6 +568,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Invite acceptance stores a fresh token then runs a strict checkAuth.
       // Skip the boot-time /me probe so a pre-token 401 cannot race and clear it.
       if (pathname.startsWith('/admin/accept-invite')) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
         setLoading(false)
         if (!cancelled) setIsInitialized(true)
         return

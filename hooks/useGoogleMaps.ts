@@ -13,6 +13,7 @@ let googleMapsLoadPromise: Promise<boolean> | null = null
 
 const hasPlacesLibrary = () =>
   typeof window !== 'undefined' && Boolean(window.google?.maps?.places)
+const GOOGLE_MAPS_LOAD_TIMEOUT_MS = 15_000
 
 const loadGoogleMapsScript = async (): Promise<boolean> => {
   if (hasPlacesLibrary()) return true
@@ -35,7 +36,17 @@ const loadGoogleMapsScript = async (): Promise<boolean> => {
   const script = existingScript ?? document.createElement('script')
 
   return new Promise((resolve, reject) => {
+    let settled = false
+    const timeoutId = setTimeout(() => {
+      if (settled) return
+      settled = true
+      reject(new Error('Timed out waiting for the Google Maps Places library'))
+    }, GOOGLE_MAPS_LOAD_TIMEOUT_MS)
+
     const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutId)
       if (hasPlacesLibrary()) {
         resolve(true)
       } else {
@@ -46,7 +57,12 @@ const loadGoogleMapsScript = async (): Promise<boolean> => {
     script.addEventListener('load', finish, { once: true })
     script.addEventListener(
       'error',
-      () => reject(new Error('Failed to load the Google Maps script')),
+      () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        reject(new Error('Failed to load the Google Maps script'))
+      },
       { once: true },
     )
 
@@ -130,7 +146,7 @@ export const useGoogleMaps = (): GoogleMapsHook => {
   }
 
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-    if (!address || !hasPlacesLibrary()) {
+    if (!address || typeof window === 'undefined' || !window.google?.maps?.Geocoder) {
       return null
     }
 

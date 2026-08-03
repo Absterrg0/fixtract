@@ -189,9 +189,13 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   const currentToken = useRef<string | null>(null);
   const authSession = useRef(0);
 
-  const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration): Promise<boolean> => {
+  const obtainToken = useCallback(async (
+    swReg: ServiceWorkerRegistration,
+    sessionEpoch: number,
+  ): Promise<boolean> => {
     try {
       const messaging = await getFirebaseMessaging();
+      if (authSession.current !== sessionEpoch) return false;
       if (!messaging) return false;
       const { getToken } = await import('firebase/messaging');
       const token = await getToken(messaging, {
@@ -199,10 +203,12 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
         serviceWorkerRegistration: swReg,
       });
 
+      if (authSession.current !== sessionEpoch) return false;
       if (!token) return false;
 
       if (token !== currentToken.current) {
         await saveTokenToServer(token);
+        if (authSession.current !== sessionEpoch) return false;
         currentToken.current = token;
         setFcmToken(token);
       }
@@ -214,11 +220,13 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   }, []);
 
   const bootstrapFcm = useCallback(async (): Promise<boolean> => {
+    const sessionEpoch = authSession.current;
     const swReg = await registerServiceWorker();
+    if (authSession.current !== sessionEpoch) return false;
     if (!swReg) return false;
 
-    const ready = await obtainToken(swReg);
-    if (ready) setPermissionGranted(true);
+    const ready = await obtainToken(swReg, sessionEpoch);
+    if (ready && authSession.current === sessionEpoch) setPermissionGranted(true);
     return ready;
   }, [obtainToken]);
 

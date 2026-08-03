@@ -27,13 +27,19 @@ export async function getServiceCategories(
   if (!backendUrl) return FALLBACK_SERVICE_CATEGORIES;
 
   try {
-    const response = await fetch(
-      `${backendUrl}/api/service-categories/active?country=${encodeURIComponent(country)}`,
-      { next: { revalidate: 300 } },
-    );
-    if (!response.ok) throw new Error(`Service categories request failed (${response.status})`);
-    const categories = (await response.json()) as ServiceCategoryItem[];
-    return categories.length > 0 ? categories : FALLBACK_SERVICE_CATEGORIES;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/service-categories/active?country=${encodeURIComponent(country)}`,
+        { next: { revalidate: 300 }, signal: controller.signal },
+      );
+      if (!response.ok) throw new Error(`Service categories request failed (${response.status})`);
+      const categories = (await response.json()) as ServiceCategoryItem[];
+      return categories.length > 0 ? categories : FALLBACK_SERVICE_CATEGORIES;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch {
     return FALLBACK_SERVICE_CATEGORIES;
   }

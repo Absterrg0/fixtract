@@ -39,6 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
   const { post, fetchError } = await fetchCmsPostWithError("news", slug);
+  if (fetchError) throw new Error(`Failed to load news article ${slug}`);
   if (!post && !fetchError) notFound();
   if (!post) {
     return (
