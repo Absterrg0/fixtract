@@ -177,10 +177,15 @@ function navigateToUrl(router: ReturnType<typeof useRouter>, url: string): void 
 
 interface FCMProviderProps {
   isAuthenticated: boolean;
+  sessionKey: string | null;
   children: React.ReactNode;
 }
 
-export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, children }) => {
+export const FCMProvider: React.FC<FCMProviderProps> = ({
+  isAuthenticated,
+  sessionKey,
+  children,
+}) => {
   const router = useRouter();
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
@@ -232,13 +237,14 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    const sessionEpoch = authSession.current;
 
     if (Notification.permission === 'granted') {
-      return bootstrapFcm();
+      return authSession.current === sessionEpoch ? bootstrapFcm() : false;
     }
 
     const result = await Notification.requestPermission();
-    if (result === 'granted') {
+    if (result === 'granted' && authSession.current === sessionEpoch) {
       return bootstrapFcm();
     }
 
@@ -246,11 +252,13 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   }, [bootstrapFcm]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
     authSession.current += 1;
-    if (initialised.current) return;
+    if (!isAuthenticated || !sessionKey) return;
     if (typeof window === 'undefined' || !('Notification' in window)) return;
 
+    initialised.current = false;
+    currentToken.current = null;
+    setFcmToken(null);
     initialised.current = true;
 
     const init = async () => {
@@ -260,18 +268,20 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     };
 
     void init();
-  }, [isAuthenticated, bootstrapFcm]);
+  }, [isAuthenticated, sessionKey, bootstrapFcm]);
 
   useEffect(() => {
     if (!permissionGranted) return;
 
+    const sessionEpoch = authSession.current;
     let active = true;
     let unsubscribe: (() => void) | undefined;
 
     void Promise.all([getFirebaseMessaging(), import('firebase/messaging')])
       .then(([messaging, { onMessage }]) => {
-        if (!active || !messaging) return;
+        if (!active || authSession.current !== sessionEpoch || !messaging) return;
         unsubscribe = onMessage(messaging, (payload) => {
+          if (!active || authSession.current !== sessionEpoch) return;
           const { title = 'Fixtract', body = '' } = payload.notification ?? {};
           const data = (payload.data ?? {}) as Record<string, string>;
           const url = data.clickUrl || '/';
@@ -297,7 +307,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
       active = false;
       unsubscribe?.();
     };
-  }, [permissionGranted, router]);
+  }, [permissionGranted, router, sessionKey]);
 
   useEffect(() => {
     const onFocus = () => setUnreadPushCount(0);
@@ -333,6 +343,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
         if (authSession.current !== logoutSession) return;
         if (messaging) {
           const { deleteToken } = await import('firebase/messaging');
+          if (authSession.current !== logoutSession) return;
           await deleteToken(messaging);
         }
       } catch (err) {

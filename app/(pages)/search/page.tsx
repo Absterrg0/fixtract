@@ -233,7 +233,10 @@ function SearchPageContent() {
   } | null>(initialCoordinates);
 
   const searchAbortRef = useRef<AbortController | null>(null);
-  const profileLocationHydratedRef = useRef(Boolean(initialLocation));
+  const profileLocationHydratedForUserRef = useRef<string | null>(
+    initialLocation ? "__url_location__" : null,
+  );
+  const hasProfileDerivedLocationRef = useRef(false);
 
   // Fetch dynamic filter options using the custom hook
   const { filterOptions } = useFilterOptions({ country: 'BE' });
@@ -264,17 +267,39 @@ function SearchPageContent() {
 
   // Reuse the globally loaded auth principal instead of issuing another /me request.
   useEffect(() => {
-    if (authLoading || !user || profileLocationHydratedRef.current) return;
-    profileLocationHydratedRef.current = true;
-    if (initialLocation || filters.location) return;
+    if (authLoading) return;
+
+    const userId = user?._id ?? null;
+    if (profileLocationHydratedForUserRef.current === userId) return;
+
+    if (hasProfileDerivedLocationRef.current) {
+      setFilters((prev) => ({ ...prev, location: '' }));
+      setLocationCoordinates(null);
+      hasProfileDerivedLocationRef.current = false;
+    }
+
+    if (!user || initialLocation) {
+      profileLocationHydratedForUserRef.current = userId;
+      return;
+    }
+
     const coordinates = user?.location?.coordinates;
-    if (!coordinates || coordinates.length !== 2) return;
+    if (!coordinates || coordinates.length !== 2) {
+      profileLocationHydratedForUserRef.current = userId;
+      return;
+    }
     const [longitude, latitude] = coordinates;
     const locationParts = [user.location?.city, user.location?.country].filter(Boolean);
-    if (locationParts.length === 0) return;
+    if (locationParts.length === 0) {
+      profileLocationHydratedForUserRef.current = userId;
+      return;
+    }
+
     setFilters((prev) => ({ ...prev, location: locationParts.join(', ') }));
     setLocationCoordinates({ lat: latitude, lng: longitude });
-  }, [authLoading, filters.location, initialLocation, user]);
+    hasProfileDerivedLocationRef.current = true;
+    profileLocationHydratedForUserRef.current = userId;
+  }, [authLoading, initialLocation, user]);
 
   // Fetch results when filters or search type changes
   useEffect(() => {

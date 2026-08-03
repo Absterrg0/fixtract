@@ -23,10 +23,11 @@ const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget'), {
  * Must be a child of <AuthProvider>.
  */
 const FCMLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const sessionKey = user?._id ?? null;
 
   return (
-    <FCMProvider isAuthenticated={isAuthenticated}>
+    <FCMProvider isAuthenticated={isAuthenticated} sessionKey={sessionKey}>
       <NotificationInboxProvider isAuthenticated={isAuthenticated}>
         {children}
         {isAuthenticated && <ChatWidget />}

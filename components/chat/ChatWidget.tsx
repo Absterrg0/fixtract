@@ -85,8 +85,14 @@ export default function ChatWidget() {
   const [activeProjects, setActiveProjects] = useState<Array<{ _id: string; title?: string }>>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
+  const conversationListRef = useRef<ChatConversation[]>([]);
+  const conversationListRequestRef = useRef<Promise<void> | null>(null);
+  const conversationListRequestGenerationRef = useRef(0);
+  const pendingStartInFlightRef = useRef<string | null>(null);
+  const chatSessionRef = useRef(0);
 
   const loadActiveProjects = useCallback(async () => {
+    const session = chatSessionRef.current;
     setLoadingProjects(true);
     try {
       const token = getAuthToken();
@@ -98,6 +104,7 @@ export default function ChatWidget() {
         { credentials: "include", headers }
       );
       const data = await response.json();
+      if (session !== chatSessionRef.current) return;
       if (response.ok && data?.success) {
         const projects = Array.isArray(data.data?.projects) ? data.data.projects : [];
         setActiveProjects(projects);
@@ -111,11 +118,14 @@ export default function ChatWidget() {
         setSelectedProjectId("none");
       }
     } catch (err) {
+      if (session !== chatSessionRef.current) return;
       console.error("Error loading active projects:", err);
       setActiveProjects([]);
       setSelectedProjectId("none");
     } finally {
-      setLoadingProjects(false);
+      if (session === chatSessionRef.current) {
+        setLoadingProjects(false);
+      }
     }
   }, []);
 
@@ -164,11 +174,6 @@ export default function ChatWidget() {
   };
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const conversationListRef = useRef<ChatConversation[]>([]);
-  const conversationListRequestRef = useRef<Promise<void> | null>(null);
-  const conversationListRequestGenerationRef = useRef(0);
-  const pendingStartInFlightRef = useRef<string | null>(null);
-  const chatSessionRef = useRef(0);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
@@ -259,6 +264,7 @@ export default function ChatWidget() {
   const loadMessages = useCallback(
     async (conversationId: string, busy: boolean) => {
       if (!conversationId) return;
+      const session = chatSessionRef.current;
 
       if (busy) {
         setLoadingMessages(true);
@@ -266,13 +272,14 @@ export default function ChatWidget() {
 
       try {
         const data = await fetchConversationMessages(conversationId, { limit: 100 });
+        if (session !== chatSessionRef.current) return;
         setMessages(data.messages || []);
       } catch {
-        if (open) {
+        if (session === chatSessionRef.current && open) {
           toast.error("Failed to load messages");
         }
       } finally {
-        if (busy) {
+        if (busy && session === chatSessionRef.current) {
           setLoadingMessages(false);
         }
       }
@@ -359,6 +366,10 @@ export default function ChatWidget() {
     setSelectedConversationId(null);
     setMessages([]);
     setManualNewChatPanel(false);
+    setShowQuotationDialog(false);
+    setActiveProjects([]);
+    setSelectedProjectId("none");
+    setLoadingProjects(false);
 
     if (!isAuthenticated || !isAllowedRole(userRole)) {
       setOpen(false);

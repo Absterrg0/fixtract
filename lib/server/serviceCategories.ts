@@ -22,25 +22,26 @@ const FALLBACK_SERVICE_CATEGORIES: ServiceCategoryItem[] = [
   { name: "Inspections", slug: "inspections", services: [] },
 ];
 
-const isString = (value: unknown): value is string => typeof value === "string";
+const isNonBlankString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
 
 const isServiceItem = (
   value: unknown,
 ): value is ServiceCategoryItem["services"][number] =>
   typeof value === "object" &&
   value !== null &&
-  isString((value as { name?: unknown }).name) &&
-  isString((value as { slug?: unknown }).slug) &&
+  isNonBlankString((value as { name?: unknown }).name) &&
+  isNonBlankString((value as { slug?: unknown }).slug) &&
   ((value as { icon?: unknown }).icon === undefined ||
-    isString((value as { icon?: unknown }).icon));
+    typeof (value as { icon?: unknown }).icon === "string");
 
 const isServiceCategoryItem = (value: unknown): value is ServiceCategoryItem =>
   typeof value === "object" &&
   value !== null &&
-  isString((value as { name?: unknown }).name) &&
-  isString((value as { slug?: unknown }).slug) &&
+  isNonBlankString((value as { name?: unknown }).name) &&
+  isNonBlankString((value as { slug?: unknown }).slug) &&
   ((value as { icon?: unknown }).icon === undefined ||
-    isString((value as { icon?: unknown }).icon)) &&
+    typeof (value as { icon?: unknown }).icon === "string") &&
   Array.isArray((value as { services?: unknown }).services) &&
   (value as { services: unknown[] }).services.every(isServiceItem);
 
