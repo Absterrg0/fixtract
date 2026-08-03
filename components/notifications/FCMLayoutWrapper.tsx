@@ -28,7 +28,7 @@ const FCMLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children })
 
   return (
     <FCMProvider isAuthenticated={isAuthenticated} sessionKey={sessionKey}>
-      <NotificationInboxProvider isAuthenticated={isAuthenticated}>
+      <NotificationInboxProvider isAuthenticated={isAuthenticated} sessionKey={sessionKey}>
         {children}
         {isAuthenticated && <ChatWidget />}
         {isAuthenticated && <NotificationPermissionPrompt />}

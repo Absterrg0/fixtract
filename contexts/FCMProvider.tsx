@@ -253,6 +253,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({
 
   useEffect(() => {
     authSession.current += 1;
+    setUnreadPushCount(0);
     if (!isAuthenticated || !sessionKey) return;
     if (typeof window === 'undefined' || !('Notification' in window)) return;
 

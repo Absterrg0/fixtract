@@ -57,30 +57,32 @@ function authHeaders(): Record<string, string> {
 
 interface ProviderProps {
   isAuthenticated: boolean;
+  sessionKey: string | null;
   children: React.ReactNode;
 }
 
 export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   isAuthenticated,
+  sessionKey,
   children,
 }) => {
   const [items, setItems] = useState<InboxNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const isAuthenticatedRef = useRef(isAuthenticated);
+  const sessionKeyRef = useRef(sessionKey);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Sync auth guard + clear inbox before paint so in-flight responses cannot repopulate after logout.
+  // Sync account guard + clear inbox before paint so stale requests cannot repopulate it.
   useLayoutEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
-    if (!isAuthenticated) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      setItems([]);
-      setUnreadCount(0);
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
+    sessionKeyRef.current = sessionKey;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setItems([]);
+    setUnreadCount(0);
+    setLoading(false);
+  }, [isAuthenticated, sessionKey]);
 
   const refresh = useCallback(async () => {
     if (!isAuthenticatedRef.current || !BACKEND_URL) {
@@ -92,6 +94,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const requestSessionKey = sessionKeyRef.current;
 
     setLoading(true);
     try {
@@ -101,9 +104,17 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
         signal: controller.signal,
       });
       if (!res.ok) return;
-      if (!isAuthenticatedRef.current || controller.signal.aborted) return;
+      if (
+        !isAuthenticatedRef.current ||
+        sessionKeyRef.current !== requestSessionKey ||
+        controller.signal.aborted
+      ) return;
       const json = await res.json();
-      if (!isAuthenticatedRef.current || controller.signal.aborted) return;
+      if (
+        !isAuthenticatedRef.current ||
+        sessionKeyRef.current !== requestSessionKey ||
+        controller.signal.aborted
+      ) return;
       if (json?.success && json.data) {
         setItems(json.data.items ?? []);
         setUnreadCount(json.data.unreadCount ?? 0);
@@ -112,7 +123,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
       if (err instanceof DOMException && err.name === 'AbortError') return;
       // ignore transient network errors
     } finally {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && sessionKeyRef.current === requestSessionKey) {
         setLoading(false);
       }
     }
@@ -169,7 +180,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
       window.clearInterval(interval);
       abortRef.current?.abort();
     };
-  }, [isAuthenticated, refresh]);
+  }, [isAuthenticated, sessionKey, refresh]);
 
   const value = useMemo(
     () => ({ items, unreadCount, loading, refresh, markRead, markAllRead }),

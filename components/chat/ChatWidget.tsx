@@ -90,6 +90,7 @@ export default function ChatWidget() {
   const conversationListRequestGenerationRef = useRef(0);
   const pendingStartInFlightRef = useRef<string | null>(null);
   const chatSessionRef = useRef(0);
+  const messageRequestGenerationRef = useRef(0);
 
   const loadActiveProjects = useCallback(async () => {
     const session = chatSessionRef.current;
@@ -265,6 +266,7 @@ export default function ChatWidget() {
     async (conversationId: string, busy: boolean) => {
       if (!conversationId) return;
       const session = chatSessionRef.current;
+      const generation = ++messageRequestGenerationRef.current;
 
       if (busy) {
         setLoadingMessages(true);
@@ -272,14 +274,25 @@ export default function ChatWidget() {
 
       try {
         const data = await fetchConversationMessages(conversationId, { limit: 100 });
-        if (session !== chatSessionRef.current) return;
+        if (
+          session !== chatSessionRef.current ||
+          generation !== messageRequestGenerationRef.current
+        ) return;
         setMessages(data.messages || []);
       } catch {
-        if (session === chatSessionRef.current && open) {
+        if (
+          session === chatSessionRef.current &&
+          generation === messageRequestGenerationRef.current &&
+          open
+        ) {
           toast.error("Failed to load messages");
         }
       } finally {
-        if (busy && session === chatSessionRef.current) {
+        if (
+          busy &&
+          session === chatSessionRef.current &&
+          generation === messageRequestGenerationRef.current
+        ) {
           setLoadingMessages(false);
         }
       }
@@ -359,6 +372,7 @@ export default function ChatWidget() {
   useEffect(() => {
     chatSessionRef.current += 1;
     conversationListRequestGenerationRef.current += 1;
+    messageRequestGenerationRef.current += 1;
     conversationListRequestRef.current = null;
     conversationListRef.current = [];
     pendingStartInFlightRef.current = null;
@@ -370,6 +384,13 @@ export default function ChatWidget() {
     setActiveProjects([]);
     setSelectedProjectId("none");
     setLoadingProjects(false);
+    setLoadingConversations(false);
+    setLoadingMessages(false);
+    setCreatingConversation(false);
+    setLoadingProfessionals(false);
+    setProfessionalsError(null);
+    setCreatingSendQuotation(false);
+    setSending(false);
 
     if (!isAuthenticated || !isAllowedRole(userRole)) {
       setOpen(false);
