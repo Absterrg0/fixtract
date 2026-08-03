@@ -14,9 +14,16 @@ let firebaseAppPromise: Promise<FirebaseApp> | null = null;
 
 async function getFirebaseApp(): Promise<FirebaseApp> {
   if (!firebaseAppPromise) {
-    firebaseAppPromise = import('firebase/app').then(({ getApp, getApps, initializeApp }) =>
+    const initialization = import('firebase/app').then(({ getApp, getApps, initializeApp }) =>
       getApps().length === 0 ? initializeApp(firebaseConfig) : getApp(),
     );
+    const retriableInitialization = initialization.catch((error) => {
+      if (firebaseAppPromise === retriableInitialization) {
+        firebaseAppPromise = null;
+      }
+      throw error;
+    });
+    firebaseAppPromise = retriableInitialization;
   }
   return firebaseAppPromise;
 }

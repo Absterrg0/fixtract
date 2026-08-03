@@ -11,6 +11,8 @@ export interface ServiceCategoryItem {
   }>;
 }
 
+const SERVICE_CATEGORY_TIMEOUT_MS = 3_000;
+
 const FALLBACK_SERVICE_CATEGORIES: ServiceCategoryItem[] = [
   { name: "Small tasks", slug: "small-tasks", services: [] },
   { name: "Interior", slug: "interior", services: [] },
@@ -20,6 +22,28 @@ const FALLBACK_SERVICE_CATEGORIES: ServiceCategoryItem[] = [
   { name: "Inspections", slug: "inspections", services: [] },
 ];
 
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isServiceItem = (
+  value: unknown,
+): value is ServiceCategoryItem["services"][number] =>
+  typeof value === "object" &&
+  value !== null &&
+  isString((value as { name?: unknown }).name) &&
+  isString((value as { slug?: unknown }).slug) &&
+  ((value as { icon?: unknown }).icon === undefined ||
+    isString((value as { icon?: unknown }).icon));
+
+const isServiceCategoryItem = (value: unknown): value is ServiceCategoryItem =>
+  typeof value === "object" &&
+  value !== null &&
+  isString((value as { name?: unknown }).name) &&
+  isString((value as { slug?: unknown }).slug) &&
+  ((value as { icon?: unknown }).icon === undefined ||
+    isString((value as { icon?: unknown }).icon)) &&
+  Array.isArray((value as { services?: unknown }).services) &&
+  (value as { services: unknown[] }).services.every(isServiceItem);
+
 export async function getServiceCategories(
   country = "BE",
 ): Promise<ServiceCategoryItem[]> {
@@ -28,15 +52,19 @@ export async function getServiceCategories(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8_000);
+    const timeoutId = setTimeout(() => controller.abort(), SERVICE_CATEGORY_TIMEOUT_MS);
     try {
       const response = await fetch(
         `${backendUrl}/api/service-categories/active?country=${encodeURIComponent(country)}`,
         { next: { revalidate: 300 }, signal: controller.signal },
       );
       if (!response.ok) throw new Error(`Service categories request failed (${response.status})`);
-      const categories = (await response.json()) as ServiceCategoryItem[];
-      return categories.length > 0 ? categories : FALLBACK_SERVICE_CATEGORIES;
+      const categories: unknown = await response.json();
+      return Array.isArray(categories) &&
+        categories.length > 0 &&
+        categories.every(isServiceCategoryItem)
+        ? categories
+        : FALLBACK_SERVICE_CATEGORIES;
     } finally {
       clearTimeout(timeoutId);
     }

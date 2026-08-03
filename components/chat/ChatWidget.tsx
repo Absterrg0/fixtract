@@ -168,6 +168,7 @@ export default function ChatWidget() {
   const conversationListRequestRef = useRef<Promise<void> | null>(null);
   const conversationListRequestGenerationRef = useRef(0);
   const pendingStartInFlightRef = useRef<string | null>(null);
+  const chatSessionRef = useRef(0);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
@@ -207,6 +208,9 @@ export default function ChatWidget() {
         } catch {
           // Start a fresh refresh even if the superseded request failed.
         }
+        if (conversationListRequestRef.current) {
+          return conversationListRequestRef.current;
+        }
       }
 
       if (busy) {
@@ -214,10 +218,12 @@ export default function ChatWidget() {
       }
 
       const generation = ++conversationListRequestGenerationRef.current;
+      const session = chatSessionRef.current;
       const request = (async () => {
         try {
           const data = await fetchConversations({ page: 1, limit: 50 });
           const list = data.conversations || [];
+          if (session !== chatSessionRef.current) return;
           setConversations(list);
           conversationListRef.current = list;
 
@@ -232,10 +238,13 @@ export default function ChatWidget() {
             toast.error("Failed to load conversations");
           }
         } finally {
-          if (busy) {
+          if (busy && session === chatSessionRef.current) {
             setLoadingConversations(false);
           }
-          if (conversationListRequestGenerationRef.current === generation) {
+          if (
+            session === chatSessionRef.current &&
+            conversationListRequestGenerationRef.current === generation
+          ) {
             conversationListRequestRef.current = null;
           }
         }
@@ -341,16 +350,22 @@ export default function ChatWidget() {
   );
 
   useEffect(() => {
+    chatSessionRef.current += 1;
+    conversationListRequestGenerationRef.current += 1;
+    conversationListRequestRef.current = null;
+    conversationListRef.current = [];
+    pendingStartInFlightRef.current = null;
+    setConversations([]);
+    setSelectedConversationId(null);
+    setMessages([]);
+    setManualNewChatPanel(false);
+
     if (!isAuthenticated || !isAllowedRole(userRole)) {
       setOpen(false);
-      setConversations([]);
-      setSelectedConversationId(null);
-      setMessages([]);
-      setManualNewChatPanel(false);
       return;
     }
 
-  }, [isAuthenticated, open, userRole]);
+  }, [isAuthenticated, userId, userRole]);
 
   useEffect(() => {
     if (!shouldShowNewChatPanel || userRole !== "customer") return;
@@ -431,7 +446,9 @@ export default function ChatWidget() {
         }
       });
     } catch {
-      pendingStartInFlightRef.current = null;
+      if (pendingStartInFlightRef.current === raw) {
+        pendingStartInFlightRef.current = null;
+      }
       removeMigratedItem(
         "session",
         PENDING_CHAT_START_KEY,
@@ -444,6 +461,13 @@ export default function ChatWidget() {
     () => loadConversationList(false),
     10000,
     isAuthenticated && isAllowedRole(userRole) && open,
+    [userRole, open]
+  );
+
+  useChatPolling(
+    () => loadConversationList(false),
+    10000,
+    isAuthenticated && isAllowedRole(userRole) && !open,
     [userRole, open]
   );
 

@@ -18,15 +18,31 @@ const GOOGLE_MAPS_LOAD_TIMEOUT_MS = 15_000
 const loadGoogleMapsScript = async (): Promise<boolean> => {
   if (hasPlacesLibrary()) return true
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`,
+  const configController = new AbortController()
+  const configTimeoutId = setTimeout(
+    () => configController.abort(),
+    GOOGLE_MAPS_LOAD_TIMEOUT_MS,
   )
-  if (!response.ok) {
-    throw new Error('Failed to get Google Maps configuration')
+  let data: { success?: boolean; scriptUrl?: string }
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`,
+      { signal: configController.signal },
+    )
+    if (!response.ok) {
+      throw new Error('Failed to get Google Maps configuration')
+    }
+    data = await response.json()
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Timed out getting Google Maps configuration')
+    }
+    throw error
+  } finally {
+    clearTimeout(configTimeoutId)
   }
-
-  const data = await response.json()
-  if (!data.success || !data.scriptUrl) {
+  const scriptUrl = data.scriptUrl
+  if (!data.success || !scriptUrl) {
     throw new Error('Invalid Google Maps config response')
   }
 
@@ -34,40 +50,43 @@ const loadGoogleMapsScript = async (): Promise<boolean> => {
     'script[src*="maps.googleapis.com"]',
   )
   const script = existingScript ?? document.createElement('script')
+  const isLoaderOwnedScript = !existingScript
 
   return new Promise((resolve, reject) => {
     let settled = false
-    const timeoutId = setTimeout(() => {
-      if (settled) return
-      settled = true
-      reject(new Error('Timed out waiting for the Google Maps Places library'))
-    }, GOOGLE_MAPS_LOAD_TIMEOUT_MS)
-
-    const finish = () => {
-      if (settled) return
-      settled = true
+    const cleanup = () => {
       clearTimeout(timeoutId)
-      if (hasPlacesLibrary()) {
-        resolve(true)
-      } else {
-        reject(new Error('Google Maps Places library was unavailable after script load'))
-      }
+      script.removeEventListener('load', finish)
+      script.removeEventListener('error', onError)
     }
-
-    script.addEventListener('load', finish, { once: true })
-    script.addEventListener(
-      'error',
-      () => {
+    const fail = (error: Error) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (isLoaderOwnedScript) script.remove()
+      reject(error)
+    }
+    const finish = () => {
+      if (hasPlacesLibrary()) {
         if (settled) return
         settled = true
-        clearTimeout(timeoutId)
-        reject(new Error('Failed to load the Google Maps script'))
-      },
-      { once: true },
+        cleanup()
+        resolve(true)
+      } else {
+        fail(new Error('Google Maps Places library was unavailable after script load'))
+      }
+    }
+    const onError = () => fail(new Error('Failed to load the Google Maps script'))
+    const timeoutId = setTimeout(
+      () => fail(new Error('Timed out waiting for the Google Maps Places library')),
+      GOOGLE_MAPS_LOAD_TIMEOUT_MS,
     )
 
+    script.addEventListener('load', finish)
+    script.addEventListener('error', onError)
+
     if (!existingScript) {
-      script.src = data.scriptUrl
+      script.src = scriptUrl
       script.async = true
       script.defer = true
       document.head.appendChild(script)

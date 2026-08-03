@@ -278,6 +278,8 @@ function SearchPageContent() {
 
   // Fetch results when filters or search type changes
   useEffect(() => {
+    if (authLoading) return;
+
     const timer = setTimeout(() => {
       performSearch();
     }, 300);
@@ -287,6 +289,7 @@ function SearchPageContent() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    authLoading,
     searchType,
     filters.query,
     filters.location,

@@ -417,6 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok && data.success) {
         authSessionEpochRef.current += 1
         checkAuthGenerationRef.current += 1
+        setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Login successful!')
@@ -466,6 +467,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok && data.success) {
         authSessionEpochRef.current += 1
         checkAuthGenerationRef.current += 1
+        setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Account created successfully!')

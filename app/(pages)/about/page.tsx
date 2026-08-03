@@ -16,7 +16,7 @@ async function fetchAboutContent() {
   try {
     const landing = await publicGetCms("landing", "about");
     if (landing) return landing;
-    return publicGetCms("policy", "about");
+    return await publicGetCms("policy", "about");
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return null;
     throw error;

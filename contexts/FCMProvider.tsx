@@ -308,6 +308,7 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   useEffect(() => {
     if (isAuthenticated) return;
 
+    authSession.current += 1;
     initialised.current = false;
     setPermissionGranted(false);
 
