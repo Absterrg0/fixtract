@@ -5,17 +5,11 @@ import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
-import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 async function fetchPrivacyContent() {
-  try {
-    return await publicGetCms("policy", "privacy-policy");
-  } catch (error) {
-    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return null;
-    throw error;
-  }
+  return publicGetCms("policy", "privacy-policy");
 }
 
 export async function generateMetadata(): Promise<Metadata> {
