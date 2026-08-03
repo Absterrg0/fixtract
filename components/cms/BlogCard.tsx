@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, Calendar } from "lucide-react";
 import { CmsContent, cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
@@ -19,9 +20,11 @@ export default function BlogCard({ item, basePath }: Props) {
       <article className="flex h-full flex-col overflow-hidden rounded-[calc(1.5rem-1.5px)] bg-white">
         {item.coverImage && (
           <div className="relative aspect-[16/9] overflow-hidden">
-            <img
+            <Image
               src={item.coverImage}
               alt={cmsCoverAlt(item)}
+              fill
+              sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-rose-900/20 via-transparent to-transparent" />

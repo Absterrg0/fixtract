@@ -165,6 +165,8 @@ export default function ChatWidget() {
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const conversationListRef = useRef<ChatConversation[]>([]);
+  const conversationListRequestRef = useRef<Promise<void> | null>(null);
+  const conversationListRequestGenerationRef = useRef(0);
   const pendingStartInFlightRef = useRef<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -196,31 +198,44 @@ export default function ChatWidget() {
     async (busy: boolean) => {
       if (!isAuthenticated || !isAllowedRole(userRole)) return;
 
+      if (conversationListRequestRef.current) {
+        return conversationListRequestRef.current;
+      }
+
       if (busy) {
         setLoadingConversations(true);
       }
 
-      try {
-        const data = await fetchConversations({ page: 1, limit: 50 });
-        const list = data.conversations || [];
-        setConversations(list);
-        conversationListRef.current = list;
+      const generation = ++conversationListRequestGenerationRef.current;
+      const request = (async () => {
+        try {
+          const data = await fetchConversations({ page: 1, limit: 50 });
+          const list = data.conversations || [];
+          setConversations(list);
+          conversationListRef.current = list;
 
-        // Messenger-like behavior:
-        // Keep the user's current view. Do NOT auto-open latest conversation.
-        setSelectedConversationId((current) => {
-          if (!current) return null;
-          return list.some((conversation) => conversation._id === current) ? current : null;
-        });
-      } catch {
-        if (open) {
-          toast.error("Failed to load conversations");
+          // Messenger-like behavior:
+          // Keep the user's current view. Do NOT auto-open latest conversation.
+          setSelectedConversationId((current) => {
+            if (!current) return null;
+            return list.some((conversation) => conversation._id === current) ? current : null;
+          });
+        } catch {
+          if (open) {
+            toast.error("Failed to load conversations");
+          }
+        } finally {
+          if (busy) {
+            setLoadingConversations(false);
+          }
+          if (conversationListRequestGenerationRef.current === generation) {
+            conversationListRequestRef.current = null;
+          }
         }
-      } finally {
-        if (busy) {
-          setLoadingConversations(false);
-        }
-      }
+      })();
+
+      conversationListRequestRef.current = request;
+      return request;
     },
     [isAuthenticated, open, userRole]
   );
@@ -368,8 +383,15 @@ export default function ChatWidget() {
       }
 
       const serializedDetail = JSON.stringify(detail);
+      if (pendingStartInFlightRef.current === serializedDetail) {
+        return;
+      }
+      pendingStartInFlightRef.current = serializedDetail;
       void ensureConversation(detail).finally(() => {
         clearPendingChatRequestIfCurrent(serializedDetail);
+        if (pendingStartInFlightRef.current === serializedDetail) {
+          pendingStartInFlightRef.current = null;
+        }
       });
     };
 

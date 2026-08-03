@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
@@ -80,11 +81,13 @@ export default async function NewsDetailPage({ params }: Props) {
       {post.coverImage && (
         <div className="mx-auto mt-4 max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img
+            <Image
               src={post.coverImage}
               alt={cmsCoverAlt(post)}
-              fetchPriority="high"
-              decoding="async"
+              width={1280}
+              height={560}
+              priority
+              sizes="(min-width: 1280px) 1024px, calc(100vw - 3rem)"
               className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
             />
           </div>

@@ -1,103 +1,96 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface GoogleMapsHook {
   isLoaded: boolean
+  loadGoogleMaps: () => Promise<boolean>
   validateAddress: (address: string) => Promise<boolean>
   geocodeAddress: (address: string) => Promise<{ lat: number; lng: number } | null>
 }
 
-export const useGoogleMaps = (): GoogleMapsHook => {
-  const [isLoaded, setIsLoaded] = useState(false)
+let googleMapsLoadPromise: Promise<boolean> | null = null
 
-  useEffect(() => {
-    let checkInterval: ReturnType<typeof setInterval> | null = null
-    let checkTimeout: ReturnType<typeof setTimeout> | null = null
+const hasPlacesLibrary = () =>
+  typeof window !== 'undefined' && Boolean(window.google?.maps?.places)
 
-    // Check if Google Maps is already loaded
-    if ((window as any).google?.maps?.places) {
-      setIsLoaded(true)
-      return
+const loadGoogleMapsScript = async (): Promise<boolean> => {
+  if (hasPlacesLibrary()) return true
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`,
+  )
+  if (!response.ok) {
+    throw new Error('Failed to get Google Maps configuration')
+  }
+
+  const data = await response.json()
+  if (!data.success || !data.scriptUrl) {
+    throw new Error('Invalid Google Maps config response')
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>(
+    'script[src*="maps.googleapis.com"]',
+  )
+  const script = existingScript ?? document.createElement('script')
+
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      if (hasPlacesLibrary()) {
+        resolve(true)
+      } else {
+        reject(new Error('Google Maps Places library was unavailable after script load'))
+      }
     }
 
-    // Check if script is already being loaded
-    const existingScript = document.querySelector(
-      'script[src*="maps.googleapis.com"]'
+    script.addEventListener('load', finish, { once: true })
+    script.addEventListener(
+      'error',
+      () => reject(new Error('Failed to load the Google Maps script')),
+      { once: true },
     )
 
-    if (existingScript) {
-      // Script is already loading, wait for it
-      checkInterval = setInterval(() => {
-        if ((window as any).google?.maps?.places) {
-          setIsLoaded(true)
-          if (checkInterval) {
-            clearInterval(checkInterval)
-            checkInterval = null
-          }
-        }
-      }, 100)
-
-      // Clear interval after 10 seconds
-      checkTimeout = setTimeout(() => {
-        if (checkInterval) {
-          clearInterval(checkInterval)
-          checkInterval = null
-        }
-      }, 10000)
-
-      return () => {
-        if (checkInterval) {
-          clearInterval(checkInterval)
-        }
-        if (checkTimeout) {
-          clearTimeout(checkTimeout)
-        }
-      }
+    if (!existingScript) {
+      script.src = data.scriptUrl
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
     }
 
-    const loadGoogleMapsScript = async () => {
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`
-        )
+    // A script can have completed between the initial check and listener setup.
+    if (hasPlacesLibrary()) finish()
+  })
+}
 
-        if (!response.ok) {
-          throw new Error('Failed to get Google Maps configuration')
-        }
+export const useGoogleMaps = (): GoogleMapsHook => {
+  const [isLoaded, setIsLoaded] = useState(hasPlacesLibrary)
 
-        const data = await response.json()
+  useEffect(() => {
+    if (hasPlacesLibrary()) setIsLoaded(true)
+  }, [])
 
-        if (data.success && data.scriptUrl) {
-          const script = document.createElement('script')
-          script.src = data.scriptUrl
-          script.async = true
-          script.defer = true
-          script.onload = () => {
-            // Wait a bit for the API to fully initialize
-            setTimeout(() => {
-              if ((window as any).google?.maps?.places) {
-                setIsLoaded(true)
-              } else {
-                console.error('❌ Google Maps loaded but places API not available')
-              }
-            }, 100)
-          }
-          script.onerror = (error) => {
-            console.error('❌ Failed to load Google Maps script:', error)
-            setIsLoaded(false)
-          }
-          document.head.appendChild(script)
-        } else {
-          console.error('❌ Invalid Google Maps config response')
-        }
-      } catch (error) {
-        console.error('❌ Failed to load Google Maps configuration:', error)
-        setIsLoaded(false)
-      }
+  const loadGoogleMaps = useCallback(async (): Promise<boolean> => {
+    if (hasPlacesLibrary()) {
+      setIsLoaded(true)
+      return true
     }
 
-    loadGoogleMapsScript()
+    if (!googleMapsLoadPromise) {
+      googleMapsLoadPromise = loadGoogleMapsScript().catch((error) => {
+        googleMapsLoadPromise = null
+        throw error
+      })
+    }
+
+    try {
+      const loaded = await googleMapsLoadPromise
+      setIsLoaded(loaded)
+      return loaded
+    } catch (error) {
+      console.error('Failed to load Google Maps:', error)
+      setIsLoaded(false)
+      return false
+    }
   }, [])
 
   const validateAddress = async (address: string): Promise<boolean> => {
@@ -137,8 +130,7 @@ export const useGoogleMaps = (): GoogleMapsHook => {
   }
 
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-    if (!address || !isLoaded) {
-      console.log('⚠️ Geocoding skipped: address or Google Maps not loaded')
+    if (!address || !hasPlacesLibrary()) {
       return null
     }
 
@@ -190,5 +182,5 @@ export const useGoogleMaps = (): GoogleMapsHook => {
     }
   }
 
-  return { isLoaded, validateAddress, geocodeAddress }
+  return { isLoaded, loadGoogleMaps, validateAddress, geocodeAddress }
 }
