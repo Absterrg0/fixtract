@@ -6,7 +6,6 @@ import Footer from "@/components/Footer";
 import SubNavbar from "@/components/SubNavbar";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
-import ChatWidget from "@/components/chat/ChatWidget";
 import CookieConsent from "@/components/cookie-consent/CookieConsent";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import {
@@ -20,6 +19,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
 import FCMLayoutWrapper from "@/components/notifications/FCMLayoutWrapper";
+import { getServiceCategories } from "@/lib/server/serviceCategories";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -66,11 +66,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const serviceCategories = await getServiceCategories();
+
   return (
     <html lang="en">
       <body
@@ -85,12 +87,11 @@ export default function RootLayout({
                 <Navbar stacked />
               </SiteHeaderStack>
               <SiteHeaderSpacer />
-              <SubNavbar />
+              <SubNavbar categories={serviceCategories} />
               <main className="flex flex-col min-h-screen">
                 <Toaster></Toaster>
                 {children}
               </main>
-              <ChatWidget />
               <Footer />
               <CookieConsent />
               <SiteAnnouncementOverlays />

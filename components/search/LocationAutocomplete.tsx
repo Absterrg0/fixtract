@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { MapPin } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/useGoogleMaps'
@@ -33,7 +33,11 @@ export default function LocationAutocomplete({
 }: LocationAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
-  const { isLoaded } = useGoogleMaps()
+  const { isLoaded, loadGoogleMaps } = useGoogleMaps()
+
+  const enableAutocomplete = useCallback(() => {
+    void loadGoogleMaps()
+  }, [loadGoogleMaps])
 
   useEffect(() => {
     if (!isLoaded || !inputRef.current) {
@@ -129,6 +133,8 @@ export default function LocationAutocomplete({
         id={id}
         placeholder={placeholder}
         value={value}
+        onFocus={enableAutocomplete}
+        onPointerDown={enableAutocomplete}
         onChange={(e) => onChange(e.target.value)}
         className={`border-0 focus:ring-0 text-lg placeholder:text-gray-500 w-full ${className}`}
       />

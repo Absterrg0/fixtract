@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
-import { fetchConversations } from "@/lib/chatApi";
+import { fetchUnreadConversationCount } from "@/lib/chatApi";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
@@ -12,28 +12,15 @@ export const useUnreadCount = () => {
   const userRole = user?.role;
   const enabled = isAuthenticated && isAllowedRole(userRole);
 
-  // Fetches the first 50 conversations to compute unread count.
-  // Users with >50 conversations may see an undercount; a dedicated
-  // server endpoint would be the proper fix if this becomes an issue.
   const poll = useCallback(async () => {
     try {
-      const data = await fetchConversations({ page: 1, limit: 50 });
-      const total = (data.conversations || []).reduce((sum, c) => {
-        if (c.type === "support") {
-          return sum + (c.customerUnreadCount || 0);
-        }
-        if (userRole === "professional") {
-          return sum + (c.professionalUnreadCount || 0);
-        }
-        return sum + (c.customerUnreadCount || 0);
-      }, 0);
-      setUnreadCount(total);
+      setUnreadCount(await fetchUnreadConversationCount());
     } catch {
       // silently ignore polling errors
     }
-  }, [userRole]);
+  }, []);
 
-  useChatPolling(poll, 15000, enabled, [userRole]);
+  useChatPolling(poll, 30000, enabled, [userRole]);
 
   return { unreadCount, enabled };
 };

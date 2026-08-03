@@ -1,5 +1,5 @@
 'use client'
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
@@ -316,12 +316,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
   const checkAuthGenerationRef = useRef(0)
+  const authSessionEpochRef = useRef(0)
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
-  const fetchCurrentUser = async (): Promise<
+  const fetchCurrentUser = useCallback(async (): Promise<
     | { status: 'ok'; user: User }
     | { status: 'unauthorized' }
     | { status: 'transient' }
@@ -353,24 +354,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Auth check failed:', error)
       return { status: 'transient' }
     }
-  }
+  }, [])
 
-  const checkAuth = async (options?: { strict?: boolean }): Promise<User | null> => {
+  const checkAuth = useCallback(async (options?: { strict?: boolean }): Promise<User | null> => {
     const generation = ++checkAuthGenerationRef.current
+    const sessionEpoch = authSessionEpochRef.current
     try {
       let result = await fetchCurrentUser()
 
       if (result.status === 'transient') {
         await new Promise(resolve => setTimeout(resolve, 600))
         // Bail if a newer checkAuth started while we waited.
-        if (generation !== checkAuthGenerationRef.current) {
+        if (
+          generation !== checkAuthGenerationRef.current ||
+          sessionEpoch !== authSessionEpochRef.current
+        ) {
           return options?.strict ? null : userRef.current
         }
         result = await fetchCurrentUser()
       }
 
       // Superseded checks must not clear or overwrite a newer session.
-      if (generation !== checkAuthGenerationRef.current) {
+      if (
+        generation !== checkAuthGenerationRef.current ||
+        sessionEpoch !== authSessionEpochRef.current
+      ) {
         return options?.strict ? null : userRef.current
       }
 
@@ -391,9 +399,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
       }
     }
-  }
+  }, [fetchCurrentUser])
 
-  const login = async (email: string, password: string, options?: { skipRedirect?: boolean }): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string, options?: { skipRedirect?: boolean }): Promise<boolean> => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`, {
         method: 'POST',
@@ -407,6 +415,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
 
       if (response.ok && data.success) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
+        setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Login successful!')
@@ -438,9 +449,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error('Login failed. Please try again.')
       return false
     }
-  }
+  }, [pathname, router])
 
-  const signup = async (userData: SignupData): Promise<boolean> => {
+  const signup = useCallback(async (userData: SignupData): Promise<boolean> => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
@@ -454,6 +465,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
 
       if (response.ok && data.success) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
+        setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Account created successfully!')
@@ -476,9 +490,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error('Signup failed. Please try again.')
       return false
     }
-  }
+  }, [])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    authSessionEpochRef.current += 1
+    checkAuthGenerationRef.current += 1
     try {
       await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
         method: 'POST',
@@ -498,7 +514,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Logged out successfully')
       router.push('/login')
     }
-  }
+  }, [router])
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
@@ -554,6 +570,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Invite acceptance stores a fresh token then runs a strict checkAuth.
       // Skip the boot-time /me probe so a pre-token 401 cannot race and clear it.
       if (pathname.startsWith('/admin/accept-invite')) {
+        authSessionEpochRef.current += 1
+        checkAuthGenerationRef.current += 1
         setLoading(false)
         if (!cancelled) setIsInitialized(true)
         return
@@ -664,7 +682,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     idExpiryToastRef.current = toast.warning(message, { duration: Infinity, closeButton: true })
   }, [user])
 
-  const value: AuthContextType = {
+  const value = useMemo<AuthContextType>(() => ({
     user,
     loading,
     login,
@@ -672,7 +690,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     checkAuth,
     isAuthenticated: !!user,
-  }
+  }), [user, loading, login, signup, logout, checkAuth])
 
   const isPublic = isPublicRoute(pathname)
   const isAuth = isAuthRoute(pathname)

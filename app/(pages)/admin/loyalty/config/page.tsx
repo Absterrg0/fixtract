@@ -11,6 +11,7 @@ import { Award, Settings, Plus, Trash2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getAuthToken } from "@/lib/utils"
+import { invalidateClientRequestsByPrefix } from "@/lib/clientRequestCache"
 
 interface LoyaltyTier {
   name: string;
@@ -243,6 +244,7 @@ export default function LoyaltyConfigPage() {
       const saveSucceeded = responses.every((response) => response.ok)
 
       if (saveSucceeded) {
+        invalidateClientRequestsByPrefix('loyalty-status:')
         toast.success('Configuration saved successfully!')
       } else {
         toast.error('Failed to save configuration')

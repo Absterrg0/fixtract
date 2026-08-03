@@ -1,4 +1,4 @@
-import { authFetch } from "@/lib/utils";
+import { authFetch, getAuthToken } from "@/lib/utils";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
 export type CmsContentStatus = "draft" | "published";
@@ -158,6 +158,26 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
   return data;
 }
 
+async function revalidatePublicCms(
+  type: CmsContentType | undefined,
+  slugs: Array<string | undefined> = []
+): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch("/api/cms/revalidate", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ type, slugs: slugs.filter(Boolean) }),
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!response.ok) {
+    throw new Error(`CMS cache revalidation failed (${response.status})`);
+  }
+}
+
 // ---------- Admin ----------
 
 export async function adminListCms(params: {
@@ -191,21 +211,40 @@ export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsCont
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return parseJsonRequired<CmsContent>(res);
+  const created = await parseJsonRequired<CmsContent>(res);
+  try {
+    await revalidatePublicCms(created.type, [created.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after create:", error);
+  }
+  return created;
 }
 
 export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Promise<CmsContent> {
+  const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return parseJsonRequired<CmsContent>(res);
+  const updated = await parseJsonRequired<CmsContent>(res);
+  try {
+    await revalidatePublicCms(updated.type, [previous.slug, updated.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after update:", error);
+  }
+  return updated;
 }
 
 export async function adminDeleteCms(id: string): Promise<void> {
+  const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, { method: "DELETE" });
   await parseJson<void>(res);
+  try {
+    await revalidatePublicCms(previous.type, [previous.slug]);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after delete:", error);
+  }
 }
 
 export async function adminUploadCmsImage(file: File): Promise<{ url: string; key: string }> {

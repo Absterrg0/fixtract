@@ -14,6 +14,7 @@ import { formatVATNumber, validateVATFormat } from "@/lib/vatValidation"
 import { getAuthToken } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { invalidateClientRequest } from "@/lib/clientRequestCache"
 
 const normalizeCountryCode = (value?: string): string => {
   const trimmed = (value || '').trim()
@@ -235,6 +236,7 @@ export default function AdminSettingsPage() {
           setLastModified,
           setVersion,
         })
+        invalidateClientRequest('commission-rate')
         toast.success('Platform settings updated successfully')
       } else {
         const errorData = await response.json().catch(() => null)

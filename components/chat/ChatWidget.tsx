@@ -38,6 +38,21 @@ import { getMigratedItem, removeMigratedItem } from "@/lib/storageMigration";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
+const clearPendingChatRequestIfCurrent = (expected: string) => {
+  const current = getMigratedItem(
+    "session",
+    PENDING_CHAT_START_KEY,
+    LEGACY_PENDING_CHAT_START_KEY
+  );
+  if (current === expected) {
+    removeMigratedItem(
+      "session",
+      PENDING_CHAT_START_KEY,
+      LEGACY_PENDING_CHAT_START_KEY
+    );
+  }
+};
+
 const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: string) => {
   if (userRole === "professional") {
     return conversation.customerId?.name || "Customer";
@@ -70,8 +85,15 @@ export default function ChatWidget() {
   const [activeProjects, setActiveProjects] = useState<Array<{ _id: string; title?: string }>>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
+  const conversationListRef = useRef<ChatConversation[]>([]);
+  const conversationListRequestRef = useRef<Promise<void> | null>(null);
+  const conversationListRequestGenerationRef = useRef(0);
+  const pendingStartInFlightRef = useRef<string | null>(null);
+  const chatSessionRef = useRef(0);
+  const messageRequestGenerationRef = useRef(0);
 
   const loadActiveProjects = useCallback(async () => {
+    const session = chatSessionRef.current;
     setLoadingProjects(true);
     try {
       const token = getAuthToken();
@@ -83,6 +105,7 @@ export default function ChatWidget() {
         { credentials: "include", headers }
       );
       const data = await response.json();
+      if (session !== chatSessionRef.current) return;
       if (response.ok && data?.success) {
         const projects = Array.isArray(data.data?.projects) ? data.data.projects : [];
         setActiveProjects(projects);
@@ -96,11 +119,14 @@ export default function ChatWidget() {
         setSelectedProjectId("none");
       }
     } catch (err) {
+      if (session !== chatSessionRef.current) return;
       console.error("Error loading active projects:", err);
       setActiveProjects([]);
       setSelectedProjectId("none");
     } finally {
-      setLoadingProjects(false);
+      if (session === chatSessionRef.current) {
+        setLoadingProjects(false);
+      }
     }
   }, []);
 
@@ -149,7 +175,6 @@ export default function ChatWidget() {
   };
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const conversationListRef = useRef<ChatConversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
@@ -177,34 +202,62 @@ export default function ChatWidget() {
   }, [conversations, userRole]);
 
   const loadConversationList = useCallback(
-    async (busy: boolean) => {
+    async (busy: boolean, forceRefresh = false) => {
       if (!isAuthenticated || !isAllowedRole(userRole)) return;
+
+      if (conversationListRequestRef.current) {
+        if (!forceRefresh) {
+          return conversationListRequestRef.current;
+        }
+        try {
+          await conversationListRequestRef.current;
+        } catch {
+          // Start a fresh refresh even if the superseded request failed.
+        }
+        if (conversationListRequestRef.current) {
+          return conversationListRequestRef.current;
+        }
+      }
 
       if (busy) {
         setLoadingConversations(true);
       }
 
-      try {
-        const data = await fetchConversations({ page: 1, limit: 50 });
-        const list = data.conversations || [];
-        setConversations(list);
-        conversationListRef.current = list;
+      const generation = ++conversationListRequestGenerationRef.current;
+      const session = chatSessionRef.current;
+      const request = (async () => {
+        try {
+          const data = await fetchConversations({ page: 1, limit: 50 });
+          const list = data.conversations || [];
+          if (session !== chatSessionRef.current) return;
+          setConversations(list);
+          conversationListRef.current = list;
 
-        // Messenger-like behavior:
-        // Keep the user's current view. Do NOT auto-open latest conversation.
-        setSelectedConversationId((current) => {
-          if (!current) return null;
-          return list.some((conversation) => conversation._id === current) ? current : null;
-        });
-      } catch {
-        if (open) {
-          toast.error("Failed to load conversations");
+          // Messenger-like behavior:
+          // Keep the user's current view. Do NOT auto-open latest conversation.
+          setSelectedConversationId((current) => {
+            if (!current) return null;
+            return list.some((conversation) => conversation._id === current) ? current : null;
+          });
+        } catch {
+          if (open) {
+            toast.error("Failed to load conversations");
+          }
+        } finally {
+          if (busy && session === chatSessionRef.current) {
+            setLoadingConversations(false);
+          }
+          if (
+            session === chatSessionRef.current &&
+            conversationListRequestGenerationRef.current === generation
+          ) {
+            conversationListRequestRef.current = null;
+          }
         }
-      } finally {
-        if (busy) {
-          setLoadingConversations(false);
-        }
-      }
+      })();
+
+      conversationListRequestRef.current = request;
+      return request;
     },
     [isAuthenticated, open, userRole]
   );
@@ -212,6 +265,8 @@ export default function ChatWidget() {
   const loadMessages = useCallback(
     async (conversationId: string, busy: boolean) => {
       if (!conversationId) return;
+      const session = chatSessionRef.current;
+      const generation = ++messageRequestGenerationRef.current;
 
       if (busy) {
         setLoadingMessages(true);
@@ -219,13 +274,25 @@ export default function ChatWidget() {
 
       try {
         const data = await fetchConversationMessages(conversationId, { limit: 100 });
+        if (
+          session !== chatSessionRef.current ||
+          generation !== messageRequestGenerationRef.current
+        ) return;
         setMessages(data.messages || []);
       } catch {
-        if (open) {
+        if (
+          session === chatSessionRef.current &&
+          generation === messageRequestGenerationRef.current &&
+          open
+        ) {
           toast.error("Failed to load messages");
         }
       } finally {
-        if (busy) {
+        if (
+          busy &&
+          session === chatSessionRef.current &&
+          generation === messageRequestGenerationRef.current
+        ) {
           setLoadingMessages(false);
         }
       }
@@ -272,7 +339,7 @@ export default function ChatWidget() {
             const conversation = await createOrGetConversation({
               customerId: detail.customerId,
             });
-            await loadConversationList(false);
+            await loadConversationList(false, true);
             setManualNewChatPanel(false);
             setSelectedConversationId(conversation._id);
           } catch {
@@ -290,7 +357,7 @@ export default function ChatWidget() {
           professionalId: detail.professionalId,
         });
 
-        await loadConversationList(false);
+        await loadConversationList(false, true);
         setManualNewChatPanel(false);
         setSelectedConversationId(conversation._id);
       } catch (error) {
@@ -303,17 +370,34 @@ export default function ChatWidget() {
   );
 
   useEffect(() => {
+    chatSessionRef.current += 1;
+    conversationListRequestGenerationRef.current += 1;
+    messageRequestGenerationRef.current += 1;
+    conversationListRequestRef.current = null;
+    conversationListRef.current = [];
+    pendingStartInFlightRef.current = null;
+    setConversations([]);
+    setSelectedConversationId(null);
+    setMessages([]);
+    setManualNewChatPanel(false);
+    setShowQuotationDialog(false);
+    setActiveProjects([]);
+    setSelectedProjectId("none");
+    setLoadingProjects(false);
+    setLoadingConversations(false);
+    setLoadingMessages(false);
+    setCreatingConversation(false);
+    setLoadingProfessionals(false);
+    setProfessionalsError(null);
+    setCreatingSendQuotation(false);
+    setSending(false);
+
     if (!isAuthenticated || !isAllowedRole(userRole)) {
       setOpen(false);
-      setConversations([]);
-      setSelectedConversationId(null);
-      setMessages([]);
-      setManualNewChatPanel(false);
       return;
     }
 
-    void loadConversationList(true);
-  }, [isAuthenticated, loadConversationList, userRole]);
+  }, [isAuthenticated, userId, userRole]);
 
   useEffect(() => {
     if (!shouldShowNewChatPanel || userRole !== "customer") return;
@@ -346,12 +430,23 @@ export default function ChatWidget() {
       const detail = customEvent.detail || {};
 
       setOpen(detail.open !== false);
+      if (detail.open === false) return;
 
       if (!isAuthenticated || !isAllowedRole(userRole)) {
         return;
       }
 
-      void ensureConversation(detail);
+      const serializedDetail = JSON.stringify(detail);
+      if (pendingStartInFlightRef.current === serializedDetail) {
+        return;
+      }
+      pendingStartInFlightRef.current = serializedDetail;
+      void ensureConversation(detail).finally(() => {
+        clearPendingChatRequestIfCurrent(serializedDetail);
+        if (pendingStartInFlightRef.current === serializedDetail) {
+          pendingStartInFlightRef.current = null;
+        }
+      });
     };
 
     window.addEventListener(CHAT_WIDGET_OPEN_EVENT, handler as EventListener);
@@ -370,37 +465,48 @@ export default function ChatWidget() {
       LEGACY_PENDING_CHAT_START_KEY
     );
     if (!raw) return;
-
-    removeMigratedItem(
-      "session",
-      PENDING_CHAT_START_KEY,
-      LEGACY_PENDING_CHAT_START_KEY
-    );
+    if (pendingStartInFlightRef.current === raw) return;
+    pendingStartInFlightRef.current = raw;
 
     try {
       const detail = JSON.parse(raw) as ChatWidgetOpenDetail;
       setOpen(true);
-      void ensureConversation(detail);
+      void ensureConversation(detail).finally(() => {
+        clearPendingChatRequestIfCurrent(raw);
+        if (pendingStartInFlightRef.current === raw) {
+          pendingStartInFlightRef.current = null;
+        }
+      });
     } catch {
-      // ignore invalid payload
+      if (pendingStartInFlightRef.current === raw) {
+        pendingStartInFlightRef.current = null;
+      }
+      removeMigratedItem(
+        "session",
+        PENDING_CHAT_START_KEY,
+        LEGACY_PENDING_CHAT_START_KEY
+      );
     }
   }, [ensureConversation, isAuthenticated, userRole]);
 
   useChatPolling(
-    () => {
-      void loadConversationList(false);
-    },
+    () => loadConversationList(false),
     10000,
-    isAuthenticated && isAllowedRole(userRole),
+    isAuthenticated && isAllowedRole(userRole) && open,
     [userRole, open]
   );
 
   useChatPolling(
-    () => {
-      if (open && selectedConversationId) {
-        void loadMessages(selectedConversationId, false);
-      }
-    },
+    () => loadConversationList(false),
+    10000,
+    isAuthenticated && isAllowedRole(userRole) && !open,
+    [userRole, open]
+  );
+
+  useChatPolling(
+    () => open && selectedConversationId
+      ? loadMessages(selectedConversationId, false)
+      : Promise.resolve(),
     10000,
     isAuthenticated && isAllowedRole(userRole) && open && Boolean(selectedConversationId),
     [open, selectedConversationId]

@@ -24,17 +24,11 @@ interface Category {
 // the viewport-clamping logic inside handleMouseEnter.
 const DROPDOWN_WIDTH = 288; // matches w-72 (18rem × 16px)
 
-const SubNavbar = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+const SubNavbar = ({ categories }: { categories: Category[] }) => {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
 
   // Clear any pending hover timeout on unmount to avoid state updates after cleanup
   useEffect(() => {
@@ -44,23 +38,6 @@ const SubNavbar = () => {
       }
     };
   }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`,
-        { cache: 'no-store' }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch categories:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleMouseEnter = useCallback((slug: string) => {
     if (hoverTimeoutRef.current) {
@@ -104,20 +81,6 @@ const SubNavbar = () => {
   const stickyTop = announceBar
     ? `calc(4rem + ${ANNOUNCE_BANNER_HEIGHT_PX})`
     : "4rem";
-
-  if (isLoading) {
-    return (
-      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40" style={{ top: stickyTop }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center items-center h-12 gap-4">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="h-4 w-20 rounded bg-gray-200/70 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>

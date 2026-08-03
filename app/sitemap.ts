@@ -3,7 +3,7 @@ import { siteUrl } from "@/lib/seo/site";
 import { publicListSitemapEntries, type CmsContentType } from "@/lib/cms";
 import { serviceCategories } from "@/data/content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 const STATIC_ROUTES: Array<{ path: string; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number }> = [
   { path: "/", changeFrequency: "daily", priority: 1.0 },

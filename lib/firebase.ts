@@ -1,5 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getMessaging, type Messaging } from 'firebase/messaging';
+import type { FirebaseApp } from 'firebase/app';
+import type { Messaging } from 'firebase/messaging';
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
@@ -10,21 +10,38 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
 };
 
-// Initialise Firebase only once
-const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let firebaseAppPromise: Promise<FirebaseApp> | null = null;
+
+async function getFirebaseApp(): Promise<FirebaseApp> {
+  if (!firebaseAppPromise) {
+    const initialization = import('firebase/app').then(({ getApp, getApps, initializeApp }) =>
+      getApps().length === 0 ? initializeApp(firebaseConfig) : getApp(),
+    );
+    const retriableInitialization = initialization.catch((error) => {
+      if (firebaseAppPromise === retriableInitialization) {
+        firebaseAppPromise = null;
+      }
+      throw error;
+    });
+    firebaseAppPromise = retriableInitialization;
+  }
+  return firebaseAppPromise;
+}
 
 /**
  * Returns the Firebase Messaging instance.
  * Must only be called on the client side (it uses browser APIs).
  * Returns null if running in a server context or if config is missing.
  */
-export function getFirebaseMessaging(): Messaging | null {
+export async function getFirebaseMessaging(): Promise<Messaging | null> {
   if (typeof window === 'undefined') return null;
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.warn('Firebase config missing – push notifications disabled');
     return null;
   }
+  const [{ getMessaging }, firebaseApp] = await Promise.all([
+    import('firebase/messaging'),
+    getFirebaseApp(),
+  ]);
   return getMessaging(firebaseApp);
 }
-
-export { firebaseApp };

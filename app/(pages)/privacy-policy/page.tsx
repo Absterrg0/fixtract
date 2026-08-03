@@ -9,11 +9,7 @@ import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 export const dynamic = "force-dynamic";
 
 async function fetchPrivacyContent() {
-  try {
-    return await publicGetCms("policy", "privacy-policy");
-  } catch {
-    return null;
-  }
+  return publicGetCms("policy", "privacy-policy");
 }
 
 export async function generateMetadata(): Promise<Metadata> {

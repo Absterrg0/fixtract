@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
@@ -40,8 +40,14 @@ export default function AddressAutocomplete({
   const validatedAddressRef = useRef<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const { isLoaded, validateAddress, geocodeAddress } = useGoogleMaps();
+  const { isLoaded, loadGoogleMaps, validateAddress, geocodeAddress } = useGoogleMaps();
   const hasInitialized = useRef(false);
+
+  const enableAutocomplete = useCallback(() => {
+    if (!useCompanyAddress) {
+      void loadGoogleMaps();
+    }
+  }, [loadGoogleMaps, useCompanyAddress]);
 
   // Store callbacks in refs so the autocomplete useEffect doesn't re-run on every render
   const onChangeRef = useRef(onChange);
@@ -52,11 +58,9 @@ export default function AddressAutocomplete({
   // Initialize autocomplete
   useEffect(() => {
     if (!isLoaded || !inputRef.current || useCompanyAddress) {
-      console.log('AddressAutocomplete not initialized:', { isLoaded, hasInput: !!inputRef.current, useCompanyAddress });
       return;
     }
 
-    console.log('✅ Initializing Google Places Autocomplete');
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
       types: ['address'],
       fields: ['formatted_address', 'geometry', 'address_components']
@@ -65,8 +69,6 @@ export default function AddressAutocomplete({
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
         if (place?.formatted_address) {
-          console.log('✅ Address selected from dropdown:', place.formatted_address);
-
           let coordinates: { lat: number; lng: number } | undefined;
           if (place.geometry?.location) {
             const location = place.geometry.location;
@@ -125,45 +127,33 @@ export default function AddressAutocomplete({
 
     const addressToValidate = useCompanyAddress ? companyAddress : value;
 
-    console.log('🔍 handleBlur - validating manually typed address:', addressToValidate);
-
     if (!addressToValidate) {
-      console.log('❌ Empty address');
       setIsValid(false);
       onValidation(false);
       return;
     }
 
-    // Validate manually typed address using Google Maps API
-    console.log('🌐 Validating address via API...');
     setValidating(true);
     const valid = await validateAddress(addressToValidate);
-    console.log('📍 Validation result:', valid);
 
     if (valid) {
       validatedAddressRef.current = addressToValidate;
 
-      // Try to geocode the address to get coordinates
       try {
-        console.log('🌍 Geocoding address to get coordinates...');
-        const coordinates = await geocodeAddress(addressToValidate);
+        const mapsReady = isLoaded || await loadGoogleMaps();
+        const coordinates = mapsReady ? await geocodeAddress(addressToValidate) : null;
 
         if (coordinates) {
-          console.log('✅ Geocoded coordinates:', coordinates);
-          // Call onChange with the address and coordinates
           const placeData: PlaceData = {
             formatted_address: addressToValidate,
             coordinates
           };
           onChange(addressToValidate, placeData);
         } else {
-          console.warn('⚠️ Could not geocode address - saving without coordinates');
-          // Still valid address, just without coordinates
           onChange(addressToValidate);
         }
       } catch (geocodeError) {
-        console.error('❌ Geocoding error:', geocodeError);
-        // Still save the address without coordinates
+        console.error('Geocoding error:', geocodeError);
         onChange(addressToValidate);
       }
     }
@@ -180,24 +170,21 @@ export default function AddressAutocomplete({
     const valid = await validateAddress(companyAddress);
 
     if (valid) {
-      // Try to geocode the company address to get coordinates
       try {
-        const coordinates = await geocodeAddress(companyAddress);
+        const mapsReady = isLoaded || await loadGoogleMaps();
+        const coordinates = mapsReady ? await geocodeAddress(companyAddress) : null;
 
         if (coordinates) {
-          console.log('✅ Geocoded company address:', coordinates);
           const placeData: PlaceData = {
             formatted_address: companyAddress,
             coordinates
           };
           onChange(companyAddress, placeData);
         } else {
-          // Still save the address without coordinates
           onChange(companyAddress);
         }
       } catch (geocodeError) {
-        console.error('❌ Geocoding error for company address:', geocodeError);
-        // Still save the address without coordinates
+        console.error('Geocoding error for company address:', geocodeError);
         onChange(companyAddress);
       }
     }
@@ -264,15 +251,15 @@ export default function AddressAutocomplete({
             if (!useCompanyAddress) {
               const newValue = e.target.value;
               onChange(newValue);
-              // Only reset validation state if user is actually typing (not from dropdown update)
               if (newValue !== validatedAddressRef.current) {
-                console.log('⌨️ User typing - resetting validation');
                 selectedFromDropdownRef.current = false;
                 validatedAddressRef.current = '';
                 setIsValid(null);
               }
             }
           }}
+          onFocus={enableAutocomplete}
+          onPointerDown={enableAutocomplete}
           onBlur={handleBlur}
           placeholder={useCompanyAddress ? "Using company address..." : "Start typing address..."}
           disabled={useCompanyAddress}

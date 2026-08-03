@@ -23,7 +23,7 @@ import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
 import { getServiceCoverImage } from '@/lib/serviceCovers';
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const fetchServiceLanding = cache(async (serviceId: string) => {
   return await publicGetCms("landing", serviceId);

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { publicGetCms } from "@/lib/cms/public";
@@ -7,7 +8,7 @@ import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const RESERVED_SLUGS = new Set(["about", "privacy-policy"]);
 
@@ -49,7 +50,14 @@ export default async function GenericCmsPage({ params }: Props) {
       {content.coverImage && (
         <div className="mx-auto max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img src={content.coverImage} alt={cmsCoverAlt(content)} className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover" />
+            <Image
+              src={content.coverImage}
+              alt={cmsCoverAlt(content)}
+              width={1280}
+              height={560}
+              sizes="(min-width: 1280px) 1024px, calc(100vw - 3rem)"
+              className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
+            />
           </div>
         </div>
       )}
