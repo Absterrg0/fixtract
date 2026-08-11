@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +71,8 @@ interface FormData {
   // Coordinates (auto-populated from geocoding)
   latitude?: number;
   longitude?: number;
+  /** Normalized address|city|postal|country key coords were resolved for */
+  resolvedLocationKey?: string;
   // Referral
   referralCode: string;
 }
@@ -123,6 +125,8 @@ function CustomerSignupForm() {
   const [isAddressValid, setIsAddressValid] = useState(false);
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const [referralReferrer, setReferralReferrer] = useState<string>('');
+  // Bumped whenever location fields change so in-flight geocode results are ignored
+  const geocodeRequestIdRef = useRef(0);
   const { signup } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -173,51 +177,107 @@ function CustomerSignupForm() {
     };
   }, [formData.referralCode]);
 
+  const LOCATION_FIELDS: Array<keyof FormData> = [
+    'address',
+    'city',
+    'postalCode',
+    'country',
+  ];
+
+  const normalizeLocationKey = ({
+    address,
+    city,
+    postalCode,
+    country,
+  }: {
+    address: string;
+    city: string;
+    postalCode: string;
+    country: string;
+  }) =>
+    [address, city, postalCode, country]
+      .map((part) => part.trim().toLowerCase())
+      .join('|');
+
+  const clearResolvedCoordinates = (
+    data: FormData
+  ): FormData => ({
+    ...data,
+    latitude: undefined,
+    longitude: undefined,
+    resolvedLocationKey: undefined,
+  });
+
+  const invalidateResolvedCoordinates = () => {
+    geocodeRequestIdRef.current += 1;
+    // Drop validating UI if an in-flight geocode was just invalidated
+    setAddressValidating(false);
+  };
+
   const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    const clearsCoordinates = LOCATION_FIELDS.includes(field);
+    if (clearsCoordinates) {
+      invalidateResolvedCoordinates();
+    }
+    setFormData((prev) => {
+      const next: FormData = { ...prev, [field]: value };
+      if (clearsCoordinates) {
+        return clearResolvedCoordinates(next);
+      }
+      return next;
+    });
   };
 
   // Handle address selection from autocomplete
   const handleAddressChange = (fullAddress: string, placeData?: PlaceData) => {
-    handleInputChange('address', fullAddress);
-
-    // If we have place data from autocomplete dropdown, use it directly
-    if (placeData?.coordinates && placeData?.address_components) {
-      console.log(
-        'Using place data from autocomplete - no API call needed'
+    if (!placeData?.coordinates) {
+      // Typing / clearing — drop any previously resolved coordinates
+      invalidateResolvedCoordinates();
+      setFormData((prev) =>
+        clearResolvedCoordinates({
+          ...prev,
+          address: fullAddress,
+        })
       );
+      return;
+    }
 
-      const components = placeData.address_components;
-      const cityComponent = components.find(
-        (component) =>
-          component.types.includes('locality') ||
-          component.types.includes('administrative_area_level_2')
-      );
-      const countryComponent = components.find((component) =>
-        component.types.includes('country')
-      );
-      const postalComponent = components.find((component) =>
-        component.types.includes('postal_code')
-      );
+    const coordinates = placeData.coordinates;
+    const components = placeData.address_components;
+    const cityComponent = components?.find(
+      (component) =>
+        component.types.includes('locality') ||
+        component.types.includes('administrative_area_level_2')
+    );
+    const countryComponent = components?.find((component) =>
+      component.types.includes('country')
+    );
+    const postalComponent = components?.find((component) =>
+      component.types.includes('postal_code')
+    );
 
-      const city = cityComponent?.long_name || '';
-      const country = countryComponent?.long_name || '';
-      const postalCode = postalComponent?.long_name || '';
-
-      const coordinates = placeData.coordinates;
-
-      setFormData((prev) => ({
+    // New resolved coords — invalidate any in-flight geocode for the prior address
+    invalidateResolvedCoordinates();
+    setFormData((prev) => {
+      const city = cityComponent?.long_name || prev.city;
+      const country = countryComponent?.long_name || prev.country;
+      const postalCode = postalComponent?.long_name || prev.postalCode;
+      return {
         ...prev,
-        city: city || prev.city,
-        country: country || prev.country,
-        postalCode: postalCode || prev.postalCode,
+        address: fullAddress,
+        city,
+        country,
+        postalCode,
         latitude: coordinates.lat,
         longitude: coordinates.lng,
-      }));
-    }
+        resolvedLocationKey: normalizeLocationKey({
+          address: fullAddress,
+          city,
+          postalCode,
+          country,
+        }),
+      };
+    });
   };
 
   // Auto-populate business info from VAT validation
@@ -226,40 +286,56 @@ function CustomerSignupForm() {
       return;
     }
 
-    setFormData((prev) => {
-      let next = prev;
+    const parsed = vatValidation.parsedAddress;
+    const patch: Partial<FormData> = {};
+    let locationChanged = false;
 
-      const applyUpdate = (patch: Partial<FormData>) => {
-        if (next === prev) {
-          next = { ...prev, ...patch };
-        } else {
-          next = { ...next, ...patch };
-        }
-      };
+    if (!formData.companyName && vatValidation.companyName) {
+      patch.companyName = vatValidation.companyName;
+    }
 
-      if (!prev.companyName && vatValidation.companyName) {
-        applyUpdate({ companyName: vatValidation.companyName });
+    if (parsed) {
+      if (parsed.streetAddress && !formData.address) {
+        patch.address = parsed.streetAddress;
+        locationChanged = true;
       }
-
-      if (vatValidation.parsedAddress) {
-        const parsed = vatValidation.parsedAddress;
-        if (parsed.streetAddress && !prev.address) {
-          applyUpdate({ address: parsed.streetAddress });
-        }
-        if (parsed.city && !prev.city) {
-          applyUpdate({ city: parsed.city });
-        }
-        if (parsed.postalCode && !prev.postalCode) {
-          applyUpdate({ postalCode: parsed.postalCode });
-        }
-        if (parsed.country && !prev.country) {
-          applyUpdate({ country: parsed.country });
-        }
+      if (parsed.city && !formData.city) {
+        patch.city = parsed.city;
+        locationChanged = true;
       }
+      if (parsed.postalCode && !formData.postalCode) {
+        patch.postalCode = parsed.postalCode;
+        locationChanged = true;
+      }
+      if (parsed.country && !formData.country) {
+        patch.country = parsed.country;
+        locationChanged = true;
+      }
+    }
 
-      return next;
-    });
-  }, [vatValidation, formData.customerType]);
+    if (locationChanged) {
+      // VAT may fill city/postal/country after Places set coords without
+      // address_components — drop those coords so submit re-geocodes.
+      patch.latitude = undefined;
+      patch.longitude = undefined;
+      patch.resolvedLocationKey = undefined;
+      invalidateResolvedCoordinates();
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, ...patch }));
+  }, [
+    vatValidation,
+    formData.customerType,
+    formData.companyName,
+    formData.address,
+    formData.city,
+    formData.postalCode,
+    formData.country,
+  ]);
 
   const validateVatNumber = async () => {
     if (!formData.vatNumber.trim()) {
@@ -337,11 +413,18 @@ function CustomerSignupForm() {
 
       const data = await response.json();
 
-      if (data.success && data.isValid && data.coordinates) {
-        return {
-          lat: data.coordinates.lat,
-          lng: data.coordinates.lng,
-        };
+      if (!data.success || !data.isValid) {
+        return null;
+      }
+
+      // Prefer explicit coordinates; fall back to Google result geometry
+      const lat =
+        data.coordinates?.lat ?? data.data?.geometry?.location?.lat;
+      const lng =
+        data.coordinates?.lng ?? data.data?.geometry?.location?.lng;
+
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        return { lat, lng };
       }
       return null;
     } catch (error) {
@@ -350,7 +433,9 @@ function CustomerSignupForm() {
     }
   };
 
-  const validateForm = async (): Promise<boolean> => {
+  const validateForm = async (): Promise<
+    { latitude: number; longitude: number } | false
+  > => {
     // Basic validations
     if (!formData.name.trim()) {
       toast.error('Please enter your full name');
@@ -425,36 +510,58 @@ function CustomerSignupForm() {
       }
     }
 
-    // Check if we already have coordinates (from autocomplete selection)
-    // If not, geocode the address
-    if (!formData.latitude || !formData.longitude) {
-      setAddressValidating(true);
-      const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
-      const coordinates = await geocodeAddress(fullAddress);
-      setAddressValidating(false);
-
-      if (!coordinates) {
-        toast.error(
-          'Unable to validate your address. Please check and try again.'
-        );
-        return false;
-      }
-
-      // Store coordinates in formData
-      setFormData((prev) => ({
-        ...prev,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
-      }));
+    // Reuse coords only when they were resolved for this exact location key
+    const currentLocationKey = normalizeLocationKey(formData);
+    if (
+      typeof formData.latitude === 'number' &&
+      typeof formData.longitude === 'number' &&
+      formData.resolvedLocationKey === currentLocationKey
+    ) {
+      return {
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      };
     }
 
-    return true;
+    setAddressValidating(true);
+    const requestId = ++geocodeRequestIdRef.current;
+    const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
+    const coordinates = await geocodeAddress(fullAddress);
+
+    // Address changed while geocoding — discard stale result. Do not clear
+    // addressValidating here: a newer request may own it, or invalidate already did.
+    if (requestId !== geocodeRequestIdRef.current) {
+      return false;
+    }
+
+    setAddressValidating(false);
+
+    if (!coordinates) {
+      toast.error(
+        'Unable to validate your address. Please check and try again.'
+      );
+      return false;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+      resolvedLocationKey: currentLocationKey,
+    }));
+
+    // Return coords directly — setFormData is async and must not be read stale on submit
+    return {
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!(await validateForm())) return;
+    const validatedLocation = await validateForm();
+    if (!validatedLocation) return;
 
     setLoading(true);
     try {
@@ -471,8 +578,8 @@ function CustomerSignupForm() {
         city: formData.city.trim(),
         country: formData.country.trim(),
         postalCode: formData.postalCode.trim(),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
+        latitude: validatedLocation.latitude,
+        longitude: validatedLocation.longitude,
         // Business fields (only if business type)
         ...(formData.customerType === 'business' && {
           companyName: formData.companyName.trim(),
