@@ -184,40 +184,32 @@ function CustomerSignupForm() {
   const handleAddressChange = (fullAddress: string, placeData?: PlaceData) => {
     handleInputChange('address', fullAddress);
 
-    // If we have place data from autocomplete dropdown, use it directly
-    if (placeData?.coordinates && placeData?.address_components) {
-      console.log(
-        'Using place data from autocomplete - no API call needed'
-      );
-
-      const components = placeData.address_components;
-      const cityComponent = components.find(
-        (component) =>
-          component.types.includes('locality') ||
-          component.types.includes('administrative_area_level_2')
-      );
-      const countryComponent = components.find((component) =>
-        component.types.includes('country')
-      );
-      const postalComponent = components.find((component) =>
-        component.types.includes('postal_code')
-      );
-
-      const city = cityComponent?.long_name || '';
-      const country = countryComponent?.long_name || '';
-      const postalCode = postalComponent?.long_name || '';
-
-      const coordinates = placeData.coordinates;
-
-      setFormData((prev) => ({
-        ...prev,
-        city: city || prev.city,
-        country: country || prev.country,
-        postalCode: postalCode || prev.postalCode,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
-      }));
+    if (!placeData?.coordinates) {
+      return;
     }
+
+    const coordinates = placeData.coordinates;
+    const components = placeData.address_components;
+    const cityComponent = components?.find(
+      (component) =>
+        component.types.includes('locality') ||
+        component.types.includes('administrative_area_level_2')
+    );
+    const countryComponent = components?.find((component) =>
+      component.types.includes('country')
+    );
+    const postalComponent = components?.find((component) =>
+      component.types.includes('postal_code')
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      city: cityComponent?.long_name || prev.city,
+      country: countryComponent?.long_name || prev.country,
+      postalCode: postalComponent?.long_name || prev.postalCode,
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+    }));
   };
 
   // Auto-populate business info from VAT validation
@@ -337,11 +329,18 @@ function CustomerSignupForm() {
 
       const data = await response.json();
 
-      if (data.success && data.isValid && data.coordinates) {
-        return {
-          lat: data.coordinates.lat,
-          lng: data.coordinates.lng,
-        };
+      if (!data.success || !data.isValid) {
+        return null;
+      }
+
+      // Prefer explicit coordinates; fall back to Google result geometry
+      const lat =
+        data.coordinates?.lat ?? data.data?.geometry?.location?.lat;
+      const lng =
+        data.coordinates?.lng ?? data.data?.geometry?.location?.lng;
+
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        return { lat, lng };
       }
       return null;
     } catch (error) {
@@ -350,7 +349,9 @@ function CustomerSignupForm() {
     }
   };
 
-  const validateForm = async (): Promise<boolean> => {
+  const validateForm = async (): Promise<
+    { latitude: number; longitude: number } | false
+  > => {
     // Basic validations
     if (!formData.name.trim()) {
       toast.error('Please enter your full name');
@@ -425,36 +426,47 @@ function CustomerSignupForm() {
       }
     }
 
-    // Check if we already have coordinates (from autocomplete selection)
-    // If not, geocode the address
-    if (!formData.latitude || !formData.longitude) {
-      setAddressValidating(true);
-      const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
-      const coordinates = await geocodeAddress(fullAddress);
-      setAddressValidating(false);
-
-      if (!coordinates) {
-        toast.error(
-          'Unable to validate your address. Please check and try again.'
-        );
-        return false;
-      }
-
-      // Store coordinates in formData
-      setFormData((prev) => ({
-        ...prev,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
-      }));
+    // Prefer coords already captured from Places / blur geocode
+    if (
+      typeof formData.latitude === 'number' &&
+      typeof formData.longitude === 'number'
+    ) {
+      return {
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      };
     }
 
-    return true;
+    setAddressValidating(true);
+    const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
+    const coordinates = await geocodeAddress(fullAddress);
+    setAddressValidating(false);
+
+    if (!coordinates) {
+      toast.error(
+        'Unable to validate your address. Please check and try again.'
+      );
+      return false;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+    }));
+
+    // Return coords directly — setFormData is async and must not be read stale on submit
+    return {
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!(await validateForm())) return;
+    const validatedLocation = await validateForm();
+    if (!validatedLocation) return;
 
     setLoading(true);
     try {
@@ -471,8 +483,8 @@ function CustomerSignupForm() {
         city: formData.city.trim(),
         country: formData.country.trim(),
         postalCode: formData.postalCode.trim(),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
+        latitude: validatedLocation.latitude,
+        longitude: validatedLocation.longitude,
         // Business fields (only if business type)
         ...(formData.customerType === 'business' && {
           companyName: formData.companyName.trim(),
