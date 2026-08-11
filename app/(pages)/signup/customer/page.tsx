@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -123,6 +123,8 @@ function CustomerSignupForm() {
   const [isAddressValid, setIsAddressValid] = useState(false);
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const [referralReferrer, setReferralReferrer] = useState<string>('');
+  // Bumped whenever location fields change so in-flight geocode results are ignored
+  const geocodeRequestIdRef = useRef(0);
   const { signup } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -173,18 +175,36 @@ function CustomerSignupForm() {
     };
   }, [formData.referralCode]);
 
+  const LOCATION_FIELDS: Array<keyof FormData> = [
+    'address',
+    'city',
+    'postalCode',
+    'country',
+  ];
+
   const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => {
+      const next: FormData = { ...prev, [field]: value };
+      if (LOCATION_FIELDS.includes(field)) {
+        geocodeRequestIdRef.current += 1;
+        next.latitude = undefined;
+        next.longitude = undefined;
+      }
+      return next;
+    });
   };
 
   // Handle address selection from autocomplete
   const handleAddressChange = (fullAddress: string, placeData?: PlaceData) => {
-    handleInputChange('address', fullAddress);
-
     if (!placeData?.coordinates) {
+      // Typing / clearing — drop any previously resolved coordinates
+      geocodeRequestIdRef.current += 1;
+      setFormData((prev) => ({
+        ...prev,
+        address: fullAddress,
+        latitude: undefined,
+        longitude: undefined,
+      }));
       return;
     }
 
@@ -202,8 +222,10 @@ function CustomerSignupForm() {
       component.types.includes('postal_code')
     );
 
+    geocodeRequestIdRef.current += 1;
     setFormData((prev) => ({
       ...prev,
+      address: fullAddress,
       city: cityComponent?.long_name || prev.city,
       country: countryComponent?.long_name || prev.country,
       postalCode: postalComponent?.long_name || prev.postalCode,
@@ -426,7 +448,8 @@ function CustomerSignupForm() {
       }
     }
 
-    // Prefer coords already captured from Places / blur geocode
+    // Prefer coords only when they still match the current location fields
+    // (edits to address/city/postal/country clear lat/lng above).
     if (
       typeof formData.latitude === 'number' &&
       typeof formData.longitude === 'number'
@@ -438,9 +461,15 @@ function CustomerSignupForm() {
     }
 
     setAddressValidating(true);
+    const requestId = ++geocodeRequestIdRef.current;
     const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
     const coordinates = await geocodeAddress(fullAddress);
     setAddressValidating(false);
+
+    // Address changed while geocoding — discard stale result
+    if (requestId !== geocodeRequestIdRef.current) {
+      return false;
+    }
 
     if (!coordinates) {
       toast.error(
