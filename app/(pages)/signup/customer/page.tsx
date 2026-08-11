@@ -182,11 +182,18 @@ function CustomerSignupForm() {
     'country',
   ];
 
+  const invalidateResolvedCoordinates = () => {
+    geocodeRequestIdRef.current += 1;
+  };
+
   const handleInputChange = (field: keyof FormData, value: string) => {
+    const clearsCoordinates = LOCATION_FIELDS.includes(field);
+    if (clearsCoordinates) {
+      invalidateResolvedCoordinates();
+    }
     setFormData((prev) => {
       const next: FormData = { ...prev, [field]: value };
-      if (LOCATION_FIELDS.includes(field)) {
-        geocodeRequestIdRef.current += 1;
+      if (clearsCoordinates) {
         next.latitude = undefined;
         next.longitude = undefined;
       }
@@ -198,7 +205,7 @@ function CustomerSignupForm() {
   const handleAddressChange = (fullAddress: string, placeData?: PlaceData) => {
     if (!placeData?.coordinates) {
       // Typing / clearing — drop any previously resolved coordinates
-      geocodeRequestIdRef.current += 1;
+      invalidateResolvedCoordinates();
       setFormData((prev) => ({
         ...prev,
         address: fullAddress,
@@ -222,7 +229,8 @@ function CustomerSignupForm() {
       component.types.includes('postal_code')
     );
 
-    geocodeRequestIdRef.current += 1;
+    // New resolved coords — invalidate any in-flight geocode for the prior address
+    invalidateResolvedCoordinates();
     setFormData((prev) => ({
       ...prev,
       address: fullAddress,
@@ -240,40 +248,55 @@ function CustomerSignupForm() {
       return;
     }
 
-    setFormData((prev) => {
-      let next = prev;
+    const parsed = vatValidation.parsedAddress;
+    const patch: Partial<FormData> = {};
+    let locationChanged = false;
 
-      const applyUpdate = (patch: Partial<FormData>) => {
-        if (next === prev) {
-          next = { ...prev, ...patch };
-        } else {
-          next = { ...next, ...patch };
-        }
-      };
+    if (!formData.companyName && vatValidation.companyName) {
+      patch.companyName = vatValidation.companyName;
+    }
 
-      if (!prev.companyName && vatValidation.companyName) {
-        applyUpdate({ companyName: vatValidation.companyName });
+    if (parsed) {
+      if (parsed.streetAddress && !formData.address) {
+        patch.address = parsed.streetAddress;
+        locationChanged = true;
       }
-
-      if (vatValidation.parsedAddress) {
-        const parsed = vatValidation.parsedAddress;
-        if (parsed.streetAddress && !prev.address) {
-          applyUpdate({ address: parsed.streetAddress });
-        }
-        if (parsed.city && !prev.city) {
-          applyUpdate({ city: parsed.city });
-        }
-        if (parsed.postalCode && !prev.postalCode) {
-          applyUpdate({ postalCode: parsed.postalCode });
-        }
-        if (parsed.country && !prev.country) {
-          applyUpdate({ country: parsed.country });
-        }
+      if (parsed.city && !formData.city) {
+        patch.city = parsed.city;
+        locationChanged = true;
       }
+      if (parsed.postalCode && !formData.postalCode) {
+        patch.postalCode = parsed.postalCode;
+        locationChanged = true;
+      }
+      if (parsed.country && !formData.country) {
+        patch.country = parsed.country;
+        locationChanged = true;
+      }
+    }
 
-      return next;
-    });
-  }, [vatValidation, formData.customerType]);
+    if (locationChanged) {
+      // VAT may fill city/postal/country after Places set coords without
+      // address_components — drop those coords so submit re-geocodes.
+      patch.latitude = undefined;
+      patch.longitude = undefined;
+      invalidateResolvedCoordinates();
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, ...patch }));
+  }, [
+    vatValidation,
+    formData.customerType,
+    formData.companyName,
+    formData.address,
+    formData.city,
+    formData.postalCode,
+    formData.country,
+  ]);
 
   const validateVatNumber = async () => {
     if (!formData.vatNumber.trim()) {
