@@ -71,6 +71,8 @@ interface FormData {
   // Coordinates (auto-populated from geocoding)
   latitude?: number;
   longitude?: number;
+  /** Normalized address|city|postal|country key coords were resolved for */
+  resolvedLocationKey?: string;
   // Referral
   referralCode: string;
 }
@@ -182,8 +184,34 @@ function CustomerSignupForm() {
     'country',
   ];
 
+  const normalizeLocationKey = ({
+    address,
+    city,
+    postalCode,
+    country,
+  }: {
+    address: string;
+    city: string;
+    postalCode: string;
+    country: string;
+  }) =>
+    [address, city, postalCode, country]
+      .map((part) => part.trim().toLowerCase())
+      .join('|');
+
+  const clearResolvedCoordinates = (
+    data: FormData
+  ): FormData => ({
+    ...data,
+    latitude: undefined,
+    longitude: undefined,
+    resolvedLocationKey: undefined,
+  });
+
   const invalidateResolvedCoordinates = () => {
     geocodeRequestIdRef.current += 1;
+    // Drop validating UI if an in-flight geocode was just invalidated
+    setAddressValidating(false);
   };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -194,8 +222,7 @@ function CustomerSignupForm() {
     setFormData((prev) => {
       const next: FormData = { ...prev, [field]: value };
       if (clearsCoordinates) {
-        next.latitude = undefined;
-        next.longitude = undefined;
+        return clearResolvedCoordinates(next);
       }
       return next;
     });
@@ -206,12 +233,12 @@ function CustomerSignupForm() {
     if (!placeData?.coordinates) {
       // Typing / clearing — drop any previously resolved coordinates
       invalidateResolvedCoordinates();
-      setFormData((prev) => ({
-        ...prev,
-        address: fullAddress,
-        latitude: undefined,
-        longitude: undefined,
-      }));
+      setFormData((prev) =>
+        clearResolvedCoordinates({
+          ...prev,
+          address: fullAddress,
+        })
+      );
       return;
     }
 
@@ -231,15 +258,26 @@ function CustomerSignupForm() {
 
     // New resolved coords — invalidate any in-flight geocode for the prior address
     invalidateResolvedCoordinates();
-    setFormData((prev) => ({
-      ...prev,
-      address: fullAddress,
-      city: cityComponent?.long_name || prev.city,
-      country: countryComponent?.long_name || prev.country,
-      postalCode: postalComponent?.long_name || prev.postalCode,
-      latitude: coordinates.lat,
-      longitude: coordinates.lng,
-    }));
+    setFormData((prev) => {
+      const city = cityComponent?.long_name || prev.city;
+      const country = countryComponent?.long_name || prev.country;
+      const postalCode = postalComponent?.long_name || prev.postalCode;
+      return {
+        ...prev,
+        address: fullAddress,
+        city,
+        country,
+        postalCode,
+        latitude: coordinates.lat,
+        longitude: coordinates.lng,
+        resolvedLocationKey: normalizeLocationKey({
+          address: fullAddress,
+          city,
+          postalCode,
+          country,
+        }),
+      };
+    });
   };
 
   // Auto-populate business info from VAT validation
@@ -280,6 +318,7 @@ function CustomerSignupForm() {
       // address_components — drop those coords so submit re-geocodes.
       patch.latitude = undefined;
       patch.longitude = undefined;
+      patch.resolvedLocationKey = undefined;
       invalidateResolvedCoordinates();
     }
 
@@ -471,11 +510,12 @@ function CustomerSignupForm() {
       }
     }
 
-    // Prefer coords only when they still match the current location fields
-    // (edits to address/city/postal/country clear lat/lng above).
+    // Reuse coords only when they were resolved for this exact location key
+    const currentLocationKey = normalizeLocationKey(formData);
     if (
       typeof formData.latitude === 'number' &&
-      typeof formData.longitude === 'number'
+      typeof formData.longitude === 'number' &&
+      formData.resolvedLocationKey === currentLocationKey
     ) {
       return {
         latitude: formData.latitude,
@@ -487,12 +527,14 @@ function CustomerSignupForm() {
     const requestId = ++geocodeRequestIdRef.current;
     const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`;
     const coordinates = await geocodeAddress(fullAddress);
-    setAddressValidating(false);
 
-    // Address changed while geocoding — discard stale result
+    // Address changed while geocoding — discard stale result. Do not clear
+    // addressValidating here: a newer request may own it, or invalidate already did.
     if (requestId !== geocodeRequestIdRef.current) {
       return false;
     }
+
+    setAddressValidating(false);
 
     if (!coordinates) {
       toast.error(
@@ -505,6 +547,7 @@ function CustomerSignupForm() {
       ...prev,
       latitude: coordinates.lat,
       longitude: coordinates.lng,
+      resolvedLocationKey: currentLocationKey,
     }));
 
     // Return coords directly — setFormData is async and must not be read stale on submit
