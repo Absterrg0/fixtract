@@ -150,6 +150,16 @@ async function ServicePopularProjects({ serviceName }: { serviceName: string }) 
   return <PopularProjectsCarousel projects={projects} heading={`Popular ${serviceName} projects`} />;
 }
 
+function PopularProjectsSection({ serviceName }: { serviceName: string }) {
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
+      <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
+        <ServicePopularProjects serviceName={serviceName} />
+      </Suspense>
+    </section>
+  );
+}
+
 export default async function Page({ params }: Props) {
 
   const { serviceId } = await params;
@@ -197,11 +207,7 @@ export default async function Page({ params }: Props) {
           </div>
         </div>
 
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-          <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
-            <ServicePopularProjects serviceName={serviceName} />
-          </Suspense>
-        </section>
+        <PopularProjectsSection serviceName={serviceName} />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
           <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-10">
@@ -340,11 +346,7 @@ export default async function Page({ params }: Props) {
         </div>
       </div>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-        <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
-          <ServicePopularProjects serviceName={serviceName} />
-        </Suspense>
-      </section>
+      <PopularProjectsSection serviceName={serviceName} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
         <ProfessionalFilters resultsCount={professionalsForService.length} />

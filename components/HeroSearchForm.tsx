@@ -1,6 +1,6 @@
 'use client'
 
-import React, { Suspense, use, useState, useEffect } from 'react'
+import React, { Suspense, use, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,14 +29,18 @@ export default function HeroSearchForm({
   const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null)
   const [searchType, setSearchType] = useState('projects')
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
+  const hasPrefilledLocation = useRef(false)
 
   const { suggestions, isLoading } = useSearchAutocomplete(searchQuery, {
     searchType: searchType as 'professionals' | 'projects',
   })
 
   useEffect(() => {
+    if (hasPrefilledLocation.current) return
+
     if (user?.location?.city && user?.location?.country) {
       setLocation(`${user.location.city}, ${user.location.country}`)
+      hasPrefilledLocation.current = true
     }
 
     if (

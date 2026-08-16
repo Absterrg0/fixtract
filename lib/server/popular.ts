@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import type { PopularProject } from "@/lib/popularProject";
 
 const POPULAR_TIMEOUT_MS = 4_000;
@@ -22,9 +23,13 @@ async function fetchJson(
       next: { revalidate: 60, tags: [cacheTag] },
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error("popular fetch returned non-ok", { path, cacheTag, status: response.status });
+      return null;
+    }
     return await response.json();
-  } catch {
+  } catch (error) {
+    console.error("popular fetch failed", { path, cacheTag, error });
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -33,6 +38,9 @@ async function fetchJson(
 
 const isNonBlankString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+
+const optionalString = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
 function isPopularProject(value: unknown): value is PopularProject {
   if (typeof value !== "object" || value === null) return false;
@@ -47,14 +55,14 @@ function isPopularProject(value: unknown): value is PopularProject {
 
 function toPopularProject(value: unknown): PopularProject | null {
   if (!isPopularProject(value)) return null;
-  const professional = value.professional;
+  const professional = value.professional as Record<string, unknown> | null;
   return {
     _id: value._id,
     title: value.title,
     category: value.category,
     service: value.service,
-    image: typeof value.image === "string" ? value.image : null,
-    location: typeof value.location === "string" ? value.location : null,
+    image: optionalString(value.image),
+    location: optionalString(value.location),
     startingPrice: typeof value.startingPrice === "number" ? value.startingPrice : null,
     priceType: typeof value.priceType === "string" ? value.priceType : "rfq",
     avgRating: typeof value.avgRating === "number" ? value.avgRating : 0,
@@ -62,27 +70,16 @@ function toPopularProject(value: unknown): PopularProject | null {
     professional:
       professional && typeof professional === "object"
         ? {
-            name: isNonBlankString((professional as { name?: unknown }).name)
-              ? (professional as { name: string }).name
-              : "Unknown",
-            profileImage:
-              typeof (professional as { profileImage?: unknown }).profileImage === "string"
-                ? (professional as { profileImage: string }).profileImage
-                : null,
-            city:
-              typeof (professional as { city?: unknown }).city === "string"
-                ? (professional as { city: string }).city
-                : null,
-            country:
-              typeof (professional as { country?: unknown }).country === "string"
-                ? (professional as { country: string }).country
-                : null,
+            name: isNonBlankString(professional.name) ? professional.name : "Unknown",
+            profileImage: optionalString(professional.profileImage),
+            city: optionalString(professional.city),
+            country: optionalString(professional.country),
           }
         : null,
   };
 }
 
-export async function getPopularServices(limit = 5): Promise<string[]> {
+export const getPopularServices = cache(async function getPopularServices(limit = 5): Promise<string[]> {
   const capped = Math.min(Math.max(limit, 1), 50);
   const data = await fetchJson(
     `/api/search/popular?limit=${capped}`,
@@ -99,15 +96,13 @@ export async function getPopularServices(limit = 5): Promise<string[]> {
     )
     .filter(isNonBlankString)
     .slice(0, capped);
-}
+});
 
-export async function getPopularProjects(options?: {
-  limit?: number;
-  service?: string;
-}): Promise<PopularProject[]> {
-  const limit = Math.min(Math.max(options?.limit ?? 10, 1), 20);
+const getPopularProjectsCached = cache(async function getPopularProjectsCached(
+  limit: number,
+  service: string,
+): Promise<PopularProject[]> {
   const params = new URLSearchParams({ limit: String(limit) });
-  const service = options?.service?.trim();
   if (service) params.set("service", service);
 
   const data = await fetchJson(
@@ -121,4 +116,13 @@ export async function getPopularProjects(options?: {
     const project = toPopularProject(item);
     return project ? [project] : [];
   });
+});
+
+export async function getPopularProjects(options?: {
+  limit?: number;
+  service?: string;
+}): Promise<PopularProject[]> {
+  const limit = Math.min(Math.max(options?.limit ?? 10, 1), 20);
+  const service = options?.service?.trim() ?? "";
+  return getPopularProjectsCached(limit, service);
 }

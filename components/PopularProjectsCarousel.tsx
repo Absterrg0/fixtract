@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import type { PopularProject } from '@/lib/popularProject';
 
 export type { PopularProject };
-export { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton';
 
 interface PopularProjectsCarouselProps {
   projects: PopularProject[];

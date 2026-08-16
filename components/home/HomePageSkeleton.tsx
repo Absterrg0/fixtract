@@ -3,7 +3,8 @@ import { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjec
 
 export default function HomePageSkeleton() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Loading homepage</span>
       <section className="py-20 pt-32 pb-24 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
