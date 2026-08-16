@@ -1,6 +1,6 @@
 'use client'
 
-import React, { Suspense, use, useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,9 +18,9 @@ import {
 } from '@/components/ui/select'
 
 export default function HeroSearchForm({
-  popularServicesPromise,
+  popularServices,
 }: {
-  popularServicesPromise: Promise<string[]>
+  popularServices: string[]
 }) {
   const router = useRouter()
   const { user } = useAuth()
@@ -143,54 +143,25 @@ export default function HeroSearchForm({
         />
       </div>
 
-      <Suspense fallback={<PopularServiceChipsSkeleton />}>
-        <PopularServiceChips
-          popularServicesPromise={popularServicesPromise}
-          onSelect={setSearchQuery}
-        />
-      </Suspense>
-    </form>
-  )
-}
-
-function PopularServiceChipsSkeleton() {
-  return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-2" aria-hidden>
-      <span className="h-4 w-14 rounded bg-gray-200 animate-pulse" />
-      {[0, 1, 2, 3, 4].map((i) => (
-        <span key={i} className="h-7 w-24 rounded-full bg-gray-200 animate-pulse" />
-      ))}
-    </div>
-  )
-}
-
-function PopularServiceChips({
-  popularServicesPromise,
-  onSelect,
-}: {
-  popularServicesPromise: Promise<string[]>
-  onSelect: (service: string) => void
-}) {
-  const popularServices = use(popularServicesPromise)
-  if (popularServices.length === 0) return null
-
-  return (
-    <div className="mt-6 text-center">
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-        <p className="text-gray-600 text-sm">Popular:</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {popularServices.map((service) => (
-            <button
-              type="button"
-              key={service}
-              onClick={() => onSelect(service)}
-              className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-            >
-              {service}
-            </button>
-          ))}
+      {popularServices.length > 0 && (
+        <div className="mt-6 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <p className="text-gray-600 text-sm">Popular:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {popularServices.map((service) => (
+                <button
+                  type="button"
+                  key={service}
+                  onClick={() => setSearchQuery(service)}
+                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  {service}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </form>
   )
 }

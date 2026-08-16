@@ -1,10 +1,9 @@
-import React, { Suspense } from 'react'
+import React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { ShieldCheck, Clock, Star, CreditCard } from 'lucide-react'
 import { keyBenefits } from '@/data/content'
 import HeroSearchForm from './HeroSearchForm'
 import PopularProjectsCarousel from './PopularProjectsCarousel'
-import { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton'
 import type { PopularProject } from '@/lib/popularProject'
 
 const benefitIcons = {
@@ -14,21 +13,12 @@ const benefitIcons = {
   CreditCard,
 } as const
 
-async function ResolvedPopularProjects({
-  projectsPromise,
-}: {
-  projectsPromise: Promise<PopularProject[]>
-}) {
-  const projects = await projectsPromise
-  return <PopularProjectsCarousel projects={projects} />
-}
-
 const HeroSection = ({
-  popularServicesPromise,
-  popularProjectsPromise,
+  popularServices,
+  popularProjects,
 }: {
-  popularServicesPromise: Promise<string[]>
-  popularProjectsPromise: Promise<PopularProject[]>
+  popularServices: string[]
+  popularProjects: PopularProject[]
 }) => {
   return (
     <section id="hero" className="py-20 pt-32 pb-24 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
@@ -57,11 +47,9 @@ const HeroSection = ({
             across Europe. Book instantly or get custom quotes with guaranteed quality.
           </p>
 
-          <HeroSearchForm popularServicesPromise={popularServicesPromise} />
+          <HeroSearchForm popularServices={popularServices} />
 
-          <Suspense fallback={<PopularProjectsCarouselSkeleton />}>
-            <ResolvedPopularProjects projectsPromise={popularProjectsPromise} />
-          </Suspense>
+          <PopularProjectsCarousel projects={popularProjects} />
 
           <div className="mt-10 pt-16 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">

@@ -7,15 +7,17 @@ import { getPopularProjects, getPopularServices } from '@/lib/server/popular'
 
 export const revalidate = 60
 
-export default function Home() {
-  const popularServicesPromise = getPopularServices(5)
-  const popularProjectsPromise = getPopularProjects({ limit: 10 })
+export default async function Home() {
+  const [popularServices, popularProjects] = await Promise.all([
+    getPopularServices(5),
+    getPopularProjects({ limit: 10 }),
+  ])
 
   return (
     <main className="min-h-screen bg-white">
       <HeroSection
-        popularServicesPromise={popularServicesPromise}
-        popularProjectsPromise={popularProjectsPromise}
+        popularServices={popularServices}
+        popularProjects={popularProjects}
       />
       <HowItWorksSection />
       <FeaturesSection />
