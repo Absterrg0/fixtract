@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Service {
   name: string;
@@ -23,6 +24,31 @@ interface Category {
 // Shared constant for dropdown width — used in both the portal style and
 // the viewport-clamping logic inside handleMouseEnter.
 const DROPDOWN_WIDTH = 288; // matches w-72 (18rem × 16px)
+
+function useSubNavbarStickyTop() {
+  const { bar: announceBar } = useActiveTopBar();
+  return announceBar
+    ? `calc(4rem + ${ANNOUNCE_BANNER_HEIGHT_PX})`
+    : "4rem";
+}
+
+export function SubNavbarFallback() {
+  const stickyTop = useSubNavbarStickyTop();
+  return (
+    <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40" style={{ top: stickyTop }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto">
+        <div className="flex justify-between items-center h-12 min-w-full">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-full flex items-center shrink-0 px-3 gap-2">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SubNavbar = ({ categories }: { categories: Category[] }) => {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -77,10 +103,7 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
   }, []);
 
   const hoveredCategoryData = categories.find(c => c.slug === hoveredCategory);
-  const { bar: announceBar } = useActiveTopBar();
-  const stickyTop = announceBar
-    ? `calc(4rem + ${ANNOUNCE_BANNER_HEIGHT_PX})`
-    : "4rem";
+  const stickyTop = useSubNavbarStickyTop();
 
   return (
     <>

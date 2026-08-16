@@ -1,11 +1,13 @@
-'use client'
-
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, Search, Users } from 'lucide-react'
 import { howItWorksSteps } from '@/data/content'
-import Icon, { IconName } from './Icon'
 
+const stepIcons = {
+  Search,
+  Users,
+  CheckCircle,
+} as const
 
 const HowItWorksSection = () => {
   return (
@@ -36,30 +38,32 @@ const HowItWorksSection = () => {
           </div>
 
           <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-16">
-            {howItWorksSteps.map((step) => (
-              <div key={step.step} className="relative bg-white text-center p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white flex items-center justify-center shadow-lg">
-                  <Icon name={step.icon as IconName} className="w-8 h-8" />
+            {howItWorksSteps.map((step) => {
+              const StepIcon = stepIcons[step.icon as keyof typeof stepIcons]
+              return (
+                <div key={step.step} className="relative bg-white text-center p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white flex items-center justify-center shadow-lg">
+                    {StepIcon ? <StepIcon className="w-8 h-8" /> : null}
+                  </div>
+
+                  <h3 className="mt-8 text-2xl font-bold text-gray-900 mb-4">
+                    {step.title}
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    {step.description}
+                  </p>
+
+                  <ul className="space-y-2 text-left">
+                    {step.features.map((feature) => (
+                      <li key={feature} className="flex items-center text-gray-700">
+                        <CheckCircle className="w-5 h-5 text-green-500 mr-3 shrink-0" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-
-                <h3 className="mt-8 text-2xl font-bold text-gray-900 mb-4">
-                  {step.title}
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  {step.description}
-                </p>
-
-                {/* Semantically correct list for features */}
-                <ul className="space-y-2 text-left">
-                  {step.features.map((feature, i) => (
-                    <li key={i} className="flex items-center text-gray-700">
-                      <CheckCircle className="w-5 h-5 text-green-500 mr-3 shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>

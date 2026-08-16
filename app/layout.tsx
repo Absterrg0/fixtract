@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import SubNavbar from "@/components/SubNavbar";
+import SubNavbar, { SubNavbarFallback } from "@/components/SubNavbar";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import CookieConsent from "@/components/cookie-consent/CookieConsent";
@@ -66,13 +67,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+async function SubNavbarWithCategories() {
+  const serviceCategories = await getServiceCategories();
+  return <SubNavbar categories={serviceCategories} />;
+}
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const serviceCategories = await getServiceCategories();
-
   return (
     <html lang="en">
       <body
@@ -87,7 +91,9 @@ export default async function RootLayout({
                 <Navbar stacked />
               </SiteHeaderStack>
               <SiteHeaderSpacer />
-              <SubNavbar categories={serviceCategories} />
+              <Suspense fallback={<SubNavbarFallback />}>
+                <SubNavbarWithCategories />
+              </Suspense>
               <main className="flex flex-col min-h-screen">
                 <Toaster></Toaster>
                 {children}

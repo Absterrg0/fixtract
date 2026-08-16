@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Facebook, Twitter, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react'
@@ -47,25 +47,13 @@ const FooterLinkColumn = ({ title, links }: { title: string; links: { name: stri
   </div>
 )
 
-export default async function Footer() {
+export default function Footer() {
   const currentYear = new Date().getFullYear()
-
-  const [policies, settings] = await Promise.all([
-    publicListPolicyLinks(),
-    publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings)),
-  ])
-
-  const sourceLinks = [...MANDATORY_FALLBACKS, ...policies]
-  const bySlug: Record<string, PolicyLink> = Object.fromEntries(
-    sourceLinks.map((p) => [p.slug, p])
-  )
 
   return (
     <footer className="bg-gray-900 ">
-      {/* --- Main Footer Content --- */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
-          {/* Brand & Contact Section */}
           <div className="lg:col-span-2">
             <Link href="#hero" className="inline-flex items-center mb-6" aria-label="Fixtract">
               <Image
@@ -87,6 +75,41 @@ export default async function Footer() {
         </div>
       </div>
 
+      <Suspense fallback={<FooterMetaShell currentYear={currentYear} policies={MANDATORY_FALLBACKS} settings={{ socialLinks: {} }} />}>
+        <FooterMeta currentYear={currentYear} />
+      </Suspense>
+    </footer>
+  )
+}
+
+async function FooterMeta({ currentYear }: { currentYear: number }) {
+  const [policies, settings] = await Promise.all([
+    publicListPolicyLinks(),
+    publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings)),
+  ])
+
+  const sourceLinks = [...MANDATORY_FALLBACKS, ...policies]
+  const bySlug: Record<string, PolicyLink> = Object.fromEntries(
+    sourceLinks.map((p) => [p.slug, p])
+  )
+
+  return <FooterMetaShell currentYear={currentYear} policies={Object.values(bySlug)} settings={settings} />
+}
+
+function FooterMetaShell({
+  currentYear,
+  policies,
+  settings,
+}: {
+  currentYear: number
+  policies: PolicyLink[]
+  settings: SiteSettings
+}) {
+  const bySlug: Record<string, PolicyLink> = Object.fromEntries(
+    policies.map((p) => [p.slug, p])
+  )
+
+  return (
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-6">
@@ -119,6 +142,5 @@ export default async function Footer() {
           </div>
         </div>
       </div>
-    </footer>
   )
 }
