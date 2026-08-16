@@ -694,7 +694,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isPublic = isPublicRoute(pathname)
   const isAuth = isAuthRoute(pathname)
-  const shouldBlockRender = loading && (!isPublic || pathname === '/') && !isAuth
+  // Public pages (including `/`) paint immediately. The old `pathname === '/'`
+  // exception swapped the whole landing page for AuthLoadingScreen on every refresh.
+  const shouldBlockRender = loading && !isPublic && !isAuth
 
   return (
     <AuthContext.Provider value={value}>
