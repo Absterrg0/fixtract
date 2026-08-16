@@ -110,7 +110,12 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
             </nav>
 
             <div className="hidden lg:flex items-center space-x-2">
-              {!loading && (
+              {loading ? (
+                <div className="flex items-center space-x-2" aria-hidden>
+                  <div className="h-9 w-16 rounded-md bg-gray-100 animate-pulse" />
+                  <div className="h-9 w-14 rounded-md bg-gray-100 animate-pulse" />
+                </div>
+              ) : (
                 <>
                   {isAuthenticated ? (
                     <>

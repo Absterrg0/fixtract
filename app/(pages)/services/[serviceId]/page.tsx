@@ -1,4 +1,4 @@
-import React, { cache } from 'react';
+import React, { cache, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
@@ -17,7 +17,9 @@ import { publicGetCms, publicListCms } from '@/lib/cms/public';
 import RichTextRenderer from '@/components/cms/RichTextRenderer';
 import BlogCard from '@/components/cms/BlogCard';
 import PopularProjectsCarousel from '@/components/PopularProjectsCarousel';
+import { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton';
 import ServiceLandingSearch from '@/components/services/ServiceLandingSearch';
+import { getPopularProjects } from '@/lib/server/popular';
 import ServiceTableOfContents from '@/components/services/ServiceTableOfContents';
 import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
@@ -143,6 +145,11 @@ const ProfessionalCard = ({ professional }: { professional: (typeof professional
   );
 };
 
+async function ServicePopularProjects({ serviceName }: { serviceName: string }) {
+  const projects = await getPopularProjects({ service: serviceName, limit: 10 });
+  return <PopularProjectsCarousel projects={projects} heading={`Popular ${serviceName} projects`} />;
+}
+
 export default async function Page({ params }: Props) {
 
   const { serviceId } = await params;
@@ -191,7 +198,9 @@ export default async function Page({ params }: Props) {
         </div>
 
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-          <PopularProjectsCarousel serviceName={serviceName} heading={`Popular ${serviceName} projects`} limit={10} />
+          <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
+            <ServicePopularProjects serviceName={serviceName} />
+          </Suspense>
         </section>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
@@ -332,7 +341,9 @@ export default async function Page({ params }: Props) {
       </div>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-        <PopularProjectsCarousel serviceName={serviceName} heading={`Popular ${serviceName} projects`} limit={10} />
+        <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
+          <ServicePopularProjects serviceName={serviceName} />
+        </Suspense>
       </section>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">

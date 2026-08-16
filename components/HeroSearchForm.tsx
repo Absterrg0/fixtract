@@ -1,0 +1,192 @@
+'use client'
+
+import React, { Suspense, use, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Search, ArrowRight } from 'lucide-react'
+import SearchAutocomplete from './search/SearchAutocomplete'
+import LocationAutocomplete, { type LocationData } from './search/LocationAutocomplete'
+import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
+import { useAuth } from '@/contexts/AuthContext'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+export default function HeroSearchForm({
+  popularServicesPromise,
+}: {
+  popularServicesPromise: Promise<string[]>
+}) {
+  const router = useRouter()
+  const { user } = useAuth()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [location, setLocation] = useState('')
+  const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null)
+  const [searchType, setSearchType] = useState('projects')
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
+
+  const { suggestions, isLoading } = useSearchAutocomplete(searchQuery, {
+    searchType: searchType as 'professionals' | 'projects',
+  })
+
+  useEffect(() => {
+    if (user?.location?.city && user?.location?.country) {
+      setLocation(`${user.location.city}, ${user.location.country}`)
+    }
+
+    if (
+      user?.location?.coordinates &&
+      Array.isArray(user.location.coordinates) &&
+      user.location.coordinates.length === 2
+    ) {
+      const [lng, lat] = user.location.coordinates
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        setLocationCoordinates({ lat, lng })
+      }
+    }
+  }, [user])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsAutocompleteOpen(false)
+
+    if (searchQuery.trim()) {
+      const params = new URLSearchParams()
+      params.set('type', searchType)
+      params.set('q', searchQuery.trim())
+      if (location.trim()) {
+        params.set('loc', location.trim())
+      }
+      if (locationCoordinates) {
+        params.set('lat', locationCoordinates.lat.toString())
+        params.set('lon', locationCoordinates.lng.toString())
+      }
+      router.push(`/search?${params.toString()}`)
+    }
+  }
+
+  const handleSuggestionSelect = (suggestion: Suggestion) => {
+    setSearchQuery(suggestion.value)
+    setIsAutocompleteOpen(false)
+  }
+
+  return (
+    <form onSubmit={handleSearch} className="max-w-5xl mx-auto mb-5">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-3 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+          <div className="lg:col-span-4 flex items-center px-2 relative">
+            <label htmlFor="service-search" className="sr-only">Service Search</label>
+            <Search className="w-5 h-5 text-gray-400 mr-3 shrink-0" />
+            <Input
+              id="service-search"
+              placeholder="What service do you need?"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setIsAutocompleteOpen(true)
+              }}
+              onFocus={() => setIsAutocompleteOpen(true)}
+              className="border-0 focus:ring-0 text-lg placeholder:text-gray-500 w-full"
+            />
+          </div>
+
+          <div className="lg:col-span-3 px-2 lg:border-l lg:border-gray-200">
+            <label htmlFor="location-search" className="sr-only">Location</label>
+            <LocationAutocomplete
+              value={location}
+              onChange={(value: string, locationData?: LocationData) => {
+                setLocation(value)
+                setLocationCoordinates(locationData?.coordinates || null)
+              }}
+              placeholder="City, Country"
+            />
+          </div>
+
+          <div className="lg:col-span-3 lg:border-l lg:border-gray-200">
+            <Select value={searchType} onValueChange={setSearchType}>
+              <SelectTrigger className="w-full h-full text-lg px-4 ml-2 mt-1 text-gray-500 border-0 focus-visible:ring-0 focus:ring-0">
+                <SelectValue placeholder="Search for..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="projects">Search Projects</SelectItem>
+                <SelectItem value="professionals">Search Professionals</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Button
+              type="submit"
+              className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              Search
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
+        </div>
+
+        <SearchAutocomplete
+          suggestions={suggestions}
+          isLoading={isLoading}
+          onSelect={handleSuggestionSelect}
+          isOpen={isAutocompleteOpen && searchQuery.length >= 2}
+          onClose={() => setIsAutocompleteOpen(false)}
+        />
+      </div>
+
+      <Suspense fallback={<PopularServiceChipsSkeleton />}>
+        <PopularServiceChips
+          popularServicesPromise={popularServicesPromise}
+          onSelect={setSearchQuery}
+        />
+      </Suspense>
+    </form>
+  )
+}
+
+function PopularServiceChipsSkeleton() {
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-2" aria-hidden>
+      <span className="h-4 w-14 rounded bg-gray-200 animate-pulse" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} className="h-7 w-24 rounded-full bg-gray-200 animate-pulse" />
+      ))}
+    </div>
+  )
+}
+
+function PopularServiceChips({
+  popularServicesPromise,
+  onSelect,
+}: {
+  popularServicesPromise: Promise<string[]>
+  onSelect: (service: string) => void
+}) {
+  const popularServices = use(popularServicesPromise)
+  if (popularServices.length === 0) return null
+
+  return (
+    <div className="mt-6 text-center">
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+        <p className="text-gray-600 text-sm">Popular:</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {popularServices.map((service) => (
+            <button
+              type="button"
+              key={service}
+              onClick={() => onSelect(service)}
+              className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              {service}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}

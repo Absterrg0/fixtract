@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -20,6 +21,7 @@ import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
 import FCMLayoutWrapper from "@/components/notifications/FCMLayoutWrapper";
 import { getServiceCategories } from "@/lib/server/serviceCategories";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -66,13 +68,33 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+async function SubNavbarWithCategories() {
+  const serviceCategories = await getServiceCategories();
+  return <SubNavbar categories={serviceCategories} />;
+}
+
+function SubNavbarFallback() {
+  return (
+    <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40 top-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto">
+        <div className="flex justify-between items-center h-12 min-w-full">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-full flex items-center shrink-0 px-3 gap-2">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const serviceCategories = await getServiceCategories();
-
   return (
     <html lang="en">
       <body
@@ -87,7 +109,9 @@ export default async function RootLayout({
                 <Navbar stacked />
               </SiteHeaderStack>
               <SiteHeaderSpacer />
-              <SubNavbar categories={serviceCategories} />
+              <Suspense fallback={<SubNavbarFallback />}>
+                <SubNavbarWithCategories />
+              </Suspense>
               <main className="flex flex-col min-h-screen">
                 <Toaster></Toaster>
                 {children}

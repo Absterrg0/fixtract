@@ -5,89 +5,23 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import type { PopularProject } from '@/lib/popularProject';
 
-interface PopularProject {
-  _id: string;
-  title: string;
-  category: string;
-  service: string;
-  image: string | null;
-  location: string | null;
-  startingPrice: number | null;
-  priceType: string;
-  avgRating: number;
-  totalReviews: number;
-  professional: {
-    name: string;
-    profileImage: string | null;
-    city: string | null;
-    country: string | null;
-  } | null;
-}
+export type { PopularProject };
+export { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton';
 
 interface PopularProjectsCarouselProps {
-  serviceName?: string;
+  projects: PopularProject[];
   heading?: string;
-  limit?: number;
 }
 
-const DEFAULT_LIMIT = 10;
-
-const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }: PopularProjectsCarouselProps = {}) => {
-  const [projects, setProjects] = useState<PopularProject[]>([]);
-  const [loading, setLoading] = useState(true);
+const PopularProjectsCarousel = ({
+  projects,
+  heading = 'Popular Projects',
+}: PopularProjectsCarouselProps) => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setProjects([]);
-    const fetchPopularProjects = async () => {
-      try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-        const numericLimit = Number(limit);
-        const normalizedLimit =
-          Number.isFinite(numericLimit) && numericLimit >= 1
-            ? Math.floor(numericLimit)
-            : DEFAULT_LIMIT;
-        const params = new URLSearchParams();
-        params.set('limit', String(normalizedLimit));
-        const trimmedServiceName = serviceName?.trim();
-        if (trimmedServiceName) {
-          params.set('service', trimmedServiceName);
-        } else {
-          params.delete('service');
-        }
-        const response = await fetch(`${backendUrl}/api/search/popular-projects?${params.toString()}`, {
-          signal: controller.signal,
-        });
-
-        if (controller.signal.aborted) return;
-
-        if (response.ok) {
-          const data = await response.json();
-          if (controller.signal.aborted) return;
-          setProjects(Array.isArray(data?.projects) ? data.projects : []);
-        } else {
-          const errorText = await response.text().catch(() => '');
-          if (controller.signal.aborted) return;
-          console.error(`Failed to fetch popular projects: ${response.status}`, errorText);
-          setProjects([]);
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        if (controller.signal.aborted) return;
-        console.error('Failed to fetch popular projects:', error);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-    fetchPopularProjects();
-    return () => controller.abort();
-  }, [serviceName, limit]);
 
   const updateScrollButtons = useCallback(() => {
     const el = scrollRef.current;
@@ -112,7 +46,7 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
     const el = scrollRef.current;
     if (!el) return;
     const first = el.firstElementChild as HTMLElement | null;
-    const gap = 16; // gap-4
+    const gap = 16;
     const cardWidth = first ? first.offsetWidth + gap : 280 + gap;
     el.scrollBy({
       left: direction === 'left' ? -cardWidth : cardWidth,
@@ -126,32 +60,12 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
     return `\u20AC${price.toLocaleString()}`;
   };
 
-  if (loading) {
-    return (
-      <div className="mt-10 max-w-5xl mx-auto">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-left">{heading || 'Popular Projects'}</h3>
-        <div className="flex gap-4 overflow-hidden">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="min-w-[280px] rounded-xl border border-gray-200 overflow-hidden">
-              <Skeleton className="h-40 w-full" />
-              <div className="p-4 space-y-2">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-3 w-1/3" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (projects.length === 0) return null;
 
   return (
     <div className="mt-10 max-w-5xl mx-auto text-left">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">{heading || 'Popular Projects'}</h3>
+        <h3 className="text-lg font-semibold text-gray-800">{heading}</h3>
         <div className="flex gap-2">
           <button
             onClick={() => scroll('left')}
@@ -189,13 +103,13 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
               className="min-w-[280px] max-w-[280px] snap-start flex-shrink-0 group"
             >
               <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex flex-col">
-                {/* Image */}
                 <div className="relative h-40 bg-gradient-to-br from-blue-50 to-purple-50">
                   {project.image ? (
                     <Image
                       src={project.image}
                       alt={project.title}
                       fill
+                      sizes="280px"
                       className="object-cover"
                     />
                   ) : (
@@ -208,7 +122,6 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
                   </Badge>
                 </div>
 
-                {/* Content */}
                 <div className="p-3.5 flex flex-col flex-grow">
                   <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-1.5">
                     {project.title}
@@ -218,12 +131,10 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
                     {project.service}
                   </Badge>
 
-                  {/* Price */}
                   <p className="text-sm font-bold text-gray-900 mb-2">
                     {formatPrice(project.startingPrice, project.priceType)}
                   </p>
 
-                  {/* Rating */}
                   {project.avgRating > 0 && (
                     <div className="flex items-center gap-1 mb-2">
                       <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
@@ -236,7 +147,6 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
                     </div>
                   )}
 
-                  {/* Professional */}
                   {project.professional && (
                     <div className="mt-auto pt-2.5 border-t border-gray-100 flex items-center gap-2">
                       {project.professional.profileImage ? (
@@ -254,7 +164,7 @@ const PopularProjectsCarousel = ({ serviceName, heading, limit = DEFAULT_LIMIT }
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-medium text-gray-800 truncate">
-                          {project.professional.name || "Unknown"}
+                          {project.professional.name || 'Unknown'}
                         </p>
                         {profLocation && (
                           <p className="text-[10px] text-gray-500 flex items-center gap-0.5 truncate">
