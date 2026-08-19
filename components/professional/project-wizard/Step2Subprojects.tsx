@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { collectSubprojectErrors } from '@/lib/projectWizardValidation';
 
 interface IIncludedItem {
   name: string;
@@ -456,25 +457,8 @@ export default function Step2Subprojects({
   const validateForm = () => {
     const isValid =
       subprojects.length > 0 &&
-      subprojects.every((sub) => {
-        // Check for any validation errors
-        if (sub.errors?.priceRange || sub.errors?.executionDurationRange) return false;
-
-        // For RFQ pricing, validate price range if both values are provided
-        if (sub.pricing.type === 'rfq') {
-          const { min, max } = sub.pricing.priceRange || {};
-          if (min !== undefined && max !== undefined && min > max) {
-            return false;
-          }
-          const range = sub.executionDuration.range;
-          const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min);
-          const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max);
-
-          if (!hasMin && !hasMax) return false;
-          if (hasMin && range!.min! <= 0) return false;
-          if (hasMax && range!.max! <= 0) return false;
-          if (hasMin && hasMax && range!.min! > range!.max!) return false;
-        }
+      subprojects.every((sub, index) => {
+        if (collectSubprojectErrors(sub, index).length > 0) return false;
 
         const requiredFieldsMissing = dynamicFields
           .filter((f) => f.isRequired)
@@ -484,22 +468,7 @@ export default function Step2Subprojects({
             );
             return !input || input.value === undefined || input.value === '' || input.value === null;
           });
-        if (requiredFieldsMissing) return false;
-
-        return (
-          sub.name &&
-          sub.description &&
-          sub.description.length >= 10 &&
-          sub.pricing.type &&
-          (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
-          sub.included.filter((item) => item.name?.trim()).length >= 3 &&
-          sub.preparationDuration &&
-          typeof sub.preparationDuration.value === 'number' &&
-          (sub.pricing.type === 'rfq' || (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
-          typeof sub.materialsIncluded === 'boolean' &&
-          (!sub.materialsIncluded ||
-            (sub.materials && sub.materials.length > 0))
-        );
+        return !requiredFieldsMissing;
       });
     onValidate(isValid);
   };
@@ -1779,7 +1748,7 @@ export default function Step2Subprojects({
                     </div>
                   )}
 
-                  {subproject.included.length < 3 && (
+                  {subproject.included.filter((item) => item.name?.trim()).length < 3 && (
                     <div className='flex items-center space-x-2 text-amber-600 bg-amber-50 p-2 rounded mt-2'>
                       <AlertCircle className='w-4 h-4' />
                       <span className='text-sm'>

@@ -71,8 +71,12 @@ function relatedCatalogName(landing: CmsContent | null): string | undefined {
   const related = landing?.relatedServices;
   if (Array.isArray(related)) {
     for (const item of related) {
-      if (typeof item === "object" && item && typeof item.name === "string" && item.name.trim()) {
-        return item.name.trim();
+      if (typeof item === "string" && item.trim()) return item.trim();
+      if (typeof item === "object" && item) {
+        const name = item.name?.trim();
+        const slug = item.slug?.trim();
+        if (name) return name;
+        if (slug) return slug;
       }
     }
   }

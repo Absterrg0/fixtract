@@ -17,8 +17,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
   collectBlockingWizardErrors,
   collectStepErrors,
-  formatWizardErrorToast,
   parseProjectSaveError,
+  type WizardStepError,
 } from '@/lib/projectWizardValidation'
 
 interface IIncludedItem {
@@ -369,7 +369,8 @@ function ProjectCreateContent() {
             description: project.description,
             priceModel: project.priceModel,
             title: project.title,
-            customConfirmationMessage: project.customConfirmationMessage
+            customConfirmationMessage: project.customConfirmationMessage,
+            customerPresence: project.customerPresence,
           })
           setCurrentStep(project.currentStep || 1)
           // Enable all steps for existing projects
@@ -454,9 +455,10 @@ function ProjectCreateContent() {
         console.error('Save failed:', errorData)
         const parsed = parseProjectSaveError(errorData)
         setStepErrors(parsed.messages)
-        if (parsed.step !== currentStep) {
-          setCurrentStep(parsed.step)
-          setProjectData(prev => ({ ...prev, currentStep: parsed.step }))
+        if (parsed.step != null && parsed.step !== currentStep) {
+          const nextStep = parsed.step
+          setCurrentStep(nextStep)
+          setProjectData(prev => ({ ...prev, currentStep: nextStep }))
         }
         throw new Error(parsed.messages.join(' | '))
       }
@@ -469,6 +471,7 @@ function ProjectCreateContent() {
   }
 
   const handleStepChange = (step: number) => {
+    setStepErrors([])
     setCurrentStep(step)
     setProjectData(prev => ({ ...prev, currentStep: step }))
     // If editing existing project, always allow navigation
@@ -542,19 +545,25 @@ function ProjectCreateContent() {
     }
   }, [currentStep, projectData, handleStepValidation])
 
+  const goToFirstBlockingStep = (blocking: WizardStepError[]) => {
+    const first = blocking[0]
+    setCurrentStep(first.step)
+    setProjectData(prev => ({ ...prev, currentStep: first.step }))
+    setStepErrors(first.messages)
+    if (first.step === 1) {
+      step1Ref.current?.showValidationErrors()
+    }
+    toast.error(
+      `Fix ${blocking.length} step${blocking.length > 1 ? 's' : ''} before submitting. Starting at Step ${first.step} (${first.stepTitle}).`
+    )
+  }
+
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
 
     const blocking = collectBlockingWizardErrors(projectData)
     if (blocking.length > 0) {
-      const first = blocking[0]
-      setCurrentStep(first.step)
-      setProjectData(prev => ({ ...prev, currentStep: first.step }))
-      setStepErrors(first.messages)
-      if (first.step === 1) {
-        step1Ref.current?.showValidationErrors()
-      }
-      toast.error(formatWizardErrorToast(blocking))
+      goToFirstBlockingStep(blocking)
       return
     }
 
@@ -661,9 +670,10 @@ function ProjectCreateContent() {
         console.error('Submission failed:', error)
         const parsed = parseProjectSaveError(error)
         setStepErrors(parsed.messages)
-        if (parsed.step !== currentStep) {
-          setCurrentStep(parsed.step)
-          setProjectData(prev => ({ ...prev, currentStep: parsed.step }))
+        if (parsed.step != null && parsed.step !== currentStep) {
+          const nextStep = parsed.step
+          setCurrentStep(nextStep)
+          setProjectData(prev => ({ ...prev, currentStep: nextStep }))
         }
         toast.error(parsed.messages.join(' | ') || 'Failed to submit project')
       }
@@ -680,14 +690,7 @@ function ProjectCreateContent() {
   const handleShowValidationErrors = () => {
     const blocking = collectBlockingWizardErrors(projectData)
     if (currentStep === 8 && blocking.length > 0) {
-      const first = blocking[0]
-      setCurrentStep(first.step)
-      setProjectData(prev => ({ ...prev, currentStep: first.step }))
-      setStepErrors(first.messages)
-      if (first.step === 1) {
-        step1Ref.current?.showValidationErrors()
-      }
-      toast.error(formatWizardErrorToast(blocking))
+      goToFirstBlockingStep(blocking)
       return
     }
 

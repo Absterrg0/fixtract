@@ -210,11 +210,11 @@ export default function WizardLayout({
 
               <CardContent className="p-6">
                 {validationMessages.length > 0 && (
-                  <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                     <p className="font-semibold mb-2">Fix these before continuing</p>
                     <ul className="list-disc pl-5 space-y-1">
-                      {validationMessages.map((message) => (
-                        <li key={message}>{message}</li>
+                      {validationMessages.map((message, index) => (
+                        <li key={`${index}-${message}`}>{message}</li>
                       ))}
                     </ul>
                   </div>

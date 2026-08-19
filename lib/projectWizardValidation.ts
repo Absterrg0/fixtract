@@ -201,30 +201,18 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
   }
 }
 
-const REQUIRED_STEPS = [1, 2, 3]
-const OPTIONAL_CONTENT_STEPS = [4, 5, 6]
+// Steps 7 and 8 carry no blocking rules; 4-6 only fail when the user added incomplete entries.
+const VALIDATED_STEPS = [1, 2, 3, 4, 5, 6]
 
 export function collectBlockingWizardErrors(data: WizardProjectSnapshot): WizardStepError[] {
   const blocking: WizardStepError[] = []
-  for (const step of REQUIRED_STEPS) {
-    const messages = collectStepErrors(step, data)
-    if (messages.length > 0) {
-      blocking.push({ step, stepTitle: WIZARD_STEP_TITLES[step], messages })
-    }
-  }
-  for (const step of OPTIONAL_CONTENT_STEPS) {
+  for (const step of VALIDATED_STEPS) {
     const messages = collectStepErrors(step, data)
     if (messages.length > 0) {
       blocking.push({ step, stepTitle: WIZARD_STEP_TITLES[step], messages })
     }
   }
   return blocking
-}
-
-export function formatWizardErrorToast(errors: WizardStepError[]): string {
-  return errors
-    .map((entry) => `Step ${entry.step} (${entry.stepTitle}): ${entry.messages.join("; ")}`)
-    .join(" | ")
 }
 
 export function mapBackendFieldToStep(path: string): number {
@@ -241,23 +229,28 @@ export function parseProjectSaveError(payload: {
   error?: unknown
   details?: unknown
   qualityChecks?: Array<{ message?: string }>
-}): { messages: string[]; step: number } {
+}): { messages: string[]; step: number | null } {
   const messages: string[] = []
   if (Array.isArray(payload.qualityChecks)) {
     for (const check of payload.qualityChecks) {
       if (check?.message) messages.push(check.message)
     }
   }
-  const details = typeof payload.details === "string" ? payload.details : ""
-  const error = typeof payload.error === "string" ? payload.error : ""
-  const blob = [details, error].filter(Boolean).join(" ")
-  if (details) messages.push(details)
+  if (typeof payload.details === "string" && payload.details.trim()) {
+    messages.push(payload.details)
+  } else if (Array.isArray(payload.details)) {
+    for (const entry of payload.details) {
+      if (typeof entry === "string" && entry.trim()) messages.push(entry)
+    }
+  }
+  const error = typeof payload.error === "string" ? payload.error.trim() : ""
+  if (error && !messages.includes(error)) messages.push(error)
 
   if (messages.length === 0) {
-    messages.push(error || "Could not save the project. Check the highlighted step and try again.")
+    messages.push("Could not save the project. Check the highlighted step and try again.")
   }
 
+  const blob = messages.join(" ")
   const pathMatch = blob.match(/subprojects|faq|rfq|postBooking|extraOptions|termsConditions|title|description|distance|service/i)
-  const step = pathMatch ? mapBackendFieldToStep(pathMatch[0]) : 2
-  return { messages, step }
+  return { messages, step: pathMatch ? mapBackendFieldToStep(pathMatch[0]) : null }
 }
