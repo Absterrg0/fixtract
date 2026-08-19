@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -74,6 +75,14 @@ const getClaimAttachments = (claim: ClaimRecord) => [
 ]
 
 export default function WarrantyClaimsPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" /></div>}>
+      <WarrantyClaimsContent />
+    </Suspense>
+  )
+}
+
+function WarrantyClaimsContent() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()

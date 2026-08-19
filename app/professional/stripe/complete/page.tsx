@@ -1,11 +1,8 @@
 'use client';
 
-/**
- * Stripe Onboarding Complete Page
- * Return page after Stripe onboarding completion
- */
+export const dynamic = 'force-dynamic';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface AccountStatus {
@@ -17,6 +14,14 @@ interface AccountStatus {
 }
 
 export default function StripeCompletePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" /></div>}>
+      <StripeCompleteContent />
+    </Suspense>
+  );
+}
+
+function StripeCompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');

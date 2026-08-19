@@ -1,14 +1,9 @@
 'use client';
 
-/**
- * Stripe Onboarding Refresh Page
- * When onboarding link expires, user is redirected here
- */
-
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function StripeRefreshPage() {
+function StripeRefreshContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -42,7 +37,6 @@ export default function StripeRefreshPage() {
         return;
       }
 
-      // Redirect to new onboarding link
       window.location.href = data.data.url;
 
     } catch (err) {
@@ -53,8 +47,8 @@ export default function StripeRefreshPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
+        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
           <svg className="h-10 w-10 text-yellow-600" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -102,5 +96,13 @@ export default function StripeRefreshPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function StripeRefreshPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" /></div>}>
+      <StripeRefreshContent />
+    </Suspense>
   );
 }

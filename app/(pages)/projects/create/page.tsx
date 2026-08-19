@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
@@ -194,6 +195,14 @@ interface ProjectData {
 }
 
 export default function ProjectCreatePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" /></div>}>
+      <ProjectCreateContent />
+    </Suspense>
+  )
+}
+
+function ProjectCreateContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isAuthenticated, loading } = useAuth()
