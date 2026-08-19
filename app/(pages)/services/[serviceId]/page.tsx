@@ -37,17 +37,47 @@ type Props = {
   }>;
 };
 
+function serviceKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function matchesServiceId(id: string, name: string, serviceId: string): boolean {
+  const needle = serviceKey(serviceId);
+  return id === serviceId || serviceKey(id) === needle || serviceKey(name) === needle;
+}
+
 function findServiceMeta(serviceId: string) {
   for (const cat of serviceCategories) {
     for (const sub of cat.subCategories || []) {
       for (const svc of sub.services || []) {
-        if (svc.id === serviceId) return { name: svc.name, description: svc.description, category: cat.name, categorySlug: cat.slug };
+        if (matchesServiceId(svc.id, svc.name, serviceId)) {
+          return { name: svc.name, description: svc.description, category: cat.name, categorySlug: cat.slug };
+        }
       }
     }
   }
-  const navSvc = subNavbarCategories.flatMap((c) => c.services).find((s) => s.id === serviceId);
+  const navSvc = subNavbarCategories.flatMap((c) => c.services).find((s) => matchesServiceId(s.id, s.name, serviceId));
   if (navSvc) return { name: navSvc.name, description: undefined as string | undefined, category: undefined as string | undefined, categorySlug: undefined as string | undefined };
   return null;
+}
+
+function relatedCatalogName(landing: CmsContent | null): string | undefined {
+  const related = landing?.relatedServices;
+  if (Array.isArray(related)) {
+    for (const item of related) {
+      if (typeof item === "object" && item && typeof item.name === "string" && item.name.trim()) {
+        return item.name.trim();
+      }
+    }
+  }
+  const slug = landing?.relatedServiceSlug?.trim();
+  return slug || undefined;
 }
 
 const fetchRelatedArticles = cache(async (serviceSlug: string) => {
@@ -145,16 +175,28 @@ const ProfessionalCard = ({ professional }: { professional: (typeof professional
   );
 };
 
-async function ServicePopularProjects({ serviceName }: { serviceName: string }) {
-  const projects = await getPopularProjects({ service: serviceName, limit: 10 });
-  return <PopularProjectsCarousel projects={projects} heading={`Popular ${serviceName} projects`} />;
+async function ServicePopularProjects({
+  headingName,
+  queryName,
+}: {
+  headingName: string
+  queryName: string
+}) {
+  const projects = await getPopularProjects({ service: queryName, limit: 10 });
+  return <PopularProjectsCarousel projects={projects} heading={`Popular ${headingName} projects`} />;
 }
 
-function PopularProjectsSection({ serviceName }: { serviceName: string }) {
+function PopularProjectsSection({
+  headingName,
+  queryName,
+}: {
+  headingName: string
+  queryName: string
+}) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-      <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${serviceName} projects`} />}>
-        <ServicePopularProjects serviceName={serviceName} />
+      <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${headingName} projects`} />}>
+        <ServicePopularProjects headingName={headingName} queryName={queryName} />
       </Suspense>
     </section>
   );
@@ -170,6 +212,7 @@ export default async function Page({ params }: Props) {
   if (landing && hasMeaningfulBody(landing.body)) {
     const safePath = `/services/${encodeURIComponent(serviceId)}`;
     const serviceName = landing.title || meta?.name || humanizeCmsSlug(serviceId);
+    const queryName = meta?.name || relatedCatalogName(landing) || serviceId;
     const coverSrc = landing.coverImage || getServiceCoverImage(serviceId, meta?.categorySlug);
     const { html: bodyHtml, toc } = extractTocAndAddIds(landing.body);
     const { blogs, news } = await fetchRelatedArticles(serviceId);
@@ -207,7 +250,7 @@ export default async function Page({ params }: Props) {
           </div>
         </div>
 
-        <PopularProjectsSection serviceName={serviceName} />
+        <PopularProjectsSection headingName={serviceName} queryName={queryName} />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
           <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-10">
@@ -346,7 +389,7 @@ export default async function Page({ params }: Props) {
         </div>
       </div>
 
-      <PopularProjectsSection serviceName={serviceName} />
+      <PopularProjectsSection headingName={serviceName} queryName={serviceName} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
         <ProfessionalFilters resultsCount={professionalsForService.length} />
