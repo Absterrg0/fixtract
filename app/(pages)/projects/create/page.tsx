@@ -13,6 +13,12 @@ import Step7CustomMessage from '@/components/professional/project-wizard/Step7Cu
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import {
+  collectBlockingWizardErrors,
+  collectStepErrors,
+  formatWizardErrorToast,
+  parseProjectSaveError,
+} from '@/lib/projectWizardValidation'
 
 interface IIncludedItem {
   name: string
@@ -169,6 +175,7 @@ interface ProjectData {
   rfqQuestions?: IRFQQuestion[]
   postBookingQuestions?: IPostBookingQuestion[]
   customConfirmationMessage?: string
+  customerPresence?: string
   currentStep?: number
   minResources?: number
   minOverlapPercentage?: number
@@ -193,6 +200,7 @@ export default function ProjectCreatePage() {
   const projectId = searchParams.get('id')
   const [currentStep, setCurrentStep] = useState(1)
   const step1Ref = useRef<Step1Ref>(null)
+  const [stepErrors, setStepErrors] = useState<string[]>([])
   const [projectData, setProjectData] = useState<ProjectData>({
     currentStep: 1,
     timeMode: 'days',
@@ -430,15 +438,23 @@ export default function ProjectCreatePage() {
         if (!options?.silent) {
           toast.success('Project draft saved successfully!')
         }
+        setStepErrors([])
         return savedProject
       } else {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
         console.error('Save failed:', errorData)
-        throw new Error(errorData.error || 'Failed to save')
+        const parsed = parseProjectSaveError(errorData)
+        setStepErrors(parsed.messages)
+        if (parsed.step !== currentStep) {
+          setCurrentStep(parsed.step)
+          setProjectData(prev => ({ ...prev, currentStep: parsed.step }))
+        }
+        throw new Error(parsed.messages.join(' | '))
       }
     } catch (error) {
       console.error('Save error:', error)
-      toast.error('Failed to save project draft')
+      const message = error instanceof Error ? error.message : 'Failed to save project draft'
+      toast.error(message)
       return null
     }
   }
@@ -457,13 +473,23 @@ export default function ProjectCreatePage() {
   }
 
   const handleNext = () => {
-    if (currentStep < 8 && canProceed) {
+    const errors = collectStepErrors(currentStep, projectData)
+    if (errors.length > 0) {
+      setStepErrors(errors)
+      if (currentStep === 1) {
+        step1Ref.current?.showValidationErrors()
+      } else {
+        toast.error(errors.join('. '))
+      }
+      return
+    }
+
+    setStepErrors([])
+    if (currentStep < 8) {
       setCurrentStep(currentStep + 1)
-      // If editing existing project, always allow navigation
       if (projectId) {
         setCanProceed(true)
       } else {
-        // Reset canProceed for next step validation for new projects
         const nextStepValid = stepValidation[currentStep] || false
         setCanProceed(nextStepValid)
       }
@@ -472,6 +498,7 @@ export default function ProjectCreatePage() {
 
   const handlePrevious = () => {
     if (currentStep > 1) {
+      setStepErrors([])
       setCurrentStep(currentStep - 1)
       // Set canProceed based on previous step validation
       const prevStepValid = stepValidation[currentStep - 2] || false
@@ -497,15 +524,31 @@ export default function ProjectCreatePage() {
     })
   }, [currentStep])
 
-  // Auto-validate step 8 when we reach it (it's just a review step)
+  // Step 8 is review-only. Required earlier steps must still be valid before submit.
   useEffect(() => {
     if (currentStep === 8) {
-      handleStepValidation(8, true)
+      const blocking = collectBlockingWizardErrors(projectData)
+      handleStepValidation(8, blocking.length === 0)
+      setStepErrors(blocking.flatMap((entry) => entry.messages))
     }
-  }, [currentStep, handleStepValidation])
+  }, [currentStep, projectData, handleStepValidation])
 
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
+
+    const blocking = collectBlockingWizardErrors(projectData)
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setCurrentStep(first.step)
+      setProjectData(prev => ({ ...prev, currentStep: first.step }))
+      setStepErrors(first.messages)
+      if (first.step === 1) {
+        step1Ref.current?.showValidationErrors()
+      }
+      toast.error(formatWizardErrorToast(blocking))
+      return
+    }
+
     setIsLoading(true)
     let shouldResetLoading = true
     try {
@@ -517,7 +560,6 @@ export default function ProjectCreatePage() {
       if (!projectId) {
         const savedProject = await saveProjectDraft({ silent: true })
         if (!savedProject) {
-          toast.error('Failed to save project before submission')
           return
         }
         projectId = savedProject._id
@@ -525,7 +567,6 @@ export default function ProjectCreatePage() {
         // For existing projects (including duplicates), save changes first
         const savedProject = await saveProjectDraft({ silent: true })
         if (!savedProject) {
-          toast.error('Failed to save changes before submission')
           return
         }
       }
@@ -607,9 +648,15 @@ export default function ProjectCreatePage() {
         shouldResetLoading = false
         router.replace('/professional/projects/manage')
       } else {
-        const error = await response.json()
+        const error = await response.json().catch(() => ({}))
         console.error('Submission failed:', error)
-        toast.error(error.error || 'Failed to submit project')
+        const parsed = parseProjectSaveError(error)
+        setStepErrors(parsed.messages)
+        if (parsed.step !== currentStep) {
+          setCurrentStep(parsed.step)
+          setProjectData(prev => ({ ...prev, currentStep: parsed.step }))
+        }
+        toast.error(parsed.messages.join(' | ') || 'Failed to submit project')
       }
     } catch (error) {
       console.error('Submit error:', error)
@@ -622,66 +669,27 @@ export default function ProjectCreatePage() {
   }
 
   const handleShowValidationErrors = () => {
+    const blocking = collectBlockingWizardErrors(projectData)
+    if (currentStep === 8 && blocking.length > 0) {
+      const first = blocking[0]
+      setCurrentStep(first.step)
+      setProjectData(prev => ({ ...prev, currentStep: first.step }))
+      setStepErrors(first.messages)
+      if (first.step === 1) {
+        step1Ref.current?.showValidationErrors()
+      }
+      toast.error(formatWizardErrorToast(blocking))
+      return
+    }
+
+    const errors = collectStepErrors(currentStep, projectData)
+    setStepErrors(errors)
     if (currentStep === 1) {
       step1Ref.current?.showValidationErrors()
-    } else if (currentStep === 2) {
-      // Step 2 validation
-      if (!projectData.subprojects || projectData.subprojects.length === 0) {
-        toast.error('At least one subproject/package is required')
-      } else {
-        const allPackageErrors: string[] = []
-        projectData.subprojects.forEach((sub, index) => {
-          const label = sub.name || `Package ${index + 1}`
-          const errors: string[] = []
-          if (!sub.name) errors.push('Package name is required')
-          if (!sub.description || sub.description.length < 10) errors.push('Package scope must be at least 10 characters')
-          if (!sub.pricing?.type) errors.push('Pricing type is required')
-          if ((sub.included ?? []).length < 3) errors.push('At least 3 included items are required')
-          if (typeof sub.materialsIncluded !== 'boolean') errors.push('Please select whether materials are included')
-
-          if (sub.pricing?.type === 'rfq') {
-            const range = sub.executionDuration?.range
-            const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min)
-            const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max)
-
-            let rangeError = false
-            if (!hasMin && !hasMax) {
-              rangeError = true
-            } else {
-              if (hasMin && range!.min! <= 0) rangeError = true
-              if (hasMax && range!.max! <= 0) rangeError = true
-              if (hasMin && hasMax && range!.min! > range!.max!) {
-                rangeError = true
-              }
-            }
-            if (rangeError) {
-              errors.push('Valid execution duration range is required for RFQ packages')
-            }
-          } else {
-            if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
-              errors.push('Execution duration is required')
-            }
-          }
-
-          if (errors.length > 0) {
-            allPackageErrors.push(`${label}: ${errors.join(', ')}`)
-          }
-        })
-
-        if (allPackageErrors.length > 0) {
-          toast.error(allPackageErrors.join(' | '))
-        }
-      }
-    } else if (currentStep === 3) {
-      toast.info('Please specify customer presence requirement')
-    } else if (currentStep === 4) {
-      toast.info('Step 4 is optional - you can proceed to the next step')
-    } else if (currentStep === 5) {
-      toast.info('Step 5 is optional - you can proceed to the next step')
-    } else if (currentStep === 6) {
-      toast.info('Step 6 is optional - you can proceed to the next step')
-    } else if (currentStep === 7) {
-      toast.info('Step 7 is optional - you can proceed to the next step')
+      return
+    }
+    if (errors.length > 0) {
+      toast.error(errors.join('. '))
     }
   }
 
@@ -989,6 +997,7 @@ export default function ProjectCreatePage() {
       onPrevious={handlePrevious}
       onSubmit={handleSubmit}
       onShowValidationErrors={handleShowValidationErrors}
+      validationMessages={stepErrors}
       isLoading={isLoading}
       canProceed={canProceed}
       isEditing={!!projectId}

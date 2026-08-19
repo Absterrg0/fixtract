@@ -492,7 +492,7 @@ export default function Step2Subprojects({
           sub.description.length >= 10 &&
           sub.pricing.type &&
           (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
-          sub.included.length >= 3 &&
+          sub.included.filter((item) => item.name?.trim()).length >= 3 &&
           sub.preparationDuration &&
           typeof sub.preparationDuration.value === 'number' &&
           (sub.pricing.type === 'rfq' || (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
