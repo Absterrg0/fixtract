@@ -12,6 +12,7 @@ interface User {
   _id: string
   name: string
   email: string
+  marketingLocale?: string
   phone: string
   role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
   adminRole?: AdminRole
