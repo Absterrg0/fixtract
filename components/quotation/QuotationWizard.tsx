@@ -34,7 +34,7 @@ interface VatRateOption {
 
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
 const makePricingLineKey = () => `pricing-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE', vatLabel = '21% standard VAT'): QuotationPricingLine => ({
+const createEmptyPricingLine = (vatRate = 0, vatCountry = '', vatLabel = 'Enter custom VAT rate'): QuotationPricingLine => ({
   clientKey: makePricingLineKey(),
   description: '',
   price: 0,
@@ -63,9 +63,9 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
 ] as const satisfies ReadonlyArray<QuotationMilestone['dueCondition']>
 
 const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
-  rate: 21,
-  country: 'BE',
-  label: '21% standard VAT',
+  rate: 0,
+  country: '',
+  label: 'Custom VAT rate (enter below)',
   reverseCharge: false,
   source: 'standard',
 }]

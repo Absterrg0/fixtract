@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Loader2, RefreshCw, Search, ShieldCheck, CalendarClock, ArrowRightLeft, Undo2, FileText, FileMinus } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type PaymentStatus = "pending" | "authorized" | "completed" | "failed" | "refunded" | "partially_refunded" | "expired"
+type OversightStatus = PaymentStatus | "transfer_pending" | "transfer_failed"
 
 interface PopulatedUser {
   _id: string
@@ -45,6 +47,11 @@ interface PaymentRecord {
   currency: string
   amount: number
   totalWithVat?: number
+  netAmount?: number
+  vatAmount?: number
+  vatRate?: number
+  vatLabel?: string
+  reverseCharge?: boolean
   platformCommission?: number
   professionalPayout?: number
   extraCostAmount?: number
@@ -53,9 +60,15 @@ interface PaymentRecord {
   extraCostPlatformFee?: number
   extraCostProfessionalPayout?: number
   extraCostStatus?: "pending" | "succeeded" | "failed" | "refunded"
+  extraCostTransferStatus?: "pending" | "succeeded" | "failed"
+  extraCostTransferFailureReason?: string
   stripePaymentIntentId?: string
   stripeTransferId?: string
   stripeChargeId?: string
+  transferStatus?: "pending" | "succeeded" | "failed"
+  transferFailureReason?: string
+  transferAttemptedAt?: string
+  metadata?: { transferFailed?: boolean; transferError?: string }
   createdAt?: string
   authorizedAt?: string
   capturedAt?: string
@@ -69,6 +82,9 @@ interface PaymentRecord {
   creditNoteNumber?: string
   creditNoteUrl?: string
   creditNoteUblUrl?: string
+  supplierCreditNoteNumber?: string
+  supplierCreditNoteUrl?: string
+  supplierCreditNoteUblUrl?: string
   peppolDispatchStatus?: string
   peppolDispatchReason?: string
   supplierPeppolDispatchStatus?: string
@@ -81,7 +97,7 @@ interface PaymentRecord {
   }>
 }
 
-const STATUS_OPTIONS: { label: string; value: "all" | PaymentStatus }[] = [
+const STATUS_OPTIONS: { label: string; value: "all" | OversightStatus }[] = [
   { label: "All statuses", value: "all" },
   { label: "Pending", value: "pending" },
   { label: "Authorized", value: "authorized" },
@@ -89,6 +105,8 @@ const STATUS_OPTIONS: { label: string; value: "all" | PaymentStatus }[] = [
   { label: "Refunded", value: "refunded" },
   { label: "Partially Refunded", value: "partially_refunded" },
   { label: "Failed", value: "failed" },
+  { label: "Transfer pending", value: "transfer_pending" },
+  { label: "Transfer failed", value: "transfer_failed" },
   { label: "Expired", value: "expired" }
 ]
 
@@ -110,7 +128,7 @@ interface ApiResponse {
     total: number
     totalPages: number
   }
-  stats: Array<{ status: PaymentStatus; count: number; totalVolume?: number }>
+  stats: Array<{ status: OversightStatus; currency?: string; count: number; totalVolume?: number }>
 }
 
 const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => (
@@ -127,7 +145,7 @@ export default function AdminPaymentsPage() {
   const [stats, setStats] = useState<ApiResponse["stats"]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<"all" | PaymentStatus>("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | OversightStatus>("all")
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
@@ -141,6 +159,18 @@ export default function AdminPaymentsPage() {
   const [refundReason, setRefundReason] = useState("")
   const [refundAmount, setRefundAmount] = useState("")
   const [refundType, setRefundType] = useState<"full" | "partial">("full")
+  const [manualDialogPayment, setManualDialogPayment] = useState<PaymentRecord | null>(null)
+  const [manualSide, setManualSide] = useState<"customer" | "supplier">("customer")
+  const [manualDocumentType, setManualDocumentType] = useState<"invoice" | "credit_note">("invoice")
+  const [manualRelatedInvoiceNumber, setManualRelatedInvoiceNumber] = useState("")
+  const [manualServiceDescription, setManualServiceDescription] = useState("")
+  const [manualLinesJson, setManualLinesJson] = useState("[]")
+  const [manualNetAmount, setManualNetAmount] = useState("")
+  const [manualVatAmount, setManualVatAmount] = useState("")
+  const [manualTotalWithVat, setManualTotalWithVat] = useState("")
+  const [manualVatRate, setManualVatRate] = useState("")
+  const [manualReverseCharge, setManualReverseCharge] = useState<"yes" | "no">("no")
+  const [isCreatingManualArtifact, setIsCreatingManualArtifact] = useState(false)
 
   const fetchPayments = useCallback(async () => {
     if (!isAuthenticated || user?.role !== "admin") return
@@ -191,15 +221,20 @@ export default function AdminPaymentsPage() {
   const isAdmin = user?.role === "admin"
 
   const summary = useMemo(() => {
-    const base: Record<string, { count: number; volume: number }> = {}
+    const base: Record<string, Record<string, { count: number; volume: number }>> = {}
     stats.forEach(item => {
-      base[item.status] = {
-        count: item.count,
-        volume: item.totalVolume || 0
+      const currency = item.currency || "UNKNOWN"
+      base[item.status] = base[item.status] || {}
+      base[item.status][currency] = {
+        count: (base[item.status][currency]?.count || 0) + item.count,
+        volume: (base[item.status][currency]?.volume || 0) + (item.totalVolume || 0)
       }
     })
     return base
   }, [stats])
+
+  const summaryCount = (status: OversightStatus) =>
+    Object.values(summary[status] || {}).reduce((total, item) => total + item.count, 0)
 
   const handleManualRefresh = () => {
     fetchPayments()
@@ -219,7 +254,13 @@ export default function AdminPaymentsPage() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.msg || "Failed to capture payment")
       }
-      toast.success("Payment captured and transferred successfully")
+      const transferSucceeded = payload.data?.transferSucceeded === true
+      if (!transferSucceeded) {
+        toast.error(payload.msg || "Payment captured, but the professional transfer failed. Retry is available.")
+        fetchPayments()
+        return
+      }
+      toast.success(payload.msg || "Payment captured and transferred successfully")
       setCaptureDialogPayment(null)
       fetchPayments()
     } catch (err) {
@@ -281,6 +322,69 @@ export default function AdminPaymentsPage() {
 
   const handleGenerateCreditNote = (payment: PaymentRecord) =>
     runInvoiceArtifactAction(payment, "credit-note", "Credit note", "Failed to generate credit note")
+
+  const openManualArtifactDialog = (payment: PaymentRecord) => {
+    const net = payment.netAmount ?? payment.amount ?? 0
+    const vat = payment.vatAmount ?? 0
+    const total = payment.totalWithVat ?? net + vat
+    const rate = payment.vatRate ?? 0
+    setManualDialogPayment(payment)
+    setManualSide("customer")
+    setManualDocumentType("invoice")
+    setManualRelatedInvoiceNumber(payment.invoiceNumber || "")
+    setManualServiceDescription("")
+    setManualLinesJson(JSON.stringify([{ description: "Service correction", amount: net, vatRate: rate }], null, 2))
+    setManualNetAmount(net.toFixed(2))
+    setManualVatAmount(vat.toFixed(2))
+    setManualTotalWithVat(total.toFixed(2))
+    setManualVatRate(rate.toString())
+    setManualReverseCharge(payment.reverseCharge ? "yes" : "no")
+  }
+
+  const handleCreateManualArtifact = async () => {
+    if (!manualDialogPayment) return
+    setIsCreatingManualArtifact(true)
+    try {
+      let lines: unknown
+      try {
+        lines = JSON.parse(manualLinesJson)
+      } catch {
+        throw new Error("Invoice lines must be valid JSON.")
+      }
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/payments/${manualDialogPayment._id}/manual-artifact`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            side: manualSide,
+            documentType: manualDocumentType,
+            relatedInvoiceNumber: manualRelatedInvoiceNumber || undefined,
+            serviceDescription: manualServiceDescription || undefined,
+            lines,
+            payment: {
+              netAmount: manualNetAmount,
+              vatAmount: manualVatAmount,
+              totalWithVat: manualTotalWithVat,
+              vatRate: manualVatRate,
+              reverseCharge: manualReverseCharge === "yes",
+              currency: manualDialogPayment.currency,
+            },
+          }),
+        },
+      )
+      const payload = await response.json()
+      if (!response.ok || !payload.success) throw new Error(payload.msg || "Failed to create manual artifact")
+      toast.success(`${manualDocumentType === "invoice" ? "Invoice" : "Credit note"} ${payload.data?.invoiceNumber || "created"}`)
+      setManualDialogPayment(null)
+      await fetchPayments()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create manual artifact")
+    } finally {
+      setIsCreatingManualArtifact(false)
+    }
+  }
 
   // ─── Refund ─────────────────────────────────────────────────────────────
 
@@ -349,11 +453,15 @@ export default function AdminPaymentsPage() {
   const hasInvoiceArtifact = (p: PaymentRecord) =>
     Boolean(p.invoiceUrl || p.invoiceNumber || p.invoiceUblUrl)
   const hasCreditNoteArtifact = (p: PaymentRecord) =>
-    Boolean(p.creditNoteUrl || p.creditNoteNumber || p.creditNoteUblUrl)
+    Boolean(p.creditNoteUrl || p.creditNoteNumber || p.creditNoteUblUrl || p.supplierCreditNoteUrl || p.supplierCreditNoteNumber || p.supplierCreditNoteUblUrl)
   const hasArtifactLinks = (p: PaymentRecord) =>
-    Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl || p.creditNoteUblUrl)
+    Boolean(p.invoiceUrl || p.invoiceUblUrl || p.creditNoteUrl || p.creditNoteUblUrl || p.supplierCreditNoteUrl || p.supplierCreditNoteUblUrl)
 
-  const canCapture = (p: PaymentRecord) => p.status === "authorized"
+  const getTransferStatus = (p: PaymentRecord) =>
+    p.transferStatus ||
+    (p.stripeTransferId ? "succeeded" : p.metadata?.transferFailed ? "failed" : "pending")
+  const canCapture = (p: PaymentRecord) =>
+    p.status === "authorized" || (p.status === "completed" && getTransferStatus(p) === "failed")
   const canRefund = (p: PaymentRecord) => p.status === "authorized" || p.status === "completed"
   const canGenerateInvoice = (p: PaymentRecord) =>
     !hasInvoiceArtifact(p) && (p.status === "authorized" || p.status === "completed")
@@ -374,7 +482,7 @@ export default function AdminPaymentsPage() {
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Payment Oversight</h1>
               <p className="text-sm text-gray-600">
-                Monitor escrow status, releases, and refunds. Use this view to resolve disputes or audit payouts.
+                Monitor captured payments, professional transfers, refunds, and invoice corrections.
               </p>
             </div>
             <Button variant="outline" onClick={handleManualRefresh} disabled={isLoading}>
@@ -390,38 +498,49 @@ export default function AdminPaymentsPage() {
             </Button>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid md:grid-cols-4 gap-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Completed payouts</CardDescription>
                 <CardTitle className="text-2xl">
-                  EUR {(summary.completed?.volume || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {Object.entries(summary.completed || {}).map(([currency, value]) => `${currency} ${value.volume.toLocaleString(undefined, { minimumFractionDigits: 2 })}`).join(" · ") || "—"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-gray-500">
-                {summary.completed?.count || 0} bookings fully paid out
+                {summaryCount("completed")} bookings fully paid out
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Transfer recovery</CardDescription>
+                <CardTitle className="text-2xl text-rose-700">
+                  {Object.entries(summary.transfer_failed || {}).map(([currency, value]) => `${currency} ${value.volume.toLocaleString(undefined, { minimumFractionDigits: 2 })}`).join(" · ") || "—"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-gray-500">
+                {summaryCount("transfer_failed")} failed payouts need review
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Authorized funds</CardDescription>
                 <CardTitle className="text-2xl">
-                  EUR {(summary.authorized?.volume || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {Object.entries(summary.authorized || {}).map(([currency, value]) => `${currency} ${value.volume.toLocaleString(undefined, { minimumFractionDigits: 2 })}`).join(" · ") || "—"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-gray-500">
-                {summary.authorized?.count || 0} bookings ready for completion
+                {summaryCount("authorized")} bookings ready for completion
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Refunds processed</CardDescription>
                 <CardTitle className="text-2xl">
-                  EUR {(summary.refunded?.volume || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {Object.entries(summary.refunded || {}).map(([currency, value]) => `${currency} ${value.volume.toLocaleString(undefined, { minimumFractionDigits: 2 })}`).join(" · ") || "—"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-gray-500">
-                {summary.refunded?.count || 0} refund cases
+                {summaryCount("refunded")} refund cases
               </CardContent>
             </Card>
           </div>
@@ -433,7 +552,7 @@ export default function AdminPaymentsPage() {
               <CardTitle>Payments</CardTitle>
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
                 <div className="flex items-center gap-2">
-                  <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val as "all" | PaymentStatus); setPage(1) }}>
+                  <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val as "all" | OversightStatus); setPage(1) }}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Filter status" />
                     </SelectTrigger>
@@ -543,6 +662,9 @@ export default function AdminPaymentsPage() {
                               Extra payout: {payment.extraCostProfessionalPayout?.toFixed(2) || "0.00"}
                               <br />
                               Extra status: {payment.extraCostStatus || "pending"}
+                              <br />
+                              Extra transfer: {payment.extraCostTransferStatus || "pending"}
+                              {payment.extraCostTransferFailureReason ? ` — ${payment.extraCostTransferFailureReason}` : ""}
                             </p>
                           )}
                         </td>
@@ -550,12 +672,17 @@ export default function AdminPaymentsPage() {
                           <PaymentStatusBadge status={payment.status} />
                           {payment.status === "authorized" && (
                             <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                              <ShieldCheck className="h-3 w-3" /> Held in escrow
+                              <ShieldCheck className="h-3 w-3" /> Customer payment captured; payout pending
                             </p>
                           )}
-                          {payment.status === "completed" && (
+                          {payment.status === "completed" && getTransferStatus(payment) === "succeeded" && (
                             <p className="text-xs text-emerald-600 mt-2 flex items-center gap-1">
                               <ShieldCheck className="h-3 w-3" /> Captured & transferred
+                            </p>
+                          )}
+                          {payment.status === "completed" && getTransferStatus(payment) === "failed" && (
+                            <p className="text-xs text-rose-600 mt-2 flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3" /> Captured; transfer failed — retry available
                             </p>
                           )}
                         </td>
@@ -593,9 +720,18 @@ export default function AdminPaymentsPage() {
                                 onClick={() => setCaptureDialogPayment(payment)}
                               >
                                 <ArrowRightLeft className="h-3 w-3 mr-1" />
-                                Release Payment
+                                {payment.status === "completed" ? "Retry Payout Transfer" : "Transfer Payout"}
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
+                              onClick={() => openManualArtifactDialog(payment)}
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              Manual Invoice / Credit
+                            </Button>
                             {canRefund(payment) && (
                               <Button
                                 size="sm"
@@ -701,6 +837,28 @@ export default function AdminPaymentsPage() {
                                 {payment.creditNoteNumber || "Credit note"} (UBL)
                               </a>
                             )}
+                            {payment.supplierCreditNoteUrl && (
+                              <a
+                                href={payment.supplierCreditNoteUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileMinus className="h-3 w-3" />
+                                {payment.supplierCreditNoteNumber || "Supplier credit note"} (PDF)
+                              </a>
+                            )}
+                            {payment.supplierCreditNoteUblUrl && (
+                              <a
+                                href={payment.supplierCreditNoteUblUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileMinus className="h-3 w-3" />
+                                {payment.supplierCreditNoteNumber || "Supplier credit note"} (UBL)
+                              </a>
+                            )}
                             {!canCapture(payment) && !canRefund(payment) && !canGenerateInvoice(payment) && !canGenerateCreditNote(payment) && !hasArtifactLinks(payment) && (
                               <span className="text-xs text-gray-400">No actions</span>
                             )}
@@ -743,10 +901,11 @@ export default function AdminPaymentsPage() {
       <Dialog open={!!captureDialogPayment} onOpenChange={(open) => { if (!open) setCaptureDialogPayment(null) }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Release Payment</DialogTitle>
+            <DialogTitle>{captureDialogPayment?.status === "completed" ? "Retry Professional Payout" : "Transfer Professional Payout"}</DialogTitle>
             <DialogDescription>
-              This will capture the authorized funds and transfer the payout to the professional.
-              This action cannot be undone.
+              {captureDialogPayment?.status === "completed"
+                ? "The customer payment is already captured. This retries only the failed professional transfer."
+                : "The customer card payment is captured automatically. This transfers the approved payout to the professional and cannot be undone."}
             </DialogDescription>
           </DialogHeader>
           {captureDialogPayment && (
@@ -772,7 +931,84 @@ export default function AdminPaymentsPage() {
               Cancel
             </Button>
             <Button onClick={handleCapture} disabled={isCapturing} className="bg-emerald-600 hover:bg-emerald-700">
-              {isCapturing ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Capturing...</> : "Confirm Release"}
+              {isCapturing
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing...</>
+                : captureDialogPayment?.status === "completed" ? "Retry Transfer" : "Transfer Payout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Manual Invoice / Credit Note Dialog ─────────────────────────── */}
+      <Dialog open={!!manualDialogPayment} onOpenChange={(open) => { if (!open) setManualDialogPayment(null) }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create manual invoice artifact</DialogTitle>
+            <DialogDescription>
+              Use this for a corrected customer invoice or supplier self-bill. Amounts and VAT are validated against the lines; comma decimals are accepted.
+            </DialogDescription>
+          </DialogHeader>
+          {manualDialogPayment && (
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Document side</Label>
+                  <Select value={manualSide} onValueChange={(value) => setManualSide(value as "customer" | "supplier")}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer">Customer invoice (FIX)</SelectItem>
+                      <SelectItem value="supplier">Supplier self-bill (SUP)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Document type</Label>
+                  <Select value={manualDocumentType} onValueChange={(value) => setManualDocumentType(value as "invoice" | "credit_note")}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="invoice">Invoice</SelectItem>
+                      <SelectItem value="credit_note">Credit note</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Related invoice number (required for credit notes unless already stored)</Label>
+                <Input className="mt-1" value={manualRelatedInvoiceNumber} onChange={(event) => setManualRelatedInvoiceNumber(event.target.value)} placeholder="FIX-2026-000001 or SUP-2026-000001" />
+              </div>
+              <div>
+                <Label>Service description</Label>
+                <Textarea className="mt-1" value={manualServiceDescription} onChange={(event) => setManualServiceDescription(event.target.value)} placeholder="Optional correction explanation or scope" />
+              </div>
+              <div>
+                <Label>Invoice lines (JSON)</Label>
+                <Textarea
+                  className="mt-1 min-h-[150px] font-mono text-xs"
+                  value={manualLinesJson}
+                  onChange={(event) => setManualLinesJson(event.target.value)}
+                  spellCheck={false}
+                />
+                <p className="mt-1 text-xs text-gray-500">Each line needs description, amount, and vatRate. Optional: quantity, unitPrice, unit, vatLabel.</p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div><Label>Net</Label><Input className="mt-1" value={manualNetAmount} onChange={(event) => setManualNetAmount(event.target.value)} /></div>
+                <div><Label>VAT</Label><Input className="mt-1" value={manualVatAmount} onChange={(event) => setManualVatAmount(event.target.value)} /></div>
+                <div><Label>Total</Label><Input className="mt-1" value={manualTotalWithVat} onChange={(event) => setManualTotalWithVat(event.target.value)} /></div>
+                <div><Label>VAT rate</Label><Input className="mt-1" value={manualVatRate} onChange={(event) => setManualVatRate(event.target.value)} placeholder="6,5" /></div>
+                <div>
+                  <Label>Reverse charge</Label>
+                  <Select value={manualReverseCharge} onValueChange={(value) => setManualReverseCharge(value as "yes" | "no")}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualDialogPayment(null)} disabled={isCreatingManualArtifact}>Cancel</Button>
+            <Button onClick={handleCreateManualArtifact} disabled={isCreatingManualArtifact}>
+              {isCreatingManualArtifact ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</> : "Create artifact"}
             </Button>
           </DialogFooter>
         </DialogContent>

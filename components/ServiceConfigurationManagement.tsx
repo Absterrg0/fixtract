@@ -75,6 +75,17 @@ interface VatQuestion {
   isRequired: boolean
 }
 
+const VAT_COUNTRY_OPTIONS = [
+  ['AT', 'Austria'], ['BE', 'Belgium'], ['BG', 'Bulgaria'], ['CH', 'Switzerland'],
+  ['CY', 'Cyprus'], ['CZ', 'Czechia'], ['DE', 'Germany'], ['DK', 'Denmark'],
+  ['EE', 'Estonia'], ['ES', 'Spain'], ['FI', 'Finland'], ['FR', 'France'],
+  ['GB', 'United Kingdom'], ['GR', 'Greece'], ['HR', 'Croatia'], ['HU', 'Hungary'],
+  ['IE', 'Ireland'], ['IT', 'Italy'], ['LI', 'Liechtenstein'], ['LT', 'Lithuania'],
+  ['LU', 'Luxembourg'], ['LV', 'Latvia'], ['MT', 'Malta'], ['NL', 'Netherlands'],
+  ['NO', 'Norway'], ['PL', 'Poland'], ['PT', 'Portugal'], ['RO', 'Romania'],
+  ['SE', 'Sweden'], ['SI', 'Slovenia'], ['SK', 'Slovakia'],
+] as const
+
 const parseCommaSeparatedOptions = (value: string): string[] => {
   const options: string[] = []
   let current = ''
@@ -978,6 +989,11 @@ export default function ServiceConfigurationManagement() {
   return (
     <div className="space-y-6">
       <Card className="border-2 border-transparent bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg relative before:absolute before:inset-0 before:rounded-lg before:p-[2px] before:bg-gradient-to-br before:from-purple-300 before:via-pink-300 before:to-blue-300 before:-z-10">
+        <datalist id="vat-country-options">
+          {VAT_COUNTRY_OPTIONS.map(([code, name]) => (
+            <option key={code} value={code}>{name}</option>
+          ))}
+        </datalist>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
