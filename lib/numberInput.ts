@@ -41,7 +41,9 @@ export const parseFlexibleNumber = (value: string): number => {
       normalized = unsigned.replace(',', '.')
     }
   } else if (hasDot) {
-    normalized = normalizeGroupedInteger(unsigned, '.') || unsigned
+    normalized = unsigned.indexOf('.') === unsigned.lastIndexOf('.')
+      ? unsigned
+      : normalizeGroupedInteger(unsigned, '.')
   } else {
     normalized = unsigned
   }

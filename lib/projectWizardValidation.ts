@@ -1,3 +1,5 @@
+import { parseFlexibleNumber } from '@/lib/numberInput'
+
 export const WIZARD_STEP_TITLES: Record<number, string> = {
   1: "Basic Info",
   2: "Subprojects & Pricing",
@@ -37,12 +39,15 @@ type SubprojectSnapshot = {
 export type WizardProjectSnapshot = {
   category?: string
   service?: string
+  areaOfWork?: string
   title?: string
   description?: string
   priceModel?: string
   distance?: { address?: string; maxKmRange?: number }
   resources?: string[]
   intakeMeeting?: { resources?: string[] }
+  certifications?: Array<{ name?: string; fileUrl?: string }>
+  vatProfessionalAnswers?: Array<{ fieldName: string; value: unknown }>
   customerPresence?: string
   subprojects?: SubprojectSnapshot[]
   extraOptions?: Array<{ name?: string; price?: number }>
@@ -50,6 +55,98 @@ export type WizardProjectSnapshot = {
   faq?: Array<{ question?: string; answer?: string }>
   rfqQuestions?: Array<{ question?: string; type?: string; options?: string[] }>
   postBookingQuestions?: Array<{ question?: string; type?: string; options?: string[] }>
+}
+
+export type Step1ProfessionalVatQuestion = {
+  question: string
+  fieldName: string
+  answerType: 'number' | 'yes_no' | 'checkboxes'
+  unit?: string
+  options?: string[]
+  isRequired?: boolean
+}
+
+export type Step1ServiceConfig = {
+  pricingModel?: string
+  pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>
+  certificationRequired?: boolean
+  requiredCertifications?: string[]
+  projectTypes?: string[]
+  areaOfWorkRequired?: boolean
+  vatManagement?: {
+    enabled?: boolean
+    article47Classification?: 'movable' | 'immovable' | 'project_dependent'
+    professionalVatQuestions?: Step1ProfessionalVatQuestion[]
+  }
+}
+
+export type Step1ValidationContext = {
+  dataSignature: string
+  addressValid: boolean
+  serviceConfig: Step1ServiceConfig | null
+}
+
+const isProfessionalVatAnswered = (question: Step1ProfessionalVatQuestion, value: unknown): boolean => {
+  if (question.answerType === 'yes_no') return value === true || value === false
+  if (question.answerType === 'number') {
+    if (value === '' || value == null) return false
+    const parsed = typeof value === 'number' ? value : parseFlexibleNumber(String(value))
+    return Number.isFinite(parsed)
+  }
+  if (question.answerType === 'checkboxes') return Array.isArray(value) && value.length > 0
+  return value != null && String(value).trim() !== ''
+}
+
+export const getStep1DataSignature = (data: WizardProjectSnapshot): string => JSON.stringify({
+  category: data.category || '',
+  service: data.service || '',
+  areaOfWork: data.areaOfWork || '',
+  title: data.title || '',
+  description: data.description || '',
+  priceModel: data.priceModel || '',
+  distance: { address: data.distance?.address || '', maxKmRange: data.distance?.maxKmRange ?? null },
+  resources: data.resources || [],
+  intakeResources: data.intakeMeeting?.resources || [],
+  certifications: (data.certifications || []).map((certification) => ({ name: certification.name || '', fileUrl: certification.fileUrl || '' })),
+  vatProfessionalAnswers: data.vatProfessionalAnswers || [],
+})
+
+export function collectStep1ComponentErrors(data: WizardProjectSnapshot, serviceConfig: Step1ServiceConfig | null, addressValid: boolean): string[] {
+  const errors: string[] = []
+  const isRenovation = (data.category || '').toLowerCase() === 'renovation'
+  const requiredTypes = serviceConfig?.requiredCertifications || []
+  const certRequired = !!serviceConfig?.certificationRequired
+  if (!data.category) errors.push('Category is required')
+  if (!data.service) errors.push('Service is required')
+  if (serviceConfig?.areaOfWorkRequired && !data.areaOfWork) errors.push('Area of Work is required for this service')
+  if (!data.title) errors.push('Title is required')
+  else if (data.title.length < 30) errors.push('Title must be at least 30 characters long')
+  if (requiredTypes.length > 0) {
+    const missing = requiredTypes.filter((type) => !data.certifications?.some((certification) => certification.name === type && !!certification.fileUrl))
+    if (missing.length > 0) errors.push(`Missing required certifications: ${missing.join(', ')}`)
+  } else if (certRequired) {
+    const hasValidCertification = Array.isArray(data.certifications) && data.certifications.length > 0 && data.certifications.every((certification) => !!certification.fileUrl)
+    if (!hasValidCertification) errors.push('At least one valid certification is required for this service')
+  }
+  const hasExecutionResources = Array.isArray(data.resources) && data.resources.length > 0
+  const hasIntakeResources = Array.isArray(data.intakeMeeting?.resources) && data.intakeMeeting.resources.length > 0
+  if (isRenovation) {
+    if (!hasIntakeResources) errors.push('At least one intake meeting resource is required for Renovation')
+    if (!hasExecutionResources) errors.push('At least one execution resource is required for Renovation')
+  } else if (!hasExecutionResources) errors.push('At least one team member must be assigned for execution')
+  if (!data.description) errors.push('Description is required')
+  else if (data.description.length < 100) errors.push(`Description must be at least 100 characters (currently ${data.description.length})`)
+  if (!isRenovation && !data.priceModel) errors.push('Price Model is required')
+  if (!data.distance?.address) errors.push('Service Address is required')
+  if (!addressValid) errors.push('Please enter a valid address')
+  if (!data.distance?.maxKmRange) errors.push('Maximum Service Range is required')
+  else if (data.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
+  const requiredVatQuestions = serviceConfig?.vatManagement?.enabled ? serviceConfig.vatManagement.professionalVatQuestions || [] : []
+  for (const question of requiredVatQuestions.filter((candidate) => candidate.isRequired !== false)) {
+    const value = data.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
+    if (!isProfessionalVatAnswered(question, value)) errors.push(`VAT question required: ${question.question}`)
+  }
+  return errors
 }
 
 function packageLabel(sub: SubprojectSnapshot, index: number): string {

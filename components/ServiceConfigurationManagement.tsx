@@ -1602,8 +1602,8 @@ export default function ServiceConfigurationManagement() {
                             className="bg-white"
                           />
                           <select
-                            id={`professional-vat-answer-type-${index}`}
-                            aria-label={`Professional VAT answer type for question ${index + 1}`}
+                            id={`customer-vat-answer-type-${index}`}
+                            aria-label={`Customer VAT answer type for question ${index + 1}`}
                             className="border rounded-md px-3 py-2 bg-white text-sm"
                             value={question.answerType}
                             onChange={(e) => updateVatQuestion(index, { answerType: e.target.value as VatQuestion['answerType'] })}
@@ -1666,6 +1666,8 @@ export default function ServiceConfigurationManagement() {
                             className="bg-white"
                           />
                           <select
+                            id={`professional-vat-answer-type-${index}`}
+                            aria-label={`Professional VAT answer type for question ${index + 1}`}
                             className="border rounded-md px-3 py-2 bg-white text-sm"
                             value={question.answerType}
                             onChange={(e) => updateProfessionalVatQuestion(index, { answerType: e.target.value as VatQuestion['answerType'] })}

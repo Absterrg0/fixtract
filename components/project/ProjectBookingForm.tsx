@@ -2276,7 +2276,12 @@ export default function ProjectBookingForm({
         (useProfileAddress ? user?.location?.country : undefined);
       const profileCoordinates = useProfileAddress &&
         user?.location?.coordinates?.length === 2 &&
-        user.location.coordinates.every((coordinate) => Number.isFinite(coordinate))
+        Number.isFinite(user.location.coordinates[0]) &&
+        Number.isFinite(user.location.coordinates[1]) &&
+        user.location.coordinates[0] >= -180 &&
+        user.location.coordinates[0] <= 180 &&
+        user.location.coordinates[1] >= -90 &&
+        user.location.coordinates[1] <= 90
         ? user.location.coordinates
         : undefined;
 

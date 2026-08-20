@@ -15,7 +15,12 @@ import { toast } from 'sonner'
 import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 import { useAuth } from "@/contexts/AuthContext"
-import { parseFlexibleNumber } from "@/lib/numberInput"
+import {
+  collectStep1ComponentErrors,
+  getStep1DataSignature,
+  type Step1ServiceConfig,
+  type Step1ValidationContext,
+} from "@/lib/projectWizardValidation"
 
 interface IServiceSelection {
   category: string
@@ -95,62 +100,14 @@ interface TeamMember {
 interface Step1Props {
   data: ProjectData
   onChange: (data: ProjectData) => void
-  onValidate: (isValid: boolean) => void
+  onValidate: (isValid: boolean, context: Step1ValidationContext) => void
 }
 
 export interface Step1Ref {
   showValidationErrors: () => void
 }
 
-interface ProfessionalVatQuestion {
-  question: string
-  fieldName: string
-  answerType: 'number' | 'yes_no' | 'checkboxes'
-  unit?: string
-  options?: string[]
-  isRequired?: boolean
-}
-
-interface Step1ServiceConfig {
-  pricingModel?: string
-  pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>
-  certificationRequired?: boolean
-  requiredCertifications?: string[]
-  projectTypes?: string[]
-  areaOfWorkRequired?: boolean
-  vatManagement?: {
-    enabled?: boolean
-    article47Classification?: 'movable' | 'immovable' | 'project_dependent'
-    professionalVatQuestions?: ProfessionalVatQuestion[]
-  }
-}
-
 const DEFAULT_MIN_OVERLAP = 90
-
-const isProfessionalVatAnswered = (question: ProfessionalVatQuestion, value: unknown) => {
-  if (question.answerType === 'yes_no') return value === true || value === false
-  if (question.answerType === 'number') return value !== '' && value != null && Number.isFinite(parseFlexibleNumber(String(value)))
-  if (question.answerType === 'checkboxes') return Array.isArray(value) && value.length > 0
-  return value != null && String(value).trim() !== ''
-}
-
-const getUnansweredRequiredVatQuestions = (
-  serviceConfig: Step1ServiceConfig | null,
-  formData: ProjectData,
-): ProfessionalVatQuestion[] => {
-  const requiredQuestions = serviceConfig?.vatManagement?.enabled
-    ? serviceConfig.vatManagement.professionalVatQuestions || []
-    : []
-
-  return requiredQuestions
-    .filter((question) => question.isRequired !== false)
-    .filter((question) => {
-      const value = formData.vatProfessionalAnswers?.find(
-        (answer) => answer.fieldName === question.fieldName,
-      )?.value
-      return !isProfessionalVatAnswered(question, value)
-    })
-}
 
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
   const [formData, setFormData] = useState<ProjectData>(data)
@@ -373,7 +330,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   useEffect(() => {
     onChange(formData)
     validateForm()
-  }, [formData, serviceConfig])
+  }, [formData, serviceConfig, addressValid])
 
   // Keep selectedPricingOption in sync with priceModel & serviceConfig
   // (covers initial load, edit restore, and category/service changes)
@@ -405,121 +362,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }, [formData.minResources, formData.resources, selectedResourceCount])
 
   const validateForm = () => {
-    // Check if area of work is required and missing
-    const isAreaOfWorkValid = !serviceConfig?.areaOfWorkRequired ||
-      (serviceConfig?.areaOfWorkRequired && formData.areaOfWork)
-
-    // Check certifications when required by service configuration
-    const requiredTypes = serviceConfig?.requiredCertifications || []
-    const certRequired = !!serviceConfig?.certificationRequired
-    let isCertificationsValid = true
-
-    if (requiredTypes.length > 0) {
-      // Specific certification types are required — check each one is uploaded
-      isCertificationsValid = Array.isArray(formData.certifications) &&
-        requiredTypes.every(t => formData.certifications!.some(c => c.name === t && !!c.fileUrl))
-    } else if (certRequired) {
-      // Generic certification required (no specific types) — at least one must be uploaded
-      isCertificationsValid = Array.isArray(formData.certifications) &&
-        formData.certifications.length > 0 &&
-        formData.certifications.every(c => !!c.fileUrl)
-    }
-    // If neither certRequired nor requiredTypes, isCertificationsValid stays true
-
-    // Resources requirement per service/category
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    const hasExecutionResources = Array.isArray(formData.resources) && formData.resources.length > 0
-    const hasIntakeResources = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
-    const isResourcesValid = isRenovation
-      ? (hasIntakeResources && hasExecutionResources)
-      : hasExecutionResources
-
-    const unansweredVatQuestions = getUnansweredRequiredVatQuestions(serviceConfig, formData)
-
-    const isValid = !!(
-      formData.category &&
-      formData.service &&
-      isAreaOfWorkValid &&
-      isCertificationsValid &&
-      isResourcesValid &&
-      formData.description &&
-      formData.description.length >= 100 &&
-      formData.title &&
-      formData.title.length >= 30 &&
-      (isRenovationCategory || (!!formData.priceModel)) &&
-      formData.distance?.address &&
-      addressValid &&
-      formData.distance?.maxKmRange &&
-      formData.distance.maxKmRange > 0 &&
-      unansweredVatQuestions.length === 0
-    )
-    onValidate(isValid)
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
+    onValidate(errors.length === 0, { dataSignature: getStep1DataSignature(formData), addressValid, serviceConfig })
   }
 
   const showValidationErrors = () => {
-    const errors: string[] = []
-
-    if (!formData.category) errors.push('Category is required')
-    if (!formData.service) errors.push('Service is required')
-    // Title validation
-    if (!formData.title) {
-      errors.push('Title is required')
-    } else if (formData.title.length < 30) {
-      errors.push('Title must be at least 30 characters long')
-    }
-
-    // Check area of work requirement
-    if (serviceConfig?.areaOfWorkRequired && !formData.areaOfWork) {
-      errors.push('Area of Work is required for this service')
-    }
-
-    // Check certifications requirement
-    const requiredTypes = serviceConfig?.requiredCertifications || []
-    if (requiredTypes.length > 0) {
-      const missing = requiredTypes.filter(t => !formData.certifications?.some(c => c.name === t && !!c.fileUrl))
-      if (missing.length > 0) {
-        errors.push(`Missing required certifications: ${missing.join(', ')}`)
-      }
-    } else if (serviceConfig?.certificationRequired) {
-      const hasValidCert = Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
-        formData.certifications.every(c => !!c.fileUrl)
-      if (!hasValidCert) {
-        errors.push('At least one valid certification is required for this service')
-      }
-    }
-
-    // Check resources per category
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    if (isRenovation) {
-      const hasIntake = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
-      if (!hasIntake) {
-        errors.push('At least one intake meeting resource is required for Renovation')
-      }
-      const hasExecutionExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
-      if (!hasExecutionExec) {
-        errors.push('At least one execution resource is required for Renovation')
-      }
-    } else {
-      const hasExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
-      if (!hasExec) {
-        errors.push('At least one team member must be assigned for execution')
-      }
-    }
-
-    if (!formData.description) {
-      errors.push('Description is required')
-    } else if (formData.description.length < 100) {
-      errors.push(`Description must be at least 100 characters (currently ${formData.description.length})`)
-    }
-    if (!isRenovationCategory && !formData.priceModel) errors.push('Price Model is required')
-    if (!formData.distance?.address) errors.push('Service Address is required')
-    if (!addressValid) errors.push('Please enter a valid address')
-    if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
-    else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
-
-    for (const question of getUnansweredRequiredVatQuestions(serviceConfig, formData)) {
-      errors.push(`VAT question required: ${question.question}`)
-    }
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
 
     if (errors.length > 0) {
       toast.error(errors.join('. '));

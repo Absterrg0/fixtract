@@ -16,8 +16,11 @@ import { getAuthToken } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   collectBlockingWizardErrors,
+  collectStep1ComponentErrors,
   collectStepErrors,
+  getStep1DataSignature,
   parseProjectSaveError,
+  type Step1ValidationContext,
   type WizardStepError,
 } from '@/lib/projectWizardValidation'
 
@@ -239,6 +242,7 @@ function ProjectCreateContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [canProceed, setCanProceed] = useState(false)
   const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
+  const [step1ValidationContext, setStep1ValidationContext] = useState<Step1ValidationContext | null>(null)
   const canCreateProjects = user?.professionalStatus === 'approved'
 
   useEffect(() => {
@@ -523,7 +527,8 @@ function ProjectCreateContent() {
     setProjectData(prev => ({ ...prev, ...stepData }))
   }
 
-  const handleStepValidation = useCallback((step: number, isValid: boolean) => {
+  const handleStepValidation = useCallback((step: number, isValid: boolean, validationContext?: Step1ValidationContext) => {
+    if (step === 1) setStep1ValidationContext(validationContext || null)
     setStepValidation(prev => {
       const newValidation = [...prev]
       newValidation[step - 1] = isValid
@@ -537,14 +542,23 @@ function ProjectCreateContent() {
     })
   }, [currentStep])
 
+  const getStep1SubmitErrors = useCallback(() => {
+    if (!step1ValidationContext || step1ValidationContext.dataSignature !== getStep1DataSignature(projectData)) {
+      return ['Complete Step 1 validation before submitting']
+    }
+    return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid)
+  }, [projectData, step1ValidationContext])
+
   // Step 8 is review-only. Required earlier steps must still be valid before submit.
   useEffect(() => {
     if (currentStep === 8) {
-      const blocking = collectBlockingWizardErrors(projectData)
+      const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
+      const step1Errors = getStep1SubmitErrors()
+      if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
       handleStepValidation(8, blocking.length === 0)
       setStepErrors(blocking.flatMap((entry) => entry.messages))
     }
-  }, [currentStep, projectData, handleStepValidation])
+  }, [currentStep, getStep1SubmitErrors, handleStepValidation, projectData])
 
   const goToFirstBlockingStep = (blocking: WizardStepError[]) => {
     const first = blocking[0]
@@ -562,20 +576,9 @@ function ProjectCreateContent() {
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
 
-    const blocking = collectBlockingWizardErrors(projectData)
-    if (!stepValidation[0]) {
-      const stepOneBlocking = blocking.find((entry) => entry.step === 1)
-      const stepOneMessage = 'Complete all required Basic Info fields, certifications, address validation, and VAT questions before submitting'
-      if (stepOneBlocking) {
-        stepOneBlocking.messages.push(stepOneMessage)
-      } else {
-        blocking.unshift({
-          step: 1,
-          stepTitle: 'Basic Info',
-          messages: [stepOneMessage],
-        })
-      }
-    }
+    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
+    const step1Errors = getStep1SubmitErrors()
+    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
     if (blocking.length > 0) {
       goToFirstBlockingStep(blocking)
       return
@@ -702,10 +705,18 @@ function ProjectCreateContent() {
   }
 
   const handleShowValidationErrors = () => {
-    const blocking = collectBlockingWizardErrors(projectData)
+    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
     if (currentStep === 8 && blocking.length > 0) {
       goToFirstBlockingStep(blocking)
       return
+    }
+
+    if (currentStep === 8) {
+      const step1Errors = getStep1SubmitErrors()
+      if (step1Errors.length > 0) {
+        goToFirstBlockingStep([{ step: 1, stepTitle: 'Basic Info', messages: step1Errors }])
+        return
+      }
     }
 
     const errors = collectStepErrors(currentStep, projectData)
@@ -727,7 +738,7 @@ function ProjectCreateContent() {
             ref={step1Ref}
             data={projectData}
             onChange={handleDataChange}
-            onValidate={(isValid) => handleStepValidation(1, isValid)}
+            onValidate={(isValid, validationContext) => handleStepValidation(1, isValid, validationContext)}
           />
         )
       case 2:

@@ -5,6 +5,8 @@ export interface QuotationPricingLine {
   vatRate: number
   vatCountry?: string
   vatLabel?: string
+  vatRateMode?: 'preset' | 'custom'
+  vatRateExplicitlyEntered?: boolean
 }
 
 export interface QuotationMilestone {
