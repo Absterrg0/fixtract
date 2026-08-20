@@ -67,6 +67,8 @@ export type Step1ProfessionalVatQuestion = {
 }
 
 export type Step1ServiceConfig = {
+  _id?: string
+  pricingModels?: string[]
   pricingModel?: string
   pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>
   certificationRequired?: boolean
@@ -84,6 +86,7 @@ export type Step1ValidationContext = {
   dataSignature: string
   addressValid: boolean
   serviceConfig: Step1ServiceConfig | null
+  serviceConfigLoaded: boolean
 }
 
 const isProfessionalVatAnswered = (question: Step1ProfessionalVatQuestion, value: unknown): boolean => {

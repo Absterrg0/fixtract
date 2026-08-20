@@ -116,6 +116,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [addressValid, setAddressValid] = useState(false)
   const { user } = useAuth()
   const [serviceConfig, setServiceConfig] = useState<Step1ServiceConfig | null>(null)
+  const [serviceConfigLoaded, setServiceConfigLoaded] = useState(false)
   const [pricingModels, setPricingModels] = useState<string[]>([])
 
   // Derived flags
@@ -238,6 +239,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const fetchServiceConfigurationId = async (category: string, service: string, areaOfWork?: string) => {
+    setServiceConfigLoaded(false)
+    setServiceConfig(null)
     try {
       const params = new URLSearchParams({ category, service })
       if (areaOfWork) params.append('areaOfWork', areaOfWork)
@@ -248,24 +251,26 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       )
       if (response.ok) {
         const result = await response.json()
-        if (result.data) {
-          // Store the full config
-          setServiceConfig(result.data)
+        // An empty object means the request completed and this service has no
+        // optional configuration. A null value means loading failed or is
+        // still in progress and must not satisfy the submit gate.
+        const loadedConfig: Step1ServiceConfig = result.data || {}
+        setServiceConfig(loadedConfig)
+        setServiceConfigLoaded(true)
 
-          // Extract pricing models
-          if (result.data.pricingModels && Array.isArray(result.data.pricingModels)) {
-            setPricingModels(result.data.pricingModels)
-          }
+        // Extract pricing models
+        if (loadedConfig.pricingModels && Array.isArray(loadedConfig.pricingModels)) {
+          setPricingModels(loadedConfig.pricingModels)
+        }
 
-          // Update form data with service configuration ID
-          if (result.data._id) {
-            updateFormData({
-              serviceConfigurationId: result.data._id,
-              ...(formData.serviceConfigurationId && formData.serviceConfigurationId !== result.data._id
-                ? { vatProfessionalAnswers: [] }
-                : {}),
-            })
-          }
+        // Update form data with service configuration ID
+        if (loadedConfig._id) {
+          updateFormData({
+            serviceConfigurationId: loadedConfig._id,
+            ...(formData.serviceConfigurationId && formData.serviceConfigurationId !== loadedConfig._id
+              ? { vatProfessionalAnswers: [] }
+              : {}),
+          })
         }
       }
     } catch (error) {
@@ -330,7 +335,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   useEffect(() => {
     onChange(formData)
     validateForm()
-  }, [formData, serviceConfig, addressValid])
+  }, [formData, serviceConfig, serviceConfigLoaded, addressValid])
 
   // Keep selectedPricingOption in sync with priceModel & serviceConfig
   // (covers initial load, edit restore, and category/service changes)
@@ -363,7 +368,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
   const validateForm = () => {
     const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
-    onValidate(errors.length === 0, { dataSignature: getStep1DataSignature(formData), addressValid, serviceConfig })
+    onValidate(errors.length === 0, {
+      dataSignature: getStep1DataSignature(formData),
+      addressValid,
+      serviceConfig,
+      serviceConfigLoaded,
+    })
   }
 
   const showValidationErrors = () => {
@@ -371,6 +381,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
     if (errors.length > 0) {
       toast.error(errors.join('. '));
+    } else if (!serviceConfigLoaded) {
+      toast.error('Service configuration is still loading. Please try again shortly.')
     }
   }
 

@@ -546,6 +546,9 @@ function ProjectCreateContent() {
     if (!step1ValidationContext || step1ValidationContext.dataSignature !== getStep1DataSignature(projectData)) {
       return ['Complete Step 1 validation before submitting']
     }
+    if (!step1ValidationContext.serviceConfigLoaded) {
+      return ['Service configuration is unavailable. Reload the service details before submitting']
+    }
     return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid)
   }, [projectData, step1ValidationContext])
 
