@@ -4,7 +4,7 @@ const normalizeGroupedInteger = (value: string, separator: ',' | '.'): string | 
   const escapedSeparator = separator === '.' ? '\\.' : ','
   const groupedPattern = new RegExp(`^\\d{1,3}(?:${escapedSeparator}\\d{3})+$`)
   if (!groupedPattern.test(value)) return null
-  return value.replaceAll(separator, '')
+  return value.split(separator).join('')
 }
 
 /** Parse a user-entered number using either European or English decimals. */
