@@ -47,6 +47,12 @@ interface PaymentRecord {
   totalWithVat?: number
   platformCommission?: number
   professionalPayout?: number
+  extraCostAmount?: number
+  extraCostNetAmount?: number
+  extraCostVatAmount?: number
+  extraCostPlatformFee?: number
+  extraCostProfessionalPayout?: number
+  extraCostStatus?: "pending" | "succeeded" | "failed" | "refunded"
   stripePaymentIntentId?: string
   stripeTransferId?: string
   stripeChargeId?: string
@@ -64,6 +70,9 @@ interface PaymentRecord {
   creditNoteUrl?: string
   creditNoteUblUrl?: string
   peppolDispatchStatus?: string
+  peppolDispatchReason?: string
+  supplierPeppolDispatchStatus?: string
+  supplierPeppolDispatchReason?: string
   refunds?: Array<{
     amount: number
     reason?: string
@@ -527,6 +536,15 @@ export default function AdminPaymentsPage() {
                             <br />
                             Payout: {payment.professionalPayout?.toFixed(2) || "0.00"}
                           </p>
+                          {(payment.extraCostAmount ?? 0) > 0 && (
+                            <p className="mt-2 border-t border-slate-100 pt-2 text-xs text-amber-700">
+                              Added costs: {payment.currency} {payment.extraCostAmount!.toFixed(2)}
+                              <br />
+                              Extra payout: {payment.extraCostProfessionalPayout?.toFixed(2) || "0.00"}
+                              <br />
+                              Extra status: {payment.extraCostStatus || "pending"}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-sm">
                           <PaymentStatusBadge status={payment.status} />
@@ -625,6 +643,11 @@ export default function AdminPaymentsPage() {
                                 UBL (Peppol{payment.peppolDispatchStatus ? `: ${payment.peppolDispatchStatus}` : ""})
                               </a>
                             )}
+                            {payment.peppolDispatchReason && (
+                              <span className="text-xs text-amber-700">
+                                Peppol note: {payment.peppolDispatchReason}
+                              </span>
+                            )}
                             {payment.supplierInvoiceUrl && (
                               <a
                                 href={payment.supplierInvoiceUrl}
@@ -635,6 +658,12 @@ export default function AdminPaymentsPage() {
                                 <FileText className="h-3 w-3" />
                                 {payment.supplierInvoiceNumber || "Self-bill"} (PDF)
                               </a>
+                            )}
+                            {payment.supplierInvoiceUrl && payment.supplierPeppolDispatchStatus && (
+                              <span className="text-xs text-gray-500">
+                                Supplier Peppol: {payment.supplierPeppolDispatchStatus}
+                                {payment.supplierPeppolDispatchReason ? ` — ${payment.supplierPeppolDispatchReason}` : ""}
+                              </span>
                             )}
                             {canGenerateCreditNote(payment) && (
                               <Button

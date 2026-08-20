@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 import { useAuth } from "@/contexts/AuthContext"
+import { parseFlexibleNumber } from "@/lib/numberInput"
 
 interface IServiceSelection {
   category: string
@@ -114,7 +115,7 @@ const DEFAULT_MIN_OVERLAP = 90
 
 const isProfessionalVatAnswered = (question: ProfessionalVatQuestion, value: unknown) => {
   if (question.answerType === 'yes_no') return value === true || value === false
-  if (question.answerType === 'number') return value !== '' && value != null && Number.isFinite(Number(value))
+  if (question.answerType === 'number') return value !== '' && value != null && Number.isFinite(parseFlexibleNumber(String(value)))
   if (question.answerType === 'checkboxes') return Array.isArray(value) && value.length > 0
   return value != null && String(value).trim() !== ''
 }
@@ -975,9 +976,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     <div className="flex gap-2">
                       <Input
                         id={`pvat-${question.fieldName}`}
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={typeof value === 'number' || typeof value === 'string' ? value : ''}
-                        onChange={(e) => updateProfessionalVatAnswer(question.fieldName, e.target.value ? Number(e.target.value) : '')}
+                        onChange={(e) => updateProfessionalVatAnswer(question.fieldName, e.target.value)}
                       />
                       {question.unit && (
                         <span className="flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600">
@@ -1570,4 +1572,3 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
-

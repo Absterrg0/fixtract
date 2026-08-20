@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
 import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
+import { parseFlexibleNumber } from '@/lib/numberInput'
 
 interface QuotationWizardProps {
   bookingId: string
@@ -203,6 +204,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
   const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
+  const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
 
   const effectiveVatRateOptions = useMemo(
     () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
@@ -631,12 +633,30 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 <Input
                   type="text"
                   inputMode="decimal"
-                  value={String(line.vatRate ?? '').replace('.', ',')}
+                  value={vatRateDrafts[line.clientKey || `line-${index}`] ?? String(line.vatRate ?? '').replace('.', ',')}
                   onChange={e => {
-                    const raw = e.target.value.replace(',', '.');
-                    const rate = raw === '' ? 0 : Number(raw);
-                    updatePricingLine(index, 'vatRate', Number.isFinite(rate) ? rate : 0);
+                    const key = line.clientKey || `line-${index}`
+                    const raw = e.target.value
+                    setVatRateDrafts(prev => ({ ...prev, [key]: raw }))
+                    const rate = raw === '' ? 0 : parseFlexibleNumber(raw)
+                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
+                      updatePricingLine(index, 'vatRate', rate)
+                    }
                     updatePricingLine(index, 'vatLabel', 'Custom VAT rate');
+                  }}
+                  onBlur={() => {
+                    const key = line.clientKey || `line-${index}`
+                    const draft = vatRateDrafts[key]
+                    if (draft === undefined) return
+                    const rate = parseFlexibleNumber(draft)
+                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
+                      updatePricingLine(index, 'vatRate', rate)
+                      setVatRateDrafts(prev => {
+                        const next = { ...prev }
+                        delete next[key]
+                        return next
+                      })
+                    }
                   }}
                   placeholder="VAT %"
                   aria-label={`VAT percentage for pricing line ${index + 1}`}

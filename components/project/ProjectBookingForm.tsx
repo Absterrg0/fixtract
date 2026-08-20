@@ -4002,9 +4002,13 @@ export default function ProjectBookingForm({
                             <div className='flex gap-2'>
                               <Input
                                 id={`vat-${question.fieldName}`}
-                                type='number'
+                                type='text'
+                                inputMode='decimal'
                                 value={typeof value === 'number' || typeof value === 'string' ? value : ''}
-                                onChange={(e) => handleVatAnswerChange(question.fieldName, e.target.value ? Number(e.target.value) : '')}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  handleVatAnswerChange(question.fieldName, raw)
+                                }}
                               />
                               {question.unit && (
                                 <span className='flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600'>

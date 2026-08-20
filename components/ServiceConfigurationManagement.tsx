@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner"
 import IconPicker from "@/components/IconPicker"
 import { iconMapData } from "@/data/icons"
+import { parseFlexibleNumber } from "@/lib/numberInput"
 
 interface DynamicField {
   fieldName: string
@@ -95,6 +96,46 @@ const parseCommaSeparatedOptions = (value: string): string[] => {
   if (finalOption) options.push(finalOption)
   return options
 }
+
+const VatOptionsEditor = ({
+  options,
+  onChange,
+}: {
+  options: string[]
+  onChange: (options: string[]) => void
+}) => (
+  <div className="space-y-2 rounded-md border bg-white p-2">
+    <p className="text-xs text-muted-foreground">
+      Add each checkbox option separately. Commas and spaces are part of the option text.
+    </p>
+    {options.map((option, optionIndex) => (
+      <div key={optionIndex} className="flex items-center gap-2">
+        <Input
+          value={option}
+          onChange={(event) => {
+            const next = [...options]
+            next[optionIndex] = event.target.value
+            onChange(next)
+          }}
+          placeholder="e.g. Repair, replacement"
+          className="bg-white"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Remove checkbox option"
+          onClick={() => onChange(options.filter((_, index) => index !== optionIndex))}
+        >
+          <X className="h-4 w-4 text-red-600" />
+        </Button>
+      </div>
+    ))}
+    <Button type="button" size="sm" variant="outline" onClick={() => onChange([...options, ''])}>
+      <Plus className="mr-1 h-4 w-4" /> Add option
+    </Button>
+  </div>
+)
 
 const applyOptionDrafts = (
   data: ServiceConfiguration,
@@ -1564,23 +1605,9 @@ export default function ServiceConfigurationManagement() {
                           </Button>
                         </div>
                         {question.answerType === 'checkboxes' && (
-                          <Input
-                            value={optionDrafts[`vat:${index}`] ?? (question.options || []).join(', ')}
-                            onChange={(e) =>
-                              setOptionDrafts((drafts) => ({ ...drafts, [`vat:${index}`]: e.target.value }))
-                            }
-                            onBlur={() => {
-                              const draft = optionDrafts[`vat:${index}`]
-                              if (draft === undefined) return
-                              updateVatQuestion(index, { options: parseCommaSeparatedOptions(draft) })
-                              setOptionDrafts((drafts) => {
-                                const next = { ...drafts }
-                                delete next[`vat:${index}`]
-                                return next
-                              })
-                            }}
-                            placeholder="Options separated by commas/new lines; quote options containing commas"
-                            className="bg-white"
+                          <VatOptionsEditor
+                            options={question.options || []}
+                            onChange={(options) => updateVatQuestion(index, { options })}
                           />
                         )}
                         <div className="flex items-center space-x-2">
@@ -1640,23 +1667,9 @@ export default function ServiceConfigurationManagement() {
                           </Button>
                         </div>
                         {question.answerType === 'checkboxes' && (
-                          <Input
-                            value={optionDrafts[`pvat:${index}`] ?? (question.options || []).join(', ')}
-                            onChange={(e) =>
-                              setOptionDrafts((drafts) => ({ ...drafts, [`pvat:${index}`]: e.target.value }))
-                            }
-                            onBlur={() => {
-                              const draft = optionDrafts[`pvat:${index}`]
-                              if (draft === undefined) return
-                              updateProfessionalVatQuestion(index, { options: parseCommaSeparatedOptions(draft) })
-                              setOptionDrafts((drafts) => {
-                                const next = { ...drafts }
-                                delete next[`pvat:${index}`]
-                                return next
-                              })
-                            }}
-                            placeholder="Options separated by commas/new lines; quote options containing commas"
-                            className="bg-white"
+                          <VatOptionsEditor
+                            options={question.options || []}
+                            onChange={(options) => updateProfessionalVatQuestion(index, { options })}
                           />
                         )}
                         <div className="flex items-center space-x-2">
@@ -1684,8 +1697,8 @@ export default function ServiceConfigurationManagement() {
                       <div key={rule.clientKey || `${rule.country}-${rule.priority}-${ruleIndex}`} className="p-3 border rounded-lg bg-gray-50 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-[100px_120px_120px_150px_90px_40px] gap-2">
                           <Input value={rule.country} onChange={(e) => updateVatLogicRule(ruleIndex, { country: e.target.value.toUpperCase() })} placeholder="BE" className="bg-white" list="vat-country-options" />
-                          <Input type="number" step={0.1} value={rule.standardRate} onChange={(e) => updateVatLogicRule(ruleIndex, { standardRate: parseFloat(e.target.value) || 0 })} placeholder="Standard %" className="bg-white" />
-                          <Input type="number" step={0.1} value={rule.reducedRate} onChange={(e) => updateVatLogicRule(ruleIndex, { reducedRate: parseFloat(e.target.value) || 0 })} placeholder="Reduced %" className="bg-white" />
+                          <Input type="text" inputMode="decimal" value={rule.standardRate} onChange={(e) => updateVatLogicRule(ruleIndex, { standardRate: parseFlexibleNumber(e.target.value) || 0 })} placeholder="Standard %" className="bg-white" />
+                          <Input type="text" inputMode="decimal" value={rule.reducedRate} onChange={(e) => updateVatLogicRule(ruleIndex, { reducedRate: parseFlexibleNumber(e.target.value) || 0 })} placeholder="Reduced %" className="bg-white" />
                           <select className="border rounded-md px-3 py-2 bg-white text-sm" value={rule.action} onChange={(e) => updateVatLogicRule(ruleIndex, { action: e.target.value as VatLogicRule['action'] })}>
                             <option value="reduced_rate">Reduced rate</option>
                             <option value="rfq">RFQ</option>
