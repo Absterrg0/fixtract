@@ -1553,8 +1553,9 @@ export default function ServiceConfigurationManagement() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Article 47 classification</Label>
+                      <Label htmlFor="vat-article47-classification">Article 47 classification</Label>
                       <select
+                        id="vat-article47-classification"
                         className="border rounded-md px-3 py-2 bg-white text-sm w-full"
                         value={formData.vatManagement.article47Classification || 'immovable'}
                         onChange={(e) => updateVatManagement({
@@ -1601,6 +1602,8 @@ export default function ServiceConfigurationManagement() {
                             className="bg-white"
                           />
                           <select
+                            id={`professional-vat-answer-type-${index}`}
+                            aria-label={`Professional VAT answer type for question ${index + 1}`}
                             className="border rounded-md px-3 py-2 bg-white text-sm"
                             value={question.answerType}
                             onChange={(e) => updateVatQuestion(index, { answerType: e.target.value as VatQuestion['answerType'] })}

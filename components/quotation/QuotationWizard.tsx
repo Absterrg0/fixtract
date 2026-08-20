@@ -34,7 +34,11 @@ interface VatRateOption {
 
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
 const makePricingLineKey = () => `pricing-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-const createEmptyPricingLine = (vatRate = 0, vatCountry = '', vatLabel = 'Enter custom VAT rate'): QuotationPricingLine => ({
+const CUSTOM_VAT_RATE_PLACEHOLDER = 'Custom VAT rate (enter below)'
+const isUntouchedCustomVatRate = (line: Pick<QuotationPricingLine, 'vatLabel'>) =>
+  line.vatLabel === CUSTOM_VAT_RATE_PLACEHOLDER || line.vatLabel === 'Enter custom VAT rate'
+
+const createEmptyPricingLine = (vatRate = 0, vatCountry = '', vatLabel = CUSTOM_VAT_RATE_PLACEHOLDER): QuotationPricingLine => ({
   clientKey: makePricingLineKey(),
   description: '',
   price: 0,
@@ -65,7 +69,7 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
 const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
   rate: 0,
   country: '',
-  label: 'Custom VAT rate (enter below)',
+  label: CUSTOM_VAT_RATE_PLACEHOLDER,
   reverseCharge: false,
   source: 'standard',
 }]
@@ -333,6 +337,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const updatePricingLineVat = (index: number, option: VatRateOption) => {
+    const key = form.pricingLines[index]?.clientKey || `line-${index}`
     const updated = [...form.pricingLines]
     updated[index] = {
       ...updated[index],
@@ -341,6 +346,12 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       vatLabel: option.label,
     }
     updateForm('pricingLines', updated)
+    setVatRateDrafts(prev => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
 
   // Milestones helpers
@@ -379,7 +390,36 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error('Please specify whether materials are included')
       return
     }
-    const validPricingLines = validPricingLinesForTotal
+    const invalidVatLine = form.pricingLines.find((line, index) => {
+      const hasContent = line.description.trim() || Number(line.price) > 0
+      if (!hasContent) return false
+
+      const key = line.clientKey || `line-${index}`
+      const draft = vatRateDrafts[key]
+      const vatRate = draft === undefined ? Number(line.vatRate) : parseFlexibleNumber(draft)
+      return (
+        (draft === undefined && isUntouchedCustomVatRate(line)) ||
+        !Number.isFinite(vatRate) ||
+        vatRate < 0 ||
+        vatRate > 100
+      )
+    })
+    if (invalidVatLine) {
+      toast.error('Enter a valid VAT rate for every pricing line before submitting')
+      return
+    }
+
+    const pricingLinesWithDrafts = form.pricingLines.map((line, index) => {
+      const key = line.clientKey || `line-${index}`
+      const draft = vatRateDrafts[key]
+      if (draft === undefined) return line
+      return { ...line, vatRate: parseFlexibleNumber(draft) }
+    })
+    const validPricingLines = pricingLinesWithDrafts.filter((line) => {
+      const price = Number(line.price)
+      const vatRate = Number(line.vatRate)
+      return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+    })
     if (validPricingLines.length === 0) {
       toast.error('Add at least one pricing line')
       return

@@ -111,6 +111,20 @@ interface ProfessionalVatQuestion {
   isRequired?: boolean
 }
 
+interface Step1ServiceConfig {
+  pricingModel?: string
+  pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>
+  certificationRequired?: boolean
+  requiredCertifications?: string[]
+  projectTypes?: string[]
+  areaOfWorkRequired?: boolean
+  vatManagement?: {
+    enabled?: boolean
+    article47Classification?: 'movable' | 'immovable' | 'project_dependent'
+    professionalVatQuestions?: ProfessionalVatQuestion[]
+  }
+}
+
 const DEFAULT_MIN_OVERLAP = 90
 
 const isProfessionalVatAnswered = (question: ProfessionalVatQuestion, value: unknown) => {
@@ -120,25 +134,31 @@ const isProfessionalVatAnswered = (question: ProfessionalVatQuestion, value: unk
   return value != null && String(value).trim() !== ''
 }
 
+const getUnansweredRequiredVatQuestions = (
+  serviceConfig: Step1ServiceConfig | null,
+  formData: ProjectData,
+): ProfessionalVatQuestion[] => {
+  const requiredQuestions = serviceConfig?.vatManagement?.enabled
+    ? serviceConfig.vatManagement.professionalVatQuestions || []
+    : []
+
+  return requiredQuestions
+    .filter((question) => question.isRequired !== false)
+    .filter((question) => {
+      const value = formData.vatProfessionalAnswers?.find(
+        (answer) => answer.fieldName === question.fieldName,
+      )?.value
+      return !isProfessionalVatAnswered(question, value)
+    })
+}
+
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
   const [formData, setFormData] = useState<ProjectData>(data)
   const [keywordInput, setKeywordInput] = useState('')
   const [suggestedTitle, setSuggestedTitle] = useState('')
   const [addressValid, setAddressValid] = useState(false)
   const { user } = useAuth()
-  const [serviceConfig, setServiceConfig] = useState<{
-    pricingModel?: string;
-    pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>;
-    certificationRequired?: boolean;
-    requiredCertifications?: string[];
-    projectTypes?: string[];
-    areaOfWorkRequired?: boolean;
-    vatManagement?: {
-      enabled?: boolean;
-      article47Classification?: 'movable' | 'immovable' | 'project_dependent';
-      professionalVatQuestions?: ProfessionalVatQuestion[];
-    };
-  } | null>(null)
+  const [serviceConfig, setServiceConfig] = useState<Step1ServiceConfig | null>(null)
   const [pricingModels, setPricingModels] = useState<string[]>([])
 
   // Derived flags
@@ -414,14 +434,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       ? (hasIntakeResources && hasExecutionResources)
       : hasExecutionResources
 
-    const requiredVatQuestions = (serviceConfig?.vatManagement?.enabled
-      ? serviceConfig.vatManagement.professionalVatQuestions || []
-      : []
-    ).filter((question) => question.isRequired !== false)
-    const unansweredVatQuestions = requiredVatQuestions.filter((question) => {
-      const value = formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
-      return !isProfessionalVatAnswered(question, value)
-    })
+    const unansweredVatQuestions = getUnansweredRequiredVatQuestions(serviceConfig, formData)
 
     const isValid = !!(
       formData.category &&
@@ -504,15 +517,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
     else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
-    const requiredVatQuestions = (serviceConfig?.vatManagement?.enabled
-      ? serviceConfig.vatManagement.professionalVatQuestions || []
-      : []
-    ).filter((question) => question.isRequired !== false)
-    for (const question of requiredVatQuestions) {
-      const value = formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
-      if (!isProfessionalVatAnswered(question, value)) {
-        errors.push(`VAT question required: ${question.question}`)
-      }
+    for (const question of getUnansweredRequiredVatQuestions(serviceConfig, formData)) {
+      errors.push(`VAT question required: ${question.question}`)
     }
 
     if (errors.length > 0) {

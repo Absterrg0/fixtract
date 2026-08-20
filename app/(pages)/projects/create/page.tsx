@@ -563,6 +563,19 @@ function ProjectCreateContent() {
     if (isLoading) return // Prevent multiple submissions
 
     const blocking = collectBlockingWizardErrors(projectData)
+    if (!stepValidation[0]) {
+      const stepOneBlocking = blocking.find((entry) => entry.step === 1)
+      const stepOneMessage = 'Complete all required Basic Info fields, certifications, address validation, and VAT questions before submitting'
+      if (stepOneBlocking) {
+        stepOneBlocking.messages.push(stepOneMessage)
+      } else {
+        blocking.unshift({
+          step: 1,
+          stepTitle: 'Basic Info',
+          messages: [stepOneMessage],
+        })
+      }
+    }
     if (blocking.length > 0) {
       goToFirstBlockingStep(blocking)
       return

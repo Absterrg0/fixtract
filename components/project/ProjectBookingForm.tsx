@@ -2274,6 +2274,11 @@ export default function ProjectBookingForm({
         serviceLocationFields.country ||
         countryFromPlace(servicePlace) ||
         (useProfileAddress ? user?.location?.country : undefined);
+      const profileCoordinates = useProfileAddress &&
+        user?.location?.coordinates?.length === 2 &&
+        user.location.coordinates.every((coordinate) => Number.isFinite(coordinate))
+        ? user.location.coordinates
+        : undefined;
 
       const bookingData = {
         bookingType: 'project',
@@ -2288,7 +2293,7 @@ export default function ProjectBookingForm({
             serviceLocationFields.postalCode ||
             (useProfileAddress ? user?.location?.postalCode : undefined),
           country: resolvedServiceCountry || undefined,
-          coordinates: serviceLocationFields.coordinates,
+          coordinates: serviceLocationFields.coordinates || profileCoordinates,
         },
         proceedAtStandardVat:
           proceedAtStandardVat &&
@@ -4315,7 +4320,8 @@ export default function ProjectBookingForm({
                       value={manualAddress}
                       onChange={(address, placeData) => {
                         setManualAddress(address);
-                        if (placeData) setServicePlace(placeData);
+                        setServicePlace(placeData);
+                        if (!placeData) setIsServiceAddressValid(false);
                       }}
                       onValidation={setIsServiceAddressValid}
                       useCompanyAddress={useProfileAddress}
