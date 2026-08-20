@@ -84,6 +84,9 @@ export interface PaymentInfo {
   invoiceNumber?: string;
   invoiceUrl?: string;
   invoiceUblUrl?: string;
+  supplierInvoiceNumber?: string;
+  supplierInvoiceUrl?: string;
+  supplierInvoiceUblUrl?: string;
 }
 
 // ==================== Onboarding Types ====================

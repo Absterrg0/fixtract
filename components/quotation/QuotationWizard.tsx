@@ -593,7 +593,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           </Label>
           <div className="mt-2 space-y-3">
             {form.pricingLines.map((line, index) => (
-              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_40px] gap-2 items-start">
+              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_110px_40px] gap-2 items-start">
                 <Input
                   value={line.description}
                   onChange={e => updatePricingLine(index, 'description', e.target.value)}
@@ -628,6 +628,19 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                     ))}
                   </SelectContent>
                 </Select>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={String(line.vatRate ?? '').replace('.', ',')}
+                  onChange={e => {
+                    const raw = e.target.value.replace(',', '.');
+                    const rate = raw === '' ? 0 : Number(raw);
+                    updatePricingLine(index, 'vatRate', Number.isFinite(rate) ? rate : 0);
+                    updatePricingLine(index, 'vatLabel', 'Custom VAT rate');
+                  }}
+                  placeholder="VAT %"
+                  aria-label={`VAT percentage for pricing line ${index + 1}`}
+                />
                 <Button type="button" variant="ghost" size="icon" onClick={() => removePricingLine(index)} disabled={form.pricingLines.length === 1} className="text-red-500 hover:text-red-700">
                   <Trash2 className="h-4 w-4" />
                 </Button>

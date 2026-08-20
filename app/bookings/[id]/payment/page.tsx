@@ -120,6 +120,11 @@ interface Booking {
   quoteVersions?: QuoteVersion[];
   currentQuoteVersion?: number;
   selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
+  checkoutSnapshot?: {
+    baseSubtotal?: number;
+    extraOptionsTotal?: number;
+    totalAmount?: number;
+  };
   postBookingData?: Array<{
     questionId: string;
     question: string;
@@ -942,7 +947,27 @@ export default function BookingPaymentPage() {
     const price = typeof persisted?.bookedPrice === 'number' ? persisted.bookedPrice : (opt?.price || 0);
     return sum + price;
   }, 0);
-  const breakdownBaseTotal = (booking?.quote?.amount || 0) + breakdownOptionsBaseTotal;
+  const quoteAmount = Number(booking?.quote?.amount || 0);
+  const snapshot = booking?.checkoutSnapshot;
+  const extrasIncludedInQuote = (() => {
+    if (breakdownOptionsBaseTotal <= 0) return false;
+    if (
+      snapshot &&
+      Number(snapshot.extraOptionsTotal) > 0 &&
+      Number.isFinite(Number(snapshot.totalAmount)) &&
+      Math.abs(quoteAmount - Number(snapshot.totalAmount)) < 0.02
+    ) {
+      return true;
+    }
+    const baseSubtotal = Number(snapshot?.baseSubtotal);
+    if (Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - baseSubtotal) < 0.02) {
+      return false;
+    }
+    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + breakdownOptionsBaseTotal)) < 0.02;
+  })();
+  const breakdownBaseTotal = extrasIncludedInQuote
+    ? quoteAmount
+    : quoteAmount + breakdownOptionsBaseTotal;
   const commissionedOptionsAmount =
     breakdownBaseTotal > 0 && breakdownOptionsBaseTotal > 0
       ? +((originalServiceAmount * breakdownOptionsBaseTotal) / breakdownBaseTotal).toFixed(2)
@@ -1384,7 +1409,7 @@ export default function BookingPaymentPage() {
                         );
                       })}
                     </div>
-                    {selectedOptionTotal > 0 && (
+                    {selectedOptionTotal > 0 && !extrasIncludedInQuote && (
                       <p className="mt-3 text-xs font-medium text-gray-700">
                         Selected options total: {customerPricingReady
                           ? formatMoney(customerPrice(selectedOptionTotal), booking?.quote?.currency?.toUpperCase() || 'EUR')
@@ -1663,7 +1688,7 @@ export default function BookingPaymentPage() {
               )}
               {booking?.payment?.reverseCharge && (
                 <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                  0% VAT applied: Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                  Reverse Charge — VAT is accounted for by the customer.
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t">

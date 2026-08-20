@@ -57,6 +57,9 @@ interface PaymentRecord {
   invoiceNumber?: string
   invoiceUrl?: string
   invoiceUblUrl?: string
+  supplierInvoiceNumber?: string
+  supplierInvoiceUrl?: string
+  supplierInvoiceUblUrl?: string
   creditNoteNumber?: string
   creditNoteUrl?: string
   creditNoteUblUrl?: string
@@ -620,6 +623,17 @@ export default function AdminPaymentsPage() {
                               >
                                 <FileText className="h-3 w-3" />
                                 UBL (Peppol{payment.peppolDispatchStatus ? `: ${payment.peppolDispatchStatus}` : ""})
+                              </a>
+                            )}
+                            {payment.supplierInvoiceUrl && (
+                              <a
+                                href={payment.supplierInvoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                {payment.supplierInvoiceNumber || "Self-bill"} (PDF)
                               </a>
                             )}
                             {canGenerateCreditNote(payment) && (

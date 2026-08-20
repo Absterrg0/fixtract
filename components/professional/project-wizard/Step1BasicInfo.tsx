@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
 import { toast } from 'sonner'
@@ -59,6 +60,7 @@ interface ProjectData {
     videos: string[]
   }
   serviceConfigurationId?: string
+  vatProfessionalAnswers?: Array<{ fieldName: string; value: unknown }>
   certifications?: Array<{
     name: string
     fileUrl: string
@@ -99,7 +101,23 @@ export interface Step1Ref {
   showValidationErrors: () => void
 }
 
+interface ProfessionalVatQuestion {
+  question: string
+  fieldName: string
+  answerType: 'number' | 'yes_no' | 'checkboxes'
+  unit?: string
+  options?: string[]
+  isRequired?: boolean
+}
+
 const DEFAULT_MIN_OVERLAP = 90
+
+const isProfessionalVatAnswered = (question: ProfessionalVatQuestion, value: unknown) => {
+  if (question.answerType === 'yes_no') return value === true || value === false
+  if (question.answerType === 'number') return value !== '' && value != null && Number.isFinite(Number(value))
+  if (question.answerType === 'checkboxes') return Array.isArray(value) && value.length > 0
+  return value != null && String(value).trim() !== ''
+}
 
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
   const [formData, setFormData] = useState<ProjectData>(data)
@@ -114,6 +132,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     requiredCertifications?: string[];
     projectTypes?: string[];
     areaOfWorkRequired?: boolean;
+    vatManagement?: {
+      enabled?: boolean;
+      article47Classification?: 'movable' | 'immovable' | 'project_dependent';
+      professionalVatQuestions?: ProfessionalVatQuestion[];
+    };
   } | null>(null)
   const [pricingModels, setPricingModels] = useState<string[]>([])
 
@@ -258,7 +281,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
           // Update form data with service configuration ID
           if (result.data._id) {
-            updateFormData({ serviceConfigurationId: result.data._id })
+            updateFormData({
+              serviceConfigurationId: result.data._id,
+              ...(formData.serviceConfigurationId && formData.serviceConfigurationId !== result.data._id
+                ? { vatProfessionalAnswers: [] }
+                : {}),
+            })
           }
         }
       }
@@ -385,6 +413,15 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       ? (hasIntakeResources && hasExecutionResources)
       : hasExecutionResources
 
+    const requiredVatQuestions = (serviceConfig?.vatManagement?.enabled
+      ? serviceConfig.vatManagement.professionalVatQuestions || []
+      : []
+    ).filter((question) => question.isRequired !== false)
+    const unansweredVatQuestions = requiredVatQuestions.filter((question) => {
+      const value = formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
+      return !isProfessionalVatAnswered(question, value)
+    })
+
     const isValid = !!(
       formData.category &&
       formData.service &&
@@ -399,7 +436,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       formData.distance?.address &&
       addressValid &&
       formData.distance?.maxKmRange &&
-      formData.distance.maxKmRange > 0
+      formData.distance.maxKmRange > 0 &&
+      unansweredVatQuestions.length === 0
     )
     onValidate(isValid)
   }
@@ -465,6 +503,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
     else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
+    const requiredVatQuestions = (serviceConfig?.vatManagement?.enabled
+      ? serviceConfig.vatManagement.professionalVatQuestions || []
+      : []
+    ).filter((question) => question.isRequired !== false)
+    for (const question of requiredVatQuestions) {
+      const value = formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
+      if (!isProfessionalVatAnswered(question, value)) {
+        errors.push(`VAT question required: ${question.question}`)
+      }
+    }
+
     if (errors.length > 0) {
       toast.error(errors.join('. '));
     }
@@ -476,6 +525,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
   const updateFormData = (updates: Partial<ProjectData>) => {
     setFormData(prev => ({ ...prev, ...updates }))
+  }
+
+  const professionalVatQuestions = serviceConfig?.vatManagement?.enabled
+    ? serviceConfig.vatManagement.professionalVatQuestions || []
+    : []
+
+  const getProfessionalVatAnswer = (fieldName: string) =>
+    formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === fieldName)?.value
+
+  const updateProfessionalVatAnswer = (fieldName: string, value: unknown) => {
+    const answers = [...(formData.vatProfessionalAnswers || [])]
+    const index = answers.findIndex((answer) => answer.fieldName === fieldName)
+    const next = { fieldName, value }
+    if (index >= 0) answers[index] = next
+    else answers.push(next)
+    updateFormData({ vatProfessionalAnswers: answers })
   }
 
   const updateDistance = (updates: Partial<{
@@ -888,6 +953,83 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         requiredTypes={serviceConfig?.requiredCertifications || []}
         projectId={formData._id}
       />
+
+      {professionalVatQuestions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>VAT classification questions</CardTitle>
+            <CardDescription>
+              These answers determine place of supply and Belgian reverse charge for this service.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {professionalVatQuestions.map((question) => {
+              const value = getProfessionalVatAnswer(question.fieldName)
+              return (
+                <div key={question.fieldName} className="space-y-2">
+                  <Label htmlFor={`pvat-${question.fieldName}`}>
+                    {question.question}
+                    {question.isRequired !== false && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  {question.answerType === 'number' && (
+                    <div className="flex gap-2">
+                      <Input
+                        id={`pvat-${question.fieldName}`}
+                        type="number"
+                        value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+                        onChange={(e) => updateProfessionalVatAnswer(question.fieldName, e.target.value ? Number(e.target.value) : '')}
+                      />
+                      {question.unit && (
+                        <span className="flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600">
+                          {question.unit}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {question.answerType === 'yes_no' && (
+                    <RadioGroup
+                      value={value === true ? 'yes' : value === false ? 'no' : ''}
+                      onValueChange={(next) => updateProfessionalVatAnswer(question.fieldName, next === 'yes')}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yes" id={`pvat-${question.fieldName}-yes`} />
+                        <Label htmlFor={`pvat-${question.fieldName}-yes`} className="font-normal">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="no" id={`pvat-${question.fieldName}-no`} />
+                        <Label htmlFor={`pvat-${question.fieldName}-no`} className="font-normal">No</Label>
+                      </div>
+                    </RadioGroup>
+                  )}
+                  {question.answerType === 'checkboxes' && (
+                    <div className="space-y-2">
+                      {(question.options || []).map((option) => {
+                        const selected = Array.isArray(value) && value.includes(option)
+                        return (
+                          <label key={option} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={selected}
+                              onCheckedChange={(checked) => {
+                                const current = Array.isArray(value) ? value : []
+                                updateProfessionalVatAnswer(
+                                  question.fieldName,
+                                  checked ? [...current, option] : current.filter((entry) => entry !== option)
+                                )
+                              }}
+                            />
+                            {option}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Execution Resources - Shown for all services except Renovation */}
       {formData.category?.toLowerCase() !== 'renovation' && (

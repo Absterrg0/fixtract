@@ -157,6 +157,7 @@ interface ProjectData {
     videos: string[]
   }
   serviceConfigurationId?: string
+  vatProfessionalAnswers?: Array<{ fieldName: string; value: unknown }>
   certifications?: Array<{
     name: string
     fileUrl: string

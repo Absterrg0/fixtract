@@ -357,6 +357,28 @@ export default function ChatWidget() {
           professionalId: detail.professionalId,
         });
 
+        if (detail.initialMessage?.trim()) {
+          const prefillKey = `rfq-prefill:${conversation._id}`;
+          let alreadySent = false;
+          try {
+            alreadySent = window.sessionStorage.getItem(prefillKey) === "1";
+          } catch {
+            alreadySent = false;
+          }
+          if (!alreadySent) {
+            try {
+              await sendConversationMessage(conversation._id, { text: detail.initialMessage.trim() });
+              try {
+                window.sessionStorage.setItem(prefillKey, "1");
+              } catch {
+                // Prefill still sent; storage is only a duplicate guard.
+              }
+            } catch {
+              toast.error("Chat opened, but the quotation answers could not be sent automatically.");
+            }
+          }
+        }
+
         await loadConversationList(false, true);
         setManualNewChatPanel(false);
         setSelectedConversationId(conversation._id);

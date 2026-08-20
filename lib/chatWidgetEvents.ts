@@ -7,6 +7,7 @@ export interface ChatWidgetOpenDetail {
   professionalId?: string;
   customerId?: string;
   conversationId?: string;
+  initialMessage?: string;
 }
 
 export const emitChatWidgetOpen = (detail: ChatWidgetOpenDetail) => {
