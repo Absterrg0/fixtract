@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -532,6 +533,14 @@ const validateWarrantyFiles = (fileList: FileList | File[] | null | undefined) =
 
 
 export default function BookingDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" /></div>}>
+      <BookingDetailContent />
+    </Suspense>
+  )
+}
+
+function BookingDetailContent() {
   const { user, isAuthenticated, loading } = useAuth()
   const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded } = useCustomerPricing()
   const customerPricingReady = commissionPercent != null && loyaltyLoaded

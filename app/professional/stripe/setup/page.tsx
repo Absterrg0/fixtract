@@ -1,11 +1,8 @@
 'use client';
 
-/**
- * Professional Stripe Setup Page
- * Initial page for professionals to connect their Stripe account
- */
+export const dynamic = 'force-dynamic';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +17,14 @@ interface AccountStatus {
 }
 
 export default function StripeSetupPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" /></div>}>
+      <StripeSetupContent />
+    </Suspense>
+  );
+}
+
+function StripeSetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');

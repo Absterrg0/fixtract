@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -76,6 +77,14 @@ interface StripeAccountStatus {
 }
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" /></div>}>
+      <ProfileContent />
+    </Suspense>
+  )
+}
+
+function ProfileContent() {
   const { user, isAuthenticated, loading, checkAuth } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()

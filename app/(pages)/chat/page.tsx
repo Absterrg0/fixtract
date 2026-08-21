@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText, ShieldCheck } from "lucide-react";
@@ -45,6 +46,14 @@ const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
 };
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" /></div>}>
+      <ChatContent />
+    </Suspense>
+  );
+}
+
+function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated, loading } = useAuth();

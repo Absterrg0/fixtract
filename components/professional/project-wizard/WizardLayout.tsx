@@ -22,6 +22,7 @@ interface WizardLayoutProps {
   onPrevious: () => void
   onSubmit?: () => void
   onShowValidationErrors?: () => void
+  validationMessages?: string[]
   children: React.ReactNode
   isLoading?: boolean
   canProceed?: boolean
@@ -88,6 +89,7 @@ export default function WizardLayout({
   onPrevious,
   onSubmit,
   onShowValidationErrors,
+  validationMessages = [],
   children,
   isLoading = false,
   canProceed = true,
@@ -207,6 +209,16 @@ export default function WizardLayout({
               </CardHeader>
 
               <CardContent className="p-6">
+                {validationMessages.length > 0 && (
+                  <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    <p className="font-semibold mb-2">Fix these before continuing</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {validationMessages.map((message, index) => (
+                        <li key={`${index}-${message}`}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {children}
               </CardContent>
 

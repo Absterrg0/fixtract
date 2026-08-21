@@ -692,34 +692,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
   }), [user, loading, login, signup, logout, checkAuth])
 
-  const isPublic = isPublicRoute(pathname)
-  const isAuth = isAuthRoute(pathname)
-  // Public pages (including `/`) paint immediately. The old `pathname === '/'`
-  // exception swapped the whole landing page for AuthLoadingScreen on every refresh.
-  const shouldBlockRender = loading && !isPublic && !isAuth
-
   return (
     <AuthContext.Provider value={value}>
-      {shouldBlockRender ? <AuthLoadingScreen /> : children}
+      {children}
     </AuthContext.Provider>
   )
 }
-
-// Loading Component
-export const AuthLoadingScreen: React.FC = () => (
-  <div className="min-h-screen bg-gray-50 p-4">
-    <div className="max-w-6xl mx-auto pt-20 space-y-6">
-      <div className="h-8 w-48 rounded bg-gray-200/70 animate-pulse" />
-      <div className="h-4 w-72 rounded bg-gray-200/70 animate-pulse" />
-      <div className="grid md:grid-cols-3 gap-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
-            <div className="h-4 w-2/3 rounded bg-gray-200/70 animate-pulse" />
-            <div className="h-4 w-full rounded bg-gray-200/70 animate-pulse" />
-            <div className="h-4 w-1/2 rounded bg-gray-200/70 animate-pulse" />
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-)
