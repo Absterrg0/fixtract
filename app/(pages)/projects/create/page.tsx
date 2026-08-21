@@ -376,6 +376,8 @@ function ProjectCreateContent() {
             title: project.title,
             customConfirmationMessage: project.customConfirmationMessage,
             customerPresence: project.customerPresence,
+            serviceConfigurationId: project.serviceConfigurationId,
+            vatProfessionalAnswers: project.vatProfessionalAnswers || [],
           })
           setCurrentStep(project.currentStep || 1)
           // Enable all steps for existing projects

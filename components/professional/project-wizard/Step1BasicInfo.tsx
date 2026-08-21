@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -176,12 +176,19 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }
   }, [formData.service])
 
-  // Fetch serviceConfigurationId when service or area changes
+  // Monotonic ID that invalidates in-flight configuration lookups whenever the
+  // service selection changes, so a superseded response can never win.
+  const serviceConfigRequestIdRef = useRef(0)
+
+  // Fetch serviceConfigurationId when the service selection changes
   useEffect(() => {
     if (formData.category && formData.service) {
       fetchServiceConfigurationId(formData.category, formData.service, formData.areaOfWork)
+    } else {
+      // Invalidate any in-flight lookup when the selection becomes incomplete.
+      serviceConfigRequestIdRef.current += 1
     }
-  }, [formData.service, formData.areaOfWork])
+  }, [formData.category, formData.service, formData.areaOfWork])
 
 
   const fetchCategories = async () => {
@@ -239,8 +246,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const fetchServiceConfigurationId = async (category: string, service: string, areaOfWork?: string) => {
+    const requestId = ++serviceConfigRequestIdRef.current
     setServiceConfigLoaded(false)
     setServiceConfig(null)
+    // Never let pricing models from a previous configuration leak into the
+    // current selection while a lookup is in flight.
+    setPricingModels([])
     try {
       const params = new URLSearchParams({ category, service })
       if (areaOfWork) params.append('areaOfWork', areaOfWork)
@@ -249,6 +260,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`,
         { credentials: 'include' }
       )
+      // A newer selection has superseded this request; discard the response.
+      if (requestId !== serviceConfigRequestIdRef.current) return
       if (response.ok) {
         const result = await response.json()
         // An empty object means the request completed and this service has no
@@ -257,28 +270,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         const loadedConfig: Step1ServiceConfig = result.data || {}
         setServiceConfig(loadedConfig)
         setServiceConfigLoaded(true)
+        setPricingModels(
+          loadedConfig.pricingModels && Array.isArray(loadedConfig.pricingModels)
+            ? loadedConfig.pricingModels
+            : []
+        )
 
-        // Extract pricing models
-        if (loadedConfig.pricingModels && Array.isArray(loadedConfig.pricingModels)) {
-          setPricingModels(loadedConfig.pricingModels)
-        }
-
-        // Update form data with service configuration ID
-        if (loadedConfig._id) {
-          // Decide the VAT-answer reset against the current state inside the
-          // updater: the closure value can be stale by the time the response
-          // arrives, which would keep answers from a previous configuration.
-          setFormData(prev => {
-            const shouldResetVatAnswers = Boolean(
-              prev.serviceConfigurationId && prev.serviceConfigurationId !== loadedConfig._id
-            )
-            return {
-              ...prev,
-              serviceConfigurationId: loadedConfig._id,
-              ...(shouldResetVatAnswers ? { vatProfessionalAnswers: [] } : {}),
-            }
-          })
-        }
+        // Always synchronize the configuration ID, including clearing it when
+        // the response carries no configuration, and decide the VAT-answer
+        // reset against the current state inside the updater: the closure
+        // value can be stale by the time the response arrives.
+        const nextConfigId: string | undefined = loadedConfig._id || undefined
+        setFormData(prev => ({
+          ...prev,
+          serviceConfigurationId: nextConfigId,
+          ...(prev.serviceConfigurationId !== nextConfigId ? { vatProfessionalAnswers: [] } : {}),
+        }))
       }
     } catch (error) {
       console.error('Failed to fetch service configuration ID:', error)
