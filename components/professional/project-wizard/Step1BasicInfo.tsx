@@ -260,33 +260,46 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`,
         { credentials: 'include' }
       )
-      // A newer selection has superseded this request; discard the response.
+      if (!response.ok) return
+      const result = await response.json()
+      // Re-check after parsing: the selection may have changed while the
+      // response body was downloading, so a superseded response must never
+      // update state or satisfy the submit gate.
       if (requestId !== serviceConfigRequestIdRef.current) return
-      if (response.ok) {
-        const result = await response.json()
-        // An empty object means the request completed and this service has no
-        // optional configuration. A null value means loading failed or is
-        // still in progress and must not satisfy the submit gate.
-        const loadedConfig: Step1ServiceConfig = result.data || {}
-        setServiceConfig(loadedConfig)
-        setServiceConfigLoaded(true)
-        setPricingModels(
-          loadedConfig.pricingModels && Array.isArray(loadedConfig.pricingModels)
-            ? loadedConfig.pricingModels
-            : []
-        )
 
-        // Always synchronize the configuration ID, including clearing it when
-        // the response carries no configuration, and decide the VAT-answer
-        // reset against the current state inside the updater: the closure
-        // value can be stale by the time the response arrives.
-        const nextConfigId: string | undefined = loadedConfig._id || undefined
-        setFormData(prev => ({
+      // An empty object means the request completed and this service has no
+      // optional configuration. A null value means loading failed or is
+      // still in progress and must not satisfy the submit gate.
+      const loadedConfig: Step1ServiceConfig = result.data || {}
+      setServiceConfig(loadedConfig)
+      setServiceConfigLoaded(true)
+      const nextPricingModels = Array.isArray(loadedConfig.pricingModels)
+        ? loadedConfig.pricingModels
+        : []
+      setPricingModels(nextPricingModels)
+
+      // Always synchronize the configuration ID, including clearing it when
+      // the response carries no configuration, and decide the resets against
+      // the current state inside the updater: the closure value can be stale
+      // by the time the response arrives.
+      const nextConfigId: string | undefined = loadedConfig._id || undefined
+      setFormData(prev => {
+        const configChanged = prev.serviceConfigurationId !== nextConfigId
+        // Keep the selected price model only when the new configuration
+        // still offers it; otherwise a stale value would submit even though
+        // the select shows no matching option.
+        const priceModelCompatible = Boolean(
+          !prev.priceModel || nextPricingModels.includes(prev.priceModel)
+        )
+        return {
           ...prev,
           serviceConfigurationId: nextConfigId,
-          ...(prev.serviceConfigurationId !== nextConfigId ? { vatProfessionalAnswers: [] } : {}),
-        }))
-      }
+          ...(configChanged ? { vatProfessionalAnswers: [] } : {}),
+          ...(configChanged && !priceModelCompatible
+            ? { priceModel: '', selectedPricingOption: undefined }
+            : {}),
+        }
+      })
     } catch (error) {
       console.error('Failed to fetch service configuration ID:', error)
     }

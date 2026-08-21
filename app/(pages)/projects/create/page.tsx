@@ -743,6 +743,7 @@ function ProjectCreateContent() {
       case 1:
         return (
           <Step1BasicInfo
+            key={projectData.id ?? 'new'}
             ref={step1Ref}
             data={projectData}
             onChange={handleDataChange}
