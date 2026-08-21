@@ -544,7 +544,11 @@ function ProjectCreateContent() {
 
   const getStep1SubmitErrors = useCallback(() => {
     if (!step1ValidationContext || step1ValidationContext.dataSignature !== getStep1DataSignature(projectData)) {
-      return ['Complete Step 1 validation before submitting']
+      return [
+        step1ValidationContext
+          ? 'Step 1 (Basic Info) changed after its last validation. Open Step 1 and review your details before submitting.'
+          : 'Step 1 (Basic Info) has not been validated yet. Open Step 1 (Basic Info) and complete its required fields before submitting.',
+      ]
     }
     if (!step1ValidationContext.serviceConfigLoaded) {
       return ['Service configuration is unavailable. Reload the service details before submitting']
@@ -552,16 +556,23 @@ function ProjectCreateContent() {
     return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid)
   }, [projectData, step1ValidationContext])
 
+  // One shared blocking-list builder so every entry point reports the same
+  // steps in the same order (step 1 first, then steps 2-6).
+  const buildBlockingWizardStepErrors = useCallback((): WizardStepError[] => {
+    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
+    const step1Errors = getStep1SubmitErrors()
+    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
+    return blocking
+  }, [projectData, getStep1SubmitErrors])
+
   // Step 8 is review-only. Required earlier steps must still be valid before submit.
   useEffect(() => {
     if (currentStep === 8) {
-      const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
-      const step1Errors = getStep1SubmitErrors()
-      if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
+      const blocking = buildBlockingWizardStepErrors()
       handleStepValidation(8, blocking.length === 0)
       setStepErrors(blocking.flatMap((entry) => entry.messages))
     }
-  }, [currentStep, getStep1SubmitErrors, handleStepValidation, projectData])
+  }, [currentStep, buildBlockingWizardStepErrors, handleStepValidation])
 
   const goToFirstBlockingStep = (blocking: WizardStepError[]) => {
     const first = blocking[0]
@@ -579,9 +590,7 @@ function ProjectCreateContent() {
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
 
-    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
-    const step1Errors = getStep1SubmitErrors()
-    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
+    const blocking = buildBlockingWizardStepErrors()
     if (blocking.length > 0) {
       goToFirstBlockingStep(blocking)
       return
@@ -708,16 +717,10 @@ function ProjectCreateContent() {
   }
 
   const handleShowValidationErrors = () => {
-    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
-    if (currentStep === 8 && blocking.length > 0) {
-      goToFirstBlockingStep(blocking)
-      return
-    }
-
     if (currentStep === 8) {
-      const step1Errors = getStep1SubmitErrors()
-      if (step1Errors.length > 0) {
-        goToFirstBlockingStep([{ step: 1, stepTitle: 'Basic Info', messages: step1Errors }])
+      const blocking = buildBlockingWizardStepErrors()
+      if (blocking.length > 0) {
+        goToFirstBlockingStep(blocking)
         return
       }
     }

@@ -86,6 +86,17 @@ const LEGACY_VAT_RATE_OPTION: VatRateOption = {
   source: 'legacy',
 }
 
+// Always present in the VAT select so a line with a manually typed rate keeps
+// the select in sync instead of silently displaying an unrelated preset rate.
+const CUSTOM_VAT_SELECT_OPTION: VatRateOption = {
+  rate: 0,
+  country: '',
+  label: CUSTOM_VAT_RATE_PLACEHOLDER,
+  reverseCharge: false,
+  source: 'standard',
+  isCustom: true,
+}
+
 const isLegacyVatPricingLine = (line: Pick<QuotationPricingLine, 'vatRate' | 'vatLabel'>) =>
   Number(line.vatRate) === 0 && line.vatLabel === LEGACY_VAT_RATE_OPTION.label
 
@@ -229,20 +240,26 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
 
   const selectVatRateOptions = useMemo(() => {
-    const hasLegacyLine = form.pricingLines.some(isLegacyVatPricingLine)
-    if (!hasLegacyLine) return effectiveVatRateOptions
-    const legacyValue = getVatOptionValue(LEGACY_VAT_RATE_OPTION)
-    const alreadyIncluded = effectiveVatRateOptions.some(
-      (option) => getVatOptionValue(option) === legacyValue
-    )
-    return alreadyIncluded
-      ? effectiveVatRateOptions
-      : [...effectiveVatRateOptions, LEGACY_VAT_RATE_OPTION]
+    const options = [...effectiveVatRateOptions]
+    if (form.pricingLines.some(isLegacyVatPricingLine)) {
+      const legacyValue = getVatOptionValue(LEGACY_VAT_RATE_OPTION)
+      if (!options.some((option) => getVatOptionValue(option) === legacyValue)) {
+        options.push(LEGACY_VAT_RATE_OPTION)
+      }
+    }
+    const customValue = getVatOptionValue(CUSTOM_VAT_SELECT_OPTION)
+    if (!options.some((option) => getVatOptionValue(option) === customValue)) {
+      options.push(CUSTOM_VAT_SELECT_OPTION)
+    }
+    return options
   }, [effectiveVatRateOptions, form.pricingLines])
 
   const findVatOptionForPricingLine = (line: QuotationPricingLine) => {
     if (isLegacyVatPricingLine(line)) {
       return LEGACY_VAT_RATE_OPTION
+    }
+    if (line.vatRateMode === 'custom') {
+      return CUSTOM_VAT_SELECT_OPTION
     }
     return selectVatRateOptions.find((option) =>
       option.country === (line.vatCountry || defaultVatOption.country)

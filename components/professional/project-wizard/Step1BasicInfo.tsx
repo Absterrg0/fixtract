@@ -265,11 +265,18 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
         // Update form data with service configuration ID
         if (loadedConfig._id) {
-          updateFormData({
-            serviceConfigurationId: loadedConfig._id,
-            ...(formData.serviceConfigurationId && formData.serviceConfigurationId !== loadedConfig._id
-              ? { vatProfessionalAnswers: [] }
-              : {}),
+          // Decide the VAT-answer reset against the current state inside the
+          // updater: the closure value can be stale by the time the response
+          // arrives, which would keep answers from a previous configuration.
+          setFormData(prev => {
+            const shouldResetVatAnswers = Boolean(
+              prev.serviceConfigurationId && prev.serviceConfigurationId !== loadedConfig._id
+            )
+            return {
+              ...prev,
+              serviceConfigurationId: loadedConfig._id,
+              ...(shouldResetVatAnswers ? { vatProfessionalAnswers: [] } : {}),
+            }
           })
         }
       }

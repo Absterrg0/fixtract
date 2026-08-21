@@ -1,5 +1,9 @@
 const UNSIGNED_NUMBER = /^\d+(?:[.,]\d+)?$/
 
+// Whitespace is accepted only as a thousands separator ("1 500,50" or "-1 500");
+// arbitrary internal whitespace such as "2 1" is rejected.
+const SPACE_GROUPED_NUMBER = /^[+-]?\d{1,3}(?: \d{3})+(?:[.,]\d+)?$/
+
 const normalizeGroupedInteger = (value: string, separator: ',' | '.'): string | null => {
   const escapedSeparator = separator === '.' ? '\\.' : ','
   const groupedPattern = new RegExp(`^\\d{1,3}(?:${escapedSeparator}\\d{3})+$`)
@@ -9,8 +13,10 @@ const normalizeGroupedInteger = (value: string, separator: ',' | '.'): string | 
 
 /** Parse a user-entered number using either European or English decimals. */
 export const parseFlexibleNumber = (value: string): number => {
-  const raw = value.trim().replace(/\s/g, '')
-  if (!raw) return Number.NaN
+  const trimmed = value.trim()
+  if (!trimmed) return Number.NaN
+  if (/\s/.test(trimmed) && !SPACE_GROUPED_NUMBER.test(trimmed)) return Number.NaN
+  const raw = trimmed.replace(/\s/g, '')
 
   const sign = raw.startsWith('-') || raw.startsWith('+') ? raw[0] : ''
   const unsigned = sign ? raw.slice(1) : raw
