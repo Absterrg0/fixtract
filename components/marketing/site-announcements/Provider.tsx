@@ -15,6 +15,7 @@ import { PREVIEW_DURATION_MS, shouldSkipAnnouncements } from "@/lib/marketing/si
 import { fetchPublicSiteAnnouncements } from "@/lib/marketing/siteAnnouncements/api";
 import {
   dismissAnnouncement,
+  isAnnouncementFrequencyBlocked,
   isAnnouncementDismissed,
 } from "@/lib/marketing/siteAnnouncements/dismissStorage";
 import { trackPromoClick } from "@/lib/marketing/siteAnnouncements/analytics";
@@ -146,7 +147,8 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
           }
           if (
             hiddenIds.has(`${item._id}:${item.updatedAt}`) ||
-            isAnnouncementDismissed(item)
+            isAnnouncementDismissed(item) ||
+            isAnnouncementFrequencyBlocked(item)
           ) {
             return false;
           }

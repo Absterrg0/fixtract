@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
+import { markAnnouncementShown } from "@/lib/marketing/siteAnnouncements/dismissStorage";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
 import { useAnalyticsConsentFlag } from "./useAnalyticsConsentFlag";
@@ -11,16 +13,30 @@ import { useExitIntent } from "./useExitIntent";
 export function SiteAnnouncementOverlays() {
   const { skip, modal, exitIntent, hide, onCta } = useAnnouncementsCtx();
   const analyticsOk = useAnalyticsConsentFlag();
+  const pathname = usePathname();
 
   const showModal = useDelayedReveal(
-    modal?._id ?? null,
+    modal
+      ? `${modal._id}:${modal.frequency === "once_pageview" ? pathname ?? "" : "campaign"}`
+      : null,
     (modal?.delaySeconds ?? 3) * 1000,
   );
   // Do not arm exit while a timed modal campaign is still present.
   const showExit = useExitIntent(
     Boolean(exitIntent) && !modal,
     Math.max(1500, (exitIntent?.delaySeconds ?? 3) * 1000),
+    exitIntent?.frequency === "once_pageview" ? pathname : null,
   );
+
+  useEffect(() => {
+    if (skip || !showModal || !modal) return;
+    markAnnouncementShown(modal);
+  }, [skip, showModal, modal]);
+
+  useEffect(() => {
+    if (skip || showModal || !showExit || !exitIntent) return;
+    markAnnouncementShown(exitIntent);
+  }, [skip, showModal, showExit, exitIntent]);
 
   useEffect(() => {
     if (!analyticsOk || !showModal || !modal) return;

@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 
 /**
  * Arms after `armAfterMs`, then fires once on desktop mouse-leave-top
- * or mobile upward-scroll near the top. Resets when `enabled` becomes false.
+ * or mobile upward-scroll near the top. Resets when `enabled` becomes false
+ * or when the optional page-view key changes.
  */
-export function useExitIntent(enabled: boolean, armAfterMs: number): boolean {
+export function useExitIntent(
+  enabled: boolean,
+  armAfterMs: number,
+  resetKey: string | null = null,
+): boolean {
   const [triggered, setTriggered] = useState(false);
 
   useEffect(() => {
@@ -14,7 +19,7 @@ export function useExitIntent(enabled: boolean, armAfterMs: number): boolean {
       setTriggered(false);
       return;
     }
-    if (triggered) return;
+    setTriggered(false);
 
     let armed = false;
     const armTimer = window.setTimeout(() => {
@@ -47,7 +52,7 @@ export function useExitIntent(enabled: boolean, armAfterMs: number): boolean {
       document.removeEventListener("mouseout", onMouseOut);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [enabled, armAfterMs, triggered]);
+  }, [enabled, armAfterMs, resetKey]);
 
   return triggered;
 }
