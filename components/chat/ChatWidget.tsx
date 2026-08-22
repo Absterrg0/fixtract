@@ -38,6 +38,15 @@ import { getMigratedItem, removeMigratedItem } from "@/lib/storageMigration";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
+const fingerprintPrefillMessage = (message: string): string => {
+  let hash = 2166136261;
+  for (let index = 0; index < message.length; index += 1) {
+    hash ^= message.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
 const clearPendingChatRequestIfCurrent = (expected: string) => {
   const current = getMigratedItem(
     "session",
@@ -356,6 +365,29 @@ export default function ChatWidget() {
         const conversation = await createOrGetConversation({
           professionalId: detail.professionalId,
         });
+
+        if (detail.initialMessage?.trim()) {
+          const initialMessage = detail.initialMessage.trim();
+          const prefillKey = `rfq-prefill:${conversation._id}:${fingerprintPrefillMessage(initialMessage)}`;
+          let alreadySent = false;
+          try {
+            alreadySent = window.sessionStorage.getItem(prefillKey) === "1";
+          } catch {
+            alreadySent = false;
+          }
+          if (!alreadySent) {
+            try {
+              await sendConversationMessage(conversation._id, { text: initialMessage });
+              try {
+                window.sessionStorage.setItem(prefillKey, "1");
+              } catch {
+                // Prefill still sent; storage is only a duplicate guard.
+              }
+            } catch {
+              toast.error("Chat opened, but the quotation answers could not be sent automatically.");
+            }
+          }
+        }
 
         await loadConversationList(false, true);
         setManualNewChatPanel(false);

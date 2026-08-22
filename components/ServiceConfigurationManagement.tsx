@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner"
 import IconPicker from "@/components/IconPicker"
 import { iconMapData } from "@/data/icons"
+import { parseFlexibleNumber } from "@/lib/numberInput"
 
 interface DynamicField {
   fieldName: string
@@ -74,6 +75,107 @@ interface VatQuestion {
   isRequired: boolean
 }
 
+const VAT_COUNTRY_OPTIONS = [
+  ['AT', 'Austria'], ['BE', 'Belgium'], ['BG', 'Bulgaria'], ['CH', 'Switzerland'],
+  ['CY', 'Cyprus'], ['CZ', 'Czechia'], ['DE', 'Germany'], ['DK', 'Denmark'],
+  ['EE', 'Estonia'], ['ES', 'Spain'], ['FI', 'Finland'], ['FR', 'France'],
+  ['GB', 'United Kingdom'], ['GR', 'Greece'], ['HR', 'Croatia'], ['HU', 'Hungary'],
+  ['IE', 'Ireland'], ['IT', 'Italy'], ['LI', 'Liechtenstein'], ['LT', 'Lithuania'],
+  ['LU', 'Luxembourg'], ['LV', 'Latvia'], ['MT', 'Malta'], ['NL', 'Netherlands'],
+  ['NO', 'Norway'], ['PL', 'Poland'], ['PT', 'Portugal'], ['RO', 'Romania'],
+  ['SE', 'Sweden'], ['SI', 'Slovenia'], ['SK', 'Slovakia'],
+] as const
+
+const parseCommaSeparatedOptions = (value: string): string[] => {
+  const options: string[] = []
+  let current = ''
+  let quoted = false
+  for (const character of value.replace(/\r/g, '')) {
+    if (character === '"') {
+      quoted = !quoted
+      continue
+    }
+    if (!quoted && (character === ',' || character === '\n')) {
+      const option = current.trim()
+      if (option) options.push(option)
+      current = ''
+      continue
+    }
+    current += character
+  }
+  const finalOption = current.trim()
+  if (finalOption) options.push(finalOption)
+  return options
+}
+
+const VatOptionsEditor = ({
+  options,
+  onChange,
+}: {
+  options: string[]
+  onChange: (options: string[]) => void
+}) => (
+  <div className="space-y-2 rounded-md border bg-white p-2">
+    <p className="text-xs text-muted-foreground">
+      Add each checkbox option separately. Commas and spaces are part of the option text.
+    </p>
+    {options.map((option, optionIndex) => (
+      <div key={optionIndex} className="flex items-center gap-2">
+        <Input
+          value={option}
+          onChange={(event) => {
+            const next = [...options]
+            next[optionIndex] = event.target.value
+            onChange(next)
+          }}
+          placeholder="e.g. Repair, replacement"
+          className="bg-white"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Remove checkbox option"
+          onClick={() => onChange(options.filter((_, index) => index !== optionIndex))}
+        >
+          <X className="h-4 w-4 text-red-600" />
+        </Button>
+      </div>
+    ))}
+    <Button type="button" size="sm" variant="outline" onClick={() => onChange([...options, ''])}>
+      <Plus className="mr-1 h-4 w-4" /> Add option
+    </Button>
+  </div>
+)
+
+const applyOptionDrafts = (
+  data: ServiceConfiguration,
+  drafts: Record<string, string>
+): ServiceConfiguration => ({
+  ...data,
+  professionalInputFields: (data.professionalInputFields || []).map((field, index) => {
+    const draft = drafts[`field:${index}`]
+    return draft === undefined ? field : { ...field, options: parseCommaSeparatedOptions(draft) }
+  }),
+  vatManagement: data.vatManagement
+    ? {
+        ...data.vatManagement,
+        reducedVatQuestions: (data.vatManagement.reducedVatQuestions || []).map((question, index) => {
+          const draft = drafts[`vat:${index}`]
+          return draft === undefined
+            ? question
+            : { ...question, options: parseCommaSeparatedOptions(draft) }
+        }),
+        professionalVatQuestions: (data.vatManagement.professionalVatQuestions || []).map((question, index) => {
+          const draft = drafts[`pvat:${index}`]
+          return draft === undefined
+            ? question
+            : { ...question, options: parseCommaSeparatedOptions(draft) }
+        }),
+      }
+    : data.vatManagement,
+})
+
 interface VatLogicCondition {
   clientKey?: string
   fieldName: string
@@ -97,7 +199,10 @@ interface VatLogicRule {
 interface VatManagement {
   enabled: boolean
   rateRuleGroup?: string
+  article47Classification?: 'movable' | 'immovable' | 'project_dependent'
+  exemptFromBelgianReverseCharge?: boolean
   reducedVatQuestions: VatQuestion[]
+  professionalVatQuestions?: VatQuestion[]
   logicRules: VatLogicRule[]
 }
 
@@ -147,7 +252,10 @@ const EMPTY_FORM: ServiceConfiguration = {
   vatManagement: {
     enabled: false,
     rateRuleGroup: '',
+    article47Classification: 'immovable',
+    exemptFromBelgianReverseCharge: false,
     reducedVatQuestions: [],
+    professionalVatQuestions: [],
     logicRules: [],
   },
   isActive: true,
@@ -164,6 +272,7 @@ export default function ServiceConfigurationManagement() {
   const [deleting, setDeleting] = useState(false)
 
   const [formData, setFormData] = useState<ServiceConfiguration>(EMPTY_FORM)
+  const [optionDrafts, setOptionDrafts] = useState<Record<string, string>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
@@ -249,7 +358,7 @@ export default function ServiceConfigurationManagement() {
 
   // Create new service
   const createService = async (dataOverride?: ServiceConfiguration) => {
-    const cleanedActive = (formData.activeCountries || []).filter(Boolean)
+    const cleanedActive = (dataOverride?.activeCountries ?? formData.activeCountries ?? []).filter(Boolean)
     if (cleanedActive.length === 0) {
       toast.error('Please select at least one active country')
       return
@@ -277,6 +386,7 @@ export default function ServiceConfigurationManagement() {
         toast.success('Service created successfully!')
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
+        setOptionDrafts({})
         setEditingId(null)
         await fetchServices()
         router.refresh()
@@ -323,6 +433,7 @@ export default function ServiceConfigurationManagement() {
         toast.success('Service updated successfully!')
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
+        setOptionDrafts({})
         setEditingId(null)
         await fetchServices()
         router.refresh()
@@ -376,6 +487,7 @@ export default function ServiceConfigurationManagement() {
   const handleAddClick = () => {
     console.log('🆕 Opening add dialog')
     setFormData(EMPTY_FORM)
+    setOptionDrafts({})
     setEditingId(null)
     setEditDialogOpen(true)
   }
@@ -449,8 +561,12 @@ export default function ServiceConfigurationManagement() {
 
   // Handle save button click
   const handleSave = () => {
+    const dataToSave = applyOptionDrafts(formData, optionDrafts)
+    setFormData(dataToSave)
+    setOptionDrafts({})
+
     // Validate pricing options
-    for (const opt of formData.pricingOptions) {
+    for (const opt of dataToSave.pricingOptions) {
       if (!opt.name.trim()) {
         toast.error('Each pricing option must have a name')
         return
@@ -465,7 +581,7 @@ export default function ServiceConfigurationManagement() {
       }
     }
     // Validate service parameter fields
-    for (const field of formData.professionalInputFields) {
+    for (const field of dataToSave.professionalInputFields) {
       if (!field.fieldName?.trim() || !field.label?.trim()) {
         toast.error('Each service parameter must have a field name and label')
         return
@@ -482,10 +598,14 @@ export default function ServiceConfigurationManagement() {
       }
     }
 
-    const vat = ensureVatManagement(formData.vatManagement)
+    const vat = ensureVatManagement(dataToSave.vatManagement)
     if (vat.enabled) {
+      const allVatQuestions = [
+        ...vat.reducedVatQuestions,
+        ...(vat.professionalVatQuestions || []),
+      ]
       const seenFieldNames = new Set<string>()
-      for (const question of vat.reducedVatQuestions) {
+      for (const question of allVatQuestions) {
         if (!question.question.trim() || !question.fieldName.trim()) {
           toast.error('Each VAT question needs a question and field name')
           return
@@ -501,9 +621,7 @@ export default function ServiceConfigurationManagement() {
           return
         }
       }
-      const validVatQuestionFields = new Set(
-        vat.reducedVatQuestions.map((question) => question.fieldName.trim())
-      )
+      const validVatQuestionFields = seenFieldNames
       for (const rule of vat.logicRules) {
         if (!rule.country.trim()) {
           toast.error('Each VAT logic rule needs a country')
@@ -535,9 +653,9 @@ export default function ServiceConfigurationManagement() {
     }
 
     if (editingId) {
-      updateService(editingId)
+      updateService(editingId, dataToSave)
     } else {
-      createService()
+      createService(dataToSave)
     }
   }
 
@@ -678,9 +796,15 @@ export default function ServiceConfigurationManagement() {
   const ensureVatManagement = (vat?: VatManagement): VatManagement => ({
     enabled: vat?.enabled ?? false,
     rateRuleGroup: vat?.rateRuleGroup || '',
+    article47Classification: vat?.article47Classification || 'immovable',
+    exemptFromBelgianReverseCharge: Boolean(vat?.exemptFromBelgianReverseCharge),
     reducedVatQuestions: (vat?.reducedVatQuestions || []).map((question) => ({
       ...question,
       clientKey: question.clientKey || makeClientKey('vat-question'),
+    })),
+    professionalVatQuestions: (vat?.professionalVatQuestions || []).map((question) => ({
+      ...question,
+      clientKey: question.clientKey || makeClientKey('pvat-question'),
     })),
     logicRules: (vat?.logicRules || []).map((rule) => ({
       ...rule,
@@ -722,6 +846,32 @@ export default function ServiceConfigurationManagement() {
     const vat = ensureVatManagement(formData.vatManagement)
     updateVatManagement({
       reducedVatQuestions: vat.reducedVatQuestions.filter((_, i) => i !== index)
+    })
+  }
+
+  const addProfessionalVatQuestion = () => {
+    const vat = ensureVatManagement(formData.vatManagement)
+    updateVatManagement({
+      professionalVatQuestions: [
+        ...(vat.professionalVatQuestions || []),
+        { question: '', fieldName: '', answerType: 'yes_no', unit: '', options: [], isRequired: true, clientKey: makeClientKey('pvat-question') }
+      ]
+    })
+  }
+
+  const updateProfessionalVatQuestion = (index: number, patch: Partial<VatQuestion>) => {
+    const vat = ensureVatManagement(formData.vatManagement)
+    updateVatManagement({
+      professionalVatQuestions: (vat.professionalVatQuestions || []).map((question, i) =>
+        i === index ? { ...question, ...patch } : question
+      )
+    })
+  }
+
+  const removeProfessionalVatQuestion = (index: number) => {
+    const vat = ensureVatManagement(formData.vatManagement)
+    updateVatManagement({
+      professionalVatQuestions: (vat.professionalVatQuestions || []).filter((_, i) => i !== index)
     })
   }
 
@@ -839,6 +989,11 @@ export default function ServiceConfigurationManagement() {
   return (
     <div className="space-y-6">
       <Card className="border-2 border-transparent bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg relative before:absolute before:inset-0 before:rounded-lg before:p-[2px] before:bg-gradient-to-br before:from-purple-300 before:via-pink-300 before:to-blue-300 before:-z-10">
+        <datalist id="vat-country-options">
+          {VAT_COUNTRY_OPTIONS.map(([code, name]) => (
+            <option key={code} value={code}>{name}</option>
+          ))}
+        </datalist>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -1026,6 +1181,7 @@ export default function ServiceConfigurationManagement() {
         setEditDialogOpen(open)
         if (!open) {
           setFormData(EMPTY_FORM)
+          setOptionDrafts({})
           setEditingId(null)
         }
       }}>
@@ -1395,9 +1551,37 @@ export default function ServiceConfigurationManagement() {
                     />
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="vat-article47-classification">Article 47 classification</Label>
+                      <select
+                        id="vat-article47-classification"
+                        className="border rounded-md px-3 py-2 bg-white text-sm w-full"
+                        value={formData.vatManagement.article47Classification || 'immovable'}
+                        onChange={(e) => updateVatManagement({
+                          article47Classification: e.target.value as VatManagement['article47Classification'],
+                        })}
+                      >
+                        <option value="immovable">Immovable</option>
+                        <option value="movable">Movable</option>
+                        <option value="project_dependent">Project dependent</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        Place of supply and Belgian B2B reverse charge follow this classification. Project dependent adds an Article 47 question for the professional.
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2 pt-6">
+                      <Switch
+                        checked={!!formData.vatManagement.exemptFromBelgianReverseCharge}
+                        onCheckedChange={(checked) => updateVatManagement({ exemptFromBelgianReverseCharge: Boolean(checked) })}
+                      />
+                      <Label className="text-sm">Immovable but exempt from Belgian reverse charge</Label>
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>Reduced VAT questions</Label>
+                      <Label>Reduced VAT questions (customer)</Label>
                       <Button type="button" size="sm" variant="outline" onClick={addVatQuestion}>
                         <Plus className="h-4 w-4 mr-1" /> Add Question
                       </Button>
@@ -1418,6 +1602,8 @@ export default function ServiceConfigurationManagement() {
                             className="bg-white"
                           />
                           <select
+                            id={`customer-vat-answer-type-${index}`}
+                            aria-label={`Customer VAT answer type for question ${index + 1}`}
                             className="border rounded-md px-3 py-2 bg-white text-sm"
                             value={question.answerType}
                             onChange={(e) => updateVatQuestion(index, { answerType: e.target.value as VatQuestion['answerType'] })}
@@ -1438,11 +1624,9 @@ export default function ServiceConfigurationManagement() {
                           </Button>
                         </div>
                         {question.answerType === 'checkboxes' && (
-                          <Input
-                            value={(question.options || []).join(', ')}
-                            onChange={(e) => updateVatQuestion(index, { options: e.target.value.split(',').map(v => v.trim()).filter(Boolean) })}
-                            placeholder="Checkbox options, comma separated"
-                            className="bg-white"
+                          <VatOptionsEditor
+                            options={question.options || []}
+                            onChange={(options) => updateVatQuestion(index, { options })}
                           />
                         )}
                         <div className="flex items-center space-x-2">
@@ -1455,7 +1639,71 @@ export default function ServiceConfigurationManagement() {
                       </div>
                     ))}
                     {(!formData.vatManagement.reducedVatQuestions || formData.vatManagement.reducedVatQuestions.length === 0) && (
-                      <p className="text-sm text-muted-foreground">No reduced VAT questions added yet</p>
+                      <p className="text-sm text-muted-foreground">No customer VAT questions added yet</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Professional VAT questions (project wizard)</Label>
+                      <Button type="button" size="sm" variant="outline" onClick={addProfessionalVatQuestion}>
+                        <Plus className="h-4 w-4 mr-1" /> Add Question
+                      </Button>
+                    </div>
+                    {(formData.vatManagement.professionalVatQuestions || []).map((question, index) => (
+                      <div key={question.clientKey || question.fieldName || `pvat-question-${index}`} className="p-3 border rounded-lg bg-gray-50 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_150px_100px_40px] gap-2">
+                          <Input
+                            value={question.question}
+                            onChange={(e) => updateProfessionalVatQuestion(index, { question: e.target.value })}
+                            placeholder="Question shown in project creation wizard"
+                            className="bg-white"
+                          />
+                          <Input
+                            value={question.fieldName}
+                            onChange={(e) => updateProfessionalVatQuestion(index, { fieldName: e.target.value })}
+                            placeholder="field_name"
+                            className="bg-white"
+                          />
+                          <select
+                            id={`professional-vat-answer-type-${index}`}
+                            aria-label={`Professional VAT answer type for question ${index + 1}`}
+                            className="border rounded-md px-3 py-2 bg-white text-sm"
+                            value={question.answerType}
+                            onChange={(e) => updateProfessionalVatQuestion(index, { answerType: e.target.value as VatQuestion['answerType'] })}
+                          >
+                            <option value="yes_no">Yes/No</option>
+                            <option value="number">Number</option>
+                            <option value="checkboxes">Checkboxes</option>
+                          </select>
+                          <Input
+                            value={question.unit || ''}
+                            onChange={(e) => updateProfessionalVatQuestion(index, { unit: e.target.value })}
+                            placeholder="Unit"
+                            disabled={question.answerType !== 'number'}
+                            className="bg-white"
+                          />
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeProfessionalVatQuestion(index)}>
+                            <X className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                        {question.answerType === 'checkboxes' && (
+                          <VatOptionsEditor
+                            options={question.options || []}
+                            onChange={(options) => updateProfessionalVatQuestion(index, { options })}
+                          />
+                        )}
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={question.isRequired !== false}
+                            onCheckedChange={(checked) => updateProfessionalVatQuestion(index, { isRequired: checked })}
+                          />
+                          <Label className="text-xs">Required question</Label>
+                        </div>
+                      </div>
+                    ))}
+                    {(!formData.vatManagement.professionalVatQuestions || formData.vatManagement.professionalVatQuestions.length === 0) && (
+                      <p className="text-sm text-muted-foreground">No professional VAT questions yet. Project-dependent services get the Article 47 question automatically.</p>
                     )}
                   </div>
 
@@ -1469,9 +1717,9 @@ export default function ServiceConfigurationManagement() {
                     {(formData.vatManagement.logicRules || []).map((rule, ruleIndex) => (
                       <div key={rule.clientKey || `${rule.country}-${rule.priority}-${ruleIndex}`} className="p-3 border rounded-lg bg-gray-50 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-[100px_120px_120px_150px_90px_40px] gap-2">
-                          <Input value={rule.country} onChange={(e) => updateVatLogicRule(ruleIndex, { country: e.target.value.toUpperCase() })} placeholder="BE" className="bg-white" />
-                          <Input type="number" step={0.1} value={rule.standardRate} onChange={(e) => updateVatLogicRule(ruleIndex, { standardRate: parseFloat(e.target.value) || 0 })} placeholder="Standard %" className="bg-white" />
-                          <Input type="number" step={0.1} value={rule.reducedRate} onChange={(e) => updateVatLogicRule(ruleIndex, { reducedRate: parseFloat(e.target.value) || 0 })} placeholder="Reduced %" className="bg-white" />
+                          <Input value={rule.country} onChange={(e) => updateVatLogicRule(ruleIndex, { country: e.target.value.toUpperCase() })} placeholder="BE" className="bg-white" list="vat-country-options" />
+                          <Input type="text" inputMode="decimal" value={rule.standardRate} onChange={(e) => updateVatLogicRule(ruleIndex, { standardRate: parseFlexibleNumber(e.target.value) || 0 })} placeholder="Standard %" className="bg-white" />
+                          <Input type="text" inputMode="decimal" value={rule.reducedRate} onChange={(e) => updateVatLogicRule(ruleIndex, { reducedRate: parseFlexibleNumber(e.target.value) || 0 })} placeholder="Reduced %" className="bg-white" />
                           <select className="border rounded-md px-3 py-2 bg-white text-sm" value={rule.action} onChange={(e) => updateVatLogicRule(ruleIndex, { action: e.target.value as VatLogicRule['action'] })}>
                             <option value="reduced_rate">Reduced rate</option>
                             <option value="rfq">RFQ</option>
@@ -1522,7 +1770,10 @@ export default function ServiceConfigurationManagement() {
                               >
                                 <option value="">Select field</option>
                                 {formData.vatManagement?.reducedVatQuestions.map(q => (
-                                  <option key={q.fieldName} value={q.fieldName}>{q.fieldName}</option>
+                                  <option key={q.fieldName} value={q.fieldName}>{q.fieldName} (customer)</option>
+                                ))}
+                                {(formData.vatManagement?.professionalVatQuestions || []).map(q => (
+                                  <option key={`p-${q.fieldName}`} value={q.fieldName}>{q.fieldName} (professional)</option>
                                 ))}
                               </select>
                               <select
@@ -1701,8 +1952,20 @@ export default function ServiceConfigurationManagement() {
                       <div className="space-y-1">
                         <Label className="text-xs">Options (comma-separated)</Label>
                         <Input
-                          value={(field.options || []).join(', ')}
-                          onChange={(e) => updateProfessionalInputField(index, 'options', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                          value={optionDrafts[`field:${index}`] ?? (field.options || []).join(', ')}
+                          onChange={(e) =>
+                            setOptionDrafts((drafts) => ({ ...drafts, [`field:${index}`]: e.target.value }))
+                          }
+                          onBlur={() => {
+                            const draft = optionDrafts[`field:${index}`]
+                            if (draft === undefined) return
+                            updateProfessionalInputField(index, 'options', parseCommaSeparatedOptions(draft))
+                            setOptionDrafts((drafts) => {
+                              const next = { ...drafts }
+                              delete next[`field:${index}`]
+                              return next
+                            })
+                          }}
                           placeholder="e.g., Option A, Option B, Option C"
                         />
                       </div>
@@ -1730,6 +1993,7 @@ export default function ServiceConfigurationManagement() {
                 onClick={() => {
                   setEditDialogOpen(false)
                   setFormData(EMPTY_FORM)
+                  setOptionDrafts({})
                   setEditingId(null)
                 }}
                 disabled={saving}

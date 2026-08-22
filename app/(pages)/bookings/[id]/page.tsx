@@ -128,6 +128,10 @@ interface BookingDetail {
     invoiceUrl?: string
     invoiceUblUrl?: string
     invoiceGeneratedAt?: string
+    supplierInvoiceNumber?: string
+    supplierInvoiceUrl?: string
+    supplierInvoiceUblUrl?: string
+    supplierInvoiceGeneratedAt?: string
     creditNoteNumber?: string
     creditNoteUrl?: string
     creditNoteUblUrl?: string
@@ -4770,7 +4774,7 @@ function BookingDetailContent() {
                         )}
                         {booking.payment.reverseCharge && (
                           <div className="rounded-md border border-blue-100 bg-blue-50 p-2 text-[11px] text-blue-800">
-                            0% VAT applied: Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                            Reverse Charge — VAT is accounted for by the customer.
                           </div>
                         )}
                         {booking.vatDecision?.explanation && (
@@ -4831,6 +4835,8 @@ function BookingDetailContent() {
 
                   {(booking.payment?.invoiceUrl ||
                     booking.payment?.invoiceUblUrl ||
+                    booking.payment?.supplierInvoiceUrl ||
+                    booking.payment?.supplierInvoiceUblUrl ||
                     booking.payment?.creditNoteUrl ||
                     booking.payment?.creditNoteUblUrl) && (
                     <Card className="bg-slate-50/60 border border-slate-100">
@@ -4857,6 +4863,26 @@ function BookingDetailContent() {
                             </Button>
                           )}
                         </div>
+                        {(booking.payment.supplierInvoiceUrl || booking.payment.supplierInvoiceUblUrl) && (
+                          <div className="border-t border-gray-200 pt-2 space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Self-bill #</span>
+                              <span>{booking.payment.supplierInvoiceNumber || 'Generated'}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {booking.payment.supplierInvoiceUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.supplierInvoiceUrl} target="_blank" rel="noreferrer">Self-bill PDF</a>
+                                </Button>
+                              )}
+                              {booking.payment.supplierInvoiceUblUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.supplierInvoiceUblUrl} target="_blank" rel="noreferrer">Self-bill UBL</a>
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         {booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
                           <p className="text-[11px] text-gray-500">
                             Peppol status: {booking.payment.peppolDispatchStatus}

@@ -185,6 +185,16 @@ export interface ProjectDto {
       options?: string[]
       isRequired: boolean
     }>
+    professionalVatQuestions?: Array<{
+      question: string
+      fieldName: string
+      answerType: "number" | "yes_no" | "checkboxes"
+      unit?: string
+      options?: string[]
+      isRequired: boolean
+    }>
+    article47Classification?: "movable" | "immovable" | "project_dependent"
+    exemptFromBelgianReverseCharge?: boolean
   }
   customerPresence?: string
   termsConditions?: Array<{

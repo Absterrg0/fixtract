@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,12 +8,19 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
 import { toast } from 'sonner'
 import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 import { useAuth } from "@/contexts/AuthContext"
+import {
+  collectStep1ComponentErrors,
+  getStep1DataSignature,
+  type Step1ServiceConfig,
+  type Step1ValidationContext,
+} from "@/lib/projectWizardValidation"
 
 interface IServiceSelection {
   category: string
@@ -59,6 +66,7 @@ interface ProjectData {
     videos: string[]
   }
   serviceConfigurationId?: string
+  vatProfessionalAnswers?: Array<{ fieldName: string; value: unknown }>
   certifications?: Array<{
     name: string
     fileUrl: string
@@ -92,7 +100,7 @@ interface TeamMember {
 interface Step1Props {
   data: ProjectData
   onChange: (data: ProjectData) => void
-  onValidate: (isValid: boolean) => void
+  onValidate: (isValid: boolean, context: Step1ValidationContext) => void
 }
 
 export interface Step1Ref {
@@ -107,14 +115,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [suggestedTitle, setSuggestedTitle] = useState('')
   const [addressValid, setAddressValid] = useState(false)
   const { user } = useAuth()
-  const [serviceConfig, setServiceConfig] = useState<{
-    pricingModel?: string;
-    pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>;
-    certificationRequired?: boolean;
-    requiredCertifications?: string[];
-    projectTypes?: string[];
-    areaOfWorkRequired?: boolean;
-  } | null>(null)
+  const [serviceConfig, setServiceConfig] = useState<Step1ServiceConfig | null>(null)
+  const [serviceConfigLoaded, setServiceConfigLoaded] = useState(false)
   const [pricingModels, setPricingModels] = useState<string[]>([])
 
   // Derived flags
@@ -174,12 +176,19 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }
   }, [formData.service])
 
-  // Fetch serviceConfigurationId when service or area changes
+  // Monotonic ID that invalidates in-flight configuration lookups whenever the
+  // service selection changes, so a superseded response can never win.
+  const serviceConfigRequestIdRef = useRef(0)
+
+  // Fetch serviceConfigurationId when the service selection changes
   useEffect(() => {
     if (formData.category && formData.service) {
       fetchServiceConfigurationId(formData.category, formData.service, formData.areaOfWork)
+    } else {
+      // Invalidate any in-flight lookup when the selection becomes incomplete.
+      serviceConfigRequestIdRef.current += 1
     }
-  }, [formData.service, formData.areaOfWork])
+  }, [formData.category, formData.service, formData.areaOfWork])
 
 
   const fetchCategories = async () => {
@@ -237,6 +246,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const fetchServiceConfigurationId = async (category: string, service: string, areaOfWork?: string) => {
+    const requestId = ++serviceConfigRequestIdRef.current
+    setServiceConfigLoaded(false)
+    setServiceConfig(null)
+    // Never let pricing models from a previous configuration leak into the
+    // current selection while a lookup is in flight.
+    setPricingModels([])
     try {
       const params = new URLSearchParams({ category, service })
       if (areaOfWork) params.append('areaOfWork', areaOfWork)
@@ -245,23 +260,46 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`,
         { credentials: 'include' }
       )
-      if (response.ok) {
-        const result = await response.json()
-        if (result.data) {
-          // Store the full config
-          setServiceConfig(result.data)
+      if (!response.ok) return
+      const result = await response.json()
+      // Re-check after parsing: the selection may have changed while the
+      // response body was downloading, so a superseded response must never
+      // update state or satisfy the submit gate.
+      if (requestId !== serviceConfigRequestIdRef.current) return
 
-          // Extract pricing models
-          if (result.data.pricingModels && Array.isArray(result.data.pricingModels)) {
-            setPricingModels(result.data.pricingModels)
-          }
+      // An empty object means the request completed and this service has no
+      // optional configuration. A null value means loading failed or is
+      // still in progress and must not satisfy the submit gate.
+      const loadedConfig: Step1ServiceConfig = result.data || {}
+      setServiceConfig(loadedConfig)
+      setServiceConfigLoaded(true)
+      const nextPricingModels = Array.isArray(loadedConfig.pricingModels)
+        ? loadedConfig.pricingModels
+        : []
+      setPricingModels(nextPricingModels)
 
-          // Update form data with service configuration ID
-          if (result.data._id) {
-            updateFormData({ serviceConfigurationId: result.data._id })
-          }
+      // Always synchronize the configuration ID, including clearing it when
+      // the response carries no configuration, and decide the resets against
+      // the current state inside the updater: the closure value can be stale
+      // by the time the response arrives.
+      const nextConfigId: string | undefined = loadedConfig._id || undefined
+      setFormData(prev => {
+        const configChanged = prev.serviceConfigurationId !== nextConfigId
+        // Keep the selected price model only when the new configuration
+        // still offers it; otherwise a stale value would submit even though
+        // the select shows no matching option.
+        const priceModelCompatible = Boolean(
+          !prev.priceModel || nextPricingModels.includes(prev.priceModel)
+        )
+        return {
+          ...prev,
+          serviceConfigurationId: nextConfigId,
+          ...(configChanged ? { vatProfessionalAnswers: [] } : {}),
+          ...(configChanged && !priceModelCompatible
+            ? { priceModel: '', selectedPricingOption: undefined }
+            : {}),
         }
-      }
+      })
     } catch (error) {
       console.error('Failed to fetch service configuration ID:', error)
     }
@@ -324,7 +362,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   useEffect(() => {
     onChange(formData)
     validateForm()
-  }, [formData, serviceConfig])
+  }, [formData, serviceConfig, serviceConfigLoaded, addressValid])
 
   // Keep selectedPricingOption in sync with priceModel & serviceConfig
   // (covers initial load, edit restore, and category/service changes)
@@ -356,117 +394,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }, [formData.minResources, formData.resources, selectedResourceCount])
 
   const validateForm = () => {
-    // Check if area of work is required and missing
-    const isAreaOfWorkValid = !serviceConfig?.areaOfWorkRequired ||
-      (serviceConfig?.areaOfWorkRequired && formData.areaOfWork)
-
-    // Check certifications when required by service configuration
-    const requiredTypes = serviceConfig?.requiredCertifications || []
-    const certRequired = !!serviceConfig?.certificationRequired
-    let isCertificationsValid = true
-
-    if (requiredTypes.length > 0) {
-      // Specific certification types are required — check each one is uploaded
-      isCertificationsValid = Array.isArray(formData.certifications) &&
-        requiredTypes.every(t => formData.certifications!.some(c => c.name === t && !!c.fileUrl))
-    } else if (certRequired) {
-      // Generic certification required (no specific types) — at least one must be uploaded
-      isCertificationsValid = Array.isArray(formData.certifications) &&
-        formData.certifications.length > 0 &&
-        formData.certifications.every(c => !!c.fileUrl)
-    }
-    // If neither certRequired nor requiredTypes, isCertificationsValid stays true
-
-    // Resources requirement per service/category
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    const hasExecutionResources = Array.isArray(formData.resources) && formData.resources.length > 0
-    const hasIntakeResources = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
-    const isResourcesValid = isRenovation
-      ? (hasIntakeResources && hasExecutionResources)
-      : hasExecutionResources
-
-    const isValid = !!(
-      formData.category &&
-      formData.service &&
-      isAreaOfWorkValid &&
-      isCertificationsValid &&
-      isResourcesValid &&
-      formData.description &&
-      formData.description.length >= 100 &&
-      formData.title &&
-      formData.title.length >= 30 &&
-      (isRenovationCategory || (!!formData.priceModel)) &&
-      formData.distance?.address &&
-      addressValid &&
-      formData.distance?.maxKmRange &&
-      formData.distance.maxKmRange > 0
-    )
-    onValidate(isValid)
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
+    onValidate(errors.length === 0, {
+      dataSignature: getStep1DataSignature(formData),
+      addressValid,
+      serviceConfig,
+      serviceConfigLoaded,
+    })
   }
 
   const showValidationErrors = () => {
-    const errors: string[] = []
-
-    if (!formData.category) errors.push('Category is required')
-    if (!formData.service) errors.push('Service is required')
-    // Title validation
-    if (!formData.title) {
-      errors.push('Title is required')
-    } else if (formData.title.length < 30) {
-      errors.push('Title must be at least 30 characters long')
-    }
-
-    // Check area of work requirement
-    if (serviceConfig?.areaOfWorkRequired && !formData.areaOfWork) {
-      errors.push('Area of Work is required for this service')
-    }
-
-    // Check certifications requirement
-    const requiredTypes = serviceConfig?.requiredCertifications || []
-    if (requiredTypes.length > 0) {
-      const missing = requiredTypes.filter(t => !formData.certifications?.some(c => c.name === t && !!c.fileUrl))
-      if (missing.length > 0) {
-        errors.push(`Missing required certifications: ${missing.join(', ')}`)
-      }
-    } else if (serviceConfig?.certificationRequired) {
-      const hasValidCert = Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
-        formData.certifications.every(c => !!c.fileUrl)
-      if (!hasValidCert) {
-        errors.push('At least one valid certification is required for this service')
-      }
-    }
-
-    // Check resources per category
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    if (isRenovation) {
-      const hasIntake = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
-      if (!hasIntake) {
-        errors.push('At least one intake meeting resource is required for Renovation')
-      }
-      const hasExecutionExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
-      if (!hasExecutionExec) {
-        errors.push('At least one execution resource is required for Renovation')
-      }
-    } else {
-      const hasExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
-      if (!hasExec) {
-        errors.push('At least one team member must be assigned for execution')
-      }
-    }
-
-    if (!formData.description) {
-      errors.push('Description is required')
-    } else if (formData.description.length < 100) {
-      errors.push(`Description must be at least 100 characters (currently ${formData.description.length})`)
-    }
-    if (!isRenovationCategory && !formData.priceModel) errors.push('Price Model is required')
-    if (!formData.distance?.address) errors.push('Service Address is required')
-    if (!addressValid) errors.push('Please enter a valid address')
-    if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
-    else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
 
     if (errors.length > 0) {
       toast.error(errors.join('. '));
+    } else if (!serviceConfigLoaded) {
+      toast.error('Service configuration is still loading. Please try again shortly.')
     }
   }
 
@@ -476,6 +419,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
   const updateFormData = (updates: Partial<ProjectData>) => {
     setFormData(prev => ({ ...prev, ...updates }))
+  }
+
+  const professionalVatQuestions = serviceConfig?.vatManagement?.enabled
+    ? serviceConfig.vatManagement.professionalVatQuestions || []
+    : []
+
+  const getProfessionalVatAnswer = (fieldName: string) =>
+    formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === fieldName)?.value
+
+  const updateProfessionalVatAnswer = (fieldName: string, value: unknown) => {
+    const answers = [...(formData.vatProfessionalAnswers || [])]
+    const index = answers.findIndex((answer) => answer.fieldName === fieldName)
+    const next = { fieldName, value }
+    if (index >= 0) answers[index] = next
+    else answers.push(next)
+    updateFormData({ vatProfessionalAnswers: answers })
   }
 
   const updateDistance = (updates: Partial<{
@@ -888,6 +847,84 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         requiredTypes={serviceConfig?.requiredCertifications || []}
         projectId={formData._id}
       />
+
+      {professionalVatQuestions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>VAT classification questions</CardTitle>
+            <CardDescription>
+              These answers determine place of supply and Belgian reverse charge for this service.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {professionalVatQuestions.map((question) => {
+              const value = getProfessionalVatAnswer(question.fieldName)
+              return (
+                <div key={question.fieldName} className="space-y-2">
+                  <Label htmlFor={`pvat-${question.fieldName}`}>
+                    {question.question}
+                    {question.isRequired !== false && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  {question.answerType === 'number' && (
+                    <div className="flex gap-2">
+                      <Input
+                        id={`pvat-${question.fieldName}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+                        onChange={(e) => updateProfessionalVatAnswer(question.fieldName, e.target.value)}
+                      />
+                      {question.unit && (
+                        <span className="flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600">
+                          {question.unit}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {question.answerType === 'yes_no' && (
+                    <RadioGroup
+                      value={value === true ? 'yes' : value === false ? 'no' : ''}
+                      onValueChange={(next) => updateProfessionalVatAnswer(question.fieldName, next === 'yes')}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yes" id={`pvat-${question.fieldName}-yes`} />
+                        <Label htmlFor={`pvat-${question.fieldName}-yes`} className="font-normal">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="no" id={`pvat-${question.fieldName}-no`} />
+                        <Label htmlFor={`pvat-${question.fieldName}-no`} className="font-normal">No</Label>
+                      </div>
+                    </RadioGroup>
+                  )}
+                  {question.answerType === 'checkboxes' && (
+                    <div className="space-y-2">
+                      {(question.options || []).map((option) => {
+                        const selected = Array.isArray(value) && value.includes(option)
+                        return (
+                          <label key={option} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={selected}
+                              onCheckedChange={(checked) => {
+                                const current = Array.isArray(value) ? value : []
+                                updateProfessionalVatAnswer(
+                                  question.fieldName,
+                                  checked ? [...current, option] : current.filter((entry) => entry !== option)
+                                )
+                              }}
+                            />
+                            {option}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Execution Resources - Shown for all services except Renovation */}
       {formData.category?.toLowerCase() !== 'renovation' && (
@@ -1428,4 +1465,3 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
-

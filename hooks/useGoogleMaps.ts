@@ -6,7 +6,11 @@ interface GoogleMapsHook {
   isLoaded: boolean
   loadGoogleMaps: () => Promise<boolean>
   validateAddress: (address: string) => Promise<boolean>
-  geocodeAddress: (address: string) => Promise<{ lat: number; lng: number } | null>
+  geocodeAddress: (address: string) => Promise<{
+    lat: number
+    lng: number
+    address_components?: google.maps.GeocoderAddressComponent[]
+  } | null>
 }
 
 let googleMapsLoadPromise: Promise<boolean> | null = null
@@ -164,7 +168,11 @@ export const useGoogleMaps = (): GoogleMapsHook => {
     }
   }
 
-  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+  const geocodeAddress = async (address: string): Promise<{
+    lat: number
+    lng: number
+    address_components?: google.maps.GeocoderAddressComponent[]
+  } | null> => {
     if (!address || typeof window === 'undefined' || !window.google?.maps?.Geocoder) {
       return null
     }
@@ -196,7 +204,11 @@ export const useGoogleMaps = (): GoogleMapsHook => {
 
               if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
                 console.log('✅ Geocoded address:', address, '→', { lat, lng })
-                resolve({ lat, lng })
+                resolve({
+                  lat,
+                  lng,
+                  address_components: results[0].address_components,
+                })
               } else {
                 console.error('❌ Invalid coordinates from geocoding:', { lat, lng })
                 resolve(null)

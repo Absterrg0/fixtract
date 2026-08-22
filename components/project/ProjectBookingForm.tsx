@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import AddressAutocomplete from '@/components/professional/project-wizard/AddressAutocomplete';
+import AddressAutocomplete, { type PlaceData } from '@/components/professional/project-wizard/AddressAutocomplete';
+import { countryFromPlace, locationFieldsFromPlace } from '@/lib/serviceAddress';
 import StartChatButton from '@/components/chat/StartChatButton';
 import {
   ArrowLeft,
@@ -327,11 +328,58 @@ export default function ProjectBookingForm({
   const [useProfileAddress, setUseProfileAddress] = useState(true);
   const [manualAddress, setManualAddress] = useState('');
   const [isServiceAddressValid, setIsServiceAddressValid] = useState(false);
+  const [servicePlace, setServicePlace] = useState<PlaceData | undefined>();
   const selectedPackage =
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
       : null;
   const isRfqPackage = selectedPackage?.pricing?.type === 'rfq';
+
+  const rfqChatPrefill = useMemo(() => {
+    const lines: string[] = ['Hello, I need a quotation. Here is the information already entered in the booking wizard:'];
+    lines.push(`- Project: ${project.title}`);
+    if (selectedPackage?.name) lines.push(`- Package: ${selectedPackage.name}`);
+    if (selectedPackage?.pricing?.type) lines.push(`- Pricing type: ${selectedPackage.pricing.type}`);
+    const bookingCollectsUsage = selectedPackage?.pricing?.type === 'unit'
+      || (!selectedPackage?.pricing?.type && isUnitBasedPriceModel(project.priceModel));
+    if (bookingCollectsUsage && estimatedUsage) {
+      lines.push(`- Estimated usage: ${estimatedUsage} ${getUnitLabel(project.priceModel)}`);
+    }
+    const selectedOptions = selectedExtraOptions
+      .map((index) => project.extraOptions?.[index]?.name)
+      .filter(Boolean);
+    if (selectedOptions.length > 0) lines.push(`- Selected options: ${selectedOptions.join(', ')}`);
+    const address = servicePlace?.formatted_address || (useProfileAddress ? user?.location?.address : manualAddress);
+    const country = countryFromPlace(servicePlace) || (useProfileAddress ? user?.location?.country : undefined);
+    if (address) lines.push(`- Service address: ${address}`);
+    if (country) lines.push(`- Service country: ${country}`);
+    if (selectedDate) lines.push(`- Preferred date: ${selectedDate}`);
+    if (selectedTime) lines.push(`- Preferred time: ${selectedTime}`);
+    if (additionalNotes.trim()) lines.push(`- Additional notes: ${additionalNotes.trim()}`);
+    if (rfqAttachments.length > 0) {
+      lines.push(`- Attachments already added: ${rfqAttachments.map((attachment) => attachment.name).join(', ')}`);
+    }
+    if (vatPreview) {
+      lines.push(`- VAT preview: ${vatPreview.reverseCharge ? 'Reverse charge (0%)' : `${vatPreview.appliedRate}%`} for ${vatPreview.country}`);
+    }
+    for (const question of project.vatManagement?.reducedVatQuestions || []) {
+      const answer = vatAnswers[question.fieldName]?.value;
+      if (answer === undefined || answer === '') continue;
+      const formatted = Array.isArray(answer)
+        ? answer.join(', ')
+        : answer === true
+          ? 'Yes'
+          : answer === false
+            ? 'No'
+            : String(answer);
+      lines.push(`- ${question.question}: ${formatted}`);
+    }
+    (project.rfqQuestions || []).forEach((question, index) => {
+      const answer = rfqAnswers[index]?.answer?.trim();
+      if (answer) lines.push(`- ${question.question}: ${answer}`);
+    });
+    return lines.length > 1 ? lines.join('\n') : '';
+  }, [project, selectedPackage, selectedExtraOptions, estimatedUsage, servicePlace, useProfileAddress, user?.location, manualAddress, selectedDate, selectedTime, additionalNotes, rfqAttachments, vatPreview, vatAnswers, rfqAnswers]);
 
   // Best-effort VAT preview for the review step. Checkout always uses the
   // backend-computed decision, so failures here are silently ignored.
@@ -355,6 +403,9 @@ export default function ProjectBookingForm({
               projectId: project._id,
               serviceConfigurationId: project.serviceConfigurationId,
               vatAnswers: Object.values(vatAnswers),
+              serviceCountry:
+                countryFromPlace(servicePlace) ||
+                (useProfileAddress ? user?.location?.country : undefined),
             }),
           }
         );
@@ -369,7 +420,7 @@ export default function ProjectBookingForm({
     return () => {
       cancelled = true;
     };
-  }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers]);
+  }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers, servicePlace, useProfileAddress, user?.location?.country]);
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
   const isUnitPricing =
@@ -2218,11 +2269,37 @@ export default function ProjectBookingForm({
         totalPrice > 0 &&
         !vatNeedsRfqReview;
 
+      const serviceLocationFields = locationFieldsFromPlace(servicePlace);
+      const resolvedServiceCountry =
+        serviceLocationFields.country ||
+        countryFromPlace(servicePlace) ||
+        (useProfileAddress ? user?.location?.country : undefined);
+      const profileCoordinates = useProfileAddress &&
+        user?.location?.coordinates?.length === 2 &&
+        Number.isFinite(user.location.coordinates[0]) &&
+        Number.isFinite(user.location.coordinates[1]) &&
+        user.location.coordinates[0] >= -180 &&
+        user.location.coordinates[0] <= 180 &&
+        user.location.coordinates[1] >= -90 &&
+        user.location.coordinates[1] <= 90
+        ? user.location.coordinates
+        : undefined;
+
       const bookingData = {
         bookingType: 'project',
         projectId: project._id,
         serviceConfigurationId: project.serviceConfigurationId,
         vatAnswers: Object.values(vatAnswers),
+        serviceCountry: resolvedServiceCountry || undefined,
+        serviceLocation: {
+          address: serviceLocationFields.address || confirmedAddress,
+          city: serviceLocationFields.city || (useProfileAddress ? user?.location?.city : undefined),
+          postalCode:
+            serviceLocationFields.postalCode ||
+            (useProfileAddress ? user?.location?.postalCode : undefined),
+          country: resolvedServiceCountry || undefined,
+          coordinates: serviceLocationFields.coordinates || profileCoordinates,
+        },
         proceedAtStandardVat:
           proceedAtStandardVat &&
           vatPreview?.action === 'rfq' &&
@@ -3935,9 +4012,13 @@ export default function ProjectBookingForm({
                             <div className='flex gap-2'>
                               <Input
                                 id={`vat-${question.fieldName}`}
-                                type='number'
+                                type='text'
+                                inputMode='decimal'
                                 value={typeof value === 'number' || typeof value === 'string' ? value : ''}
-                                onChange={(e) => handleVatAnswerChange(question.fieldName, e.target.value ? Number(e.target.value) : '')}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  handleVatAnswerChange(question.fieldName, raw)
+                                }}
                               />
                               {question.unit && (
                                 <span className='flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600'>
@@ -4229,6 +4310,7 @@ export default function ProjectBookingForm({
                         onCheckedChange={(checked) => {
                           const nextValue = Boolean(checked);
                           setUseProfileAddress(nextValue);
+                          setServicePlace(undefined);
                           if (!nextValue && !manualAddress.trim() && profileAddress) {
                             setManualAddress(profileAddress);
                           }
@@ -4241,7 +4323,11 @@ export default function ProjectBookingForm({
                     </div>
                     <AddressAutocomplete
                       value={manualAddress}
-                      onChange={(address) => setManualAddress(address)}
+                      onChange={(address, placeData) => {
+                        setManualAddress(address);
+                        setServicePlace(placeData);
+                        if (!placeData) setIsServiceAddressValid(false);
+                      }}
                       onValidation={setIsServiceAddressValid}
                       useCompanyAddress={useProfileAddress}
                       companyAddress={profileAddress}
@@ -4447,6 +4533,7 @@ export default function ProjectBookingForm({
                                     professionalId={project.professionalId._id}
                                     label='Chat for quotation'
                                     size='sm'
+                                    initialMessage={rfqChatPrefill}
                                   />
                                 )}
                                 {!proceedAtStandardVat && (
@@ -4474,11 +4561,11 @@ export default function ProjectBookingForm({
                           ) : vatPreview.reverseCharge ? (
                             <>
                               <div className='flex justify-between text-gray-700'>
-                                <span>VAT (0% — reverse charge)</span>
+                                <span>VAT (Reverse Charge)</span>
                                 <span>{formatCurrency(0)}</span>
                               </div>
                               <p className='text-xs text-gray-600'>
-                                Intra-Community supply, VAT exempt under Article 39bis of the VAT Directive.
+                                {vatPreview.explanation || 'Reverse Charge — VAT is accounted for by the customer.'}
                               </p>
                             </>
                           ) : (
@@ -4513,6 +4600,17 @@ export default function ProjectBookingForm({
                           *Final price may vary based on professional&apos;s
                           assessment
                         </p>
+                      )}
+                      {selectedPackage.pricing.type === 'rfq' && project.professionalId?._id && (
+                        <div className='pt-3 border-t border-blue-200'>
+                          <p className='text-sm text-gray-700 mb-2'>Want to clarify anything before submitting? The professional will see the booking details above.</p>
+                          <StartChatButton
+                            professionalId={project.professionalId._id}
+                            label='Chat for quotation'
+                            size='sm'
+                            initialMessage={rfqChatPrefill}
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

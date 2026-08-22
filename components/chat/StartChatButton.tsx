@@ -15,6 +15,7 @@ interface StartChatButtonProps {
   className?: string;
   variant?: "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
   size?: "default" | "sm" | "lg" | "icon";
+  initialMessage?: string;
 }
 
 export default function StartChatButton({
@@ -23,6 +24,7 @@ export default function StartChatButton({
   className,
   variant = "outline",
   size = "sm",
+  initialMessage,
 }: StartChatButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,8 +34,9 @@ export default function StartChatButton({
     () => ({
       open: true,
       professionalId,
+      ...(initialMessage ? { initialMessage } : {}),
     }),
-    [professionalId]
+    [professionalId, initialMessage]
   );
 
   if (user && user.role !== "customer") {

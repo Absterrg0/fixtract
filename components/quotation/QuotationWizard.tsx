@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
 import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
+import { parseFlexibleNumber } from '@/lib/numberInput'
 
 interface QuotationWizardProps {
   bookingId: string
@@ -29,17 +30,24 @@ interface VatRateOption {
   label: string
   reverseCharge: boolean
   source: 'standard' | 'reduced' | 'b2b_exempt' | 'legacy'
+  isCustom?: boolean
 }
 
 const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
 const makePricingLineKey = () => `pricing-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-const createEmptyPricingLine = (vatRate = 21, vatCountry = 'BE', vatLabel = '21% standard VAT'): QuotationPricingLine => ({
+const CUSTOM_VAT_RATE_PLACEHOLDER = 'Custom VAT rate (enter below)'
+const isCustomVatRateLabel = (label?: string) =>
+  label === CUSTOM_VAT_RATE_PLACEHOLDER || label === 'Enter custom VAT rate' || label === 'Custom VAT rate'
+
+const createEmptyPricingLine = (vatRate = 0, vatCountry = '', vatLabel = CUSTOM_VAT_RATE_PLACEHOLDER, isCustom = isCustomVatRateLabel(vatLabel)): QuotationPricingLine => ({
   clientKey: makePricingLineKey(),
   description: '',
   price: 0,
   vatRate,
   vatCountry,
   vatLabel,
+  vatRateMode: isCustom ? 'custom' : 'preset',
+  vatRateExplicitlyEntered: !isCustom,
 })
 const EMPTY_MILESTONE: QuotationMilestone = {
   title: '',
@@ -62,11 +70,12 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
 ] as const satisfies ReadonlyArray<QuotationMilestone['dueCondition']>
 
 const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
-  rate: 21,
-  country: 'BE',
-  label: '21% standard VAT',
+  rate: 0,
+  country: '',
+  label: CUSTOM_VAT_RATE_PLACEHOLDER,
   reverseCharge: false,
   source: 'standard',
+  isCustom: true,
 }]
 
 const LEGACY_VAT_RATE_OPTION: VatRateOption = {
@@ -75,6 +84,17 @@ const LEGACY_VAT_RATE_OPTION: VatRateOption = {
   label: '0% VAT (legacy quote)',
   reverseCharge: false,
   source: 'legacy',
+}
+
+// Always present in the VAT select so a line with a manually typed rate keeps
+// the select in sync instead of silently displaying an unrelated preset rate.
+const CUSTOM_VAT_SELECT_OPTION: VatRateOption = {
+  rate: 0,
+  country: '',
+  label: CUSTOM_VAT_RATE_PLACEHOLDER,
+  reverseCharge: false,
+  source: 'standard',
+  isCustom: true,
 }
 
 const isLegacyVatPricingLine = (line: Pick<QuotationPricingLine, 'vatRate' | 'vatLabel'>) =>
@@ -134,10 +154,15 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
       materials: existing.materials?.length ? [...existing.materials] : [{ ...EMPTY_MATERIAL }],
       description: existing.description,
       pricingLines: existing.pricingLines?.length
-        ? existing.pricingLines.map(line => ({
-            ...line,
-            clientKey: line.clientKey || makePricingLineKey(),
-          }))
+        ? existing.pricingLines.map(line => {
+            const isCustom = isCustomVatRateLabel(line.vatLabel)
+            return {
+              ...line,
+              clientKey: line.clientKey || makePricingLineKey(),
+              vatRateMode: isCustom ? 'custom' as const : 'preset' as const,
+              vatRateExplicitlyEntered: isCustom ? line.vatLabel === 'Custom VAT rate' : true,
+            }
+          })
         : [{
             clientKey: makePricingLineKey(),
             description: existing.description || existing.scope,
@@ -145,6 +170,8 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
             vatRate: 0,
             vatCountry: 'BE',
             vatLabel: '0% VAT (legacy quote)',
+            vatRateMode: 'preset' as const,
+            vatRateExplicitlyEntered: true,
           }],
       totalAmount: existing.totalAmount,
       currency: existing.currency || 'EUR',
@@ -203,6 +230,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
   const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
+  const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
 
   const effectiveVatRateOptions = useMemo(
     () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
@@ -212,20 +240,26 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
 
   const selectVatRateOptions = useMemo(() => {
-    const hasLegacyLine = form.pricingLines.some(isLegacyVatPricingLine)
-    if (!hasLegacyLine) return effectiveVatRateOptions
-    const legacyValue = getVatOptionValue(LEGACY_VAT_RATE_OPTION)
-    const alreadyIncluded = effectiveVatRateOptions.some(
-      (option) => getVatOptionValue(option) === legacyValue
-    )
-    return alreadyIncluded
-      ? effectiveVatRateOptions
-      : [...effectiveVatRateOptions, LEGACY_VAT_RATE_OPTION]
+    const options = [...effectiveVatRateOptions]
+    if (form.pricingLines.some(isLegacyVatPricingLine)) {
+      const legacyValue = getVatOptionValue(LEGACY_VAT_RATE_OPTION)
+      if (!options.some((option) => getVatOptionValue(option) === legacyValue)) {
+        options.push(LEGACY_VAT_RATE_OPTION)
+      }
+    }
+    const customValue = getVatOptionValue(CUSTOM_VAT_SELECT_OPTION)
+    if (!options.some((option) => getVatOptionValue(option) === customValue)) {
+      options.push(CUSTOM_VAT_SELECT_OPTION)
+    }
+    return options
   }, [effectiveVatRateOptions, form.pricingLines])
 
   const findVatOptionForPricingLine = (line: QuotationPricingLine) => {
     if (isLegacyVatPricingLine(line)) {
       return LEGACY_VAT_RATE_OPTION
+    }
+    if (line.vatRateMode === 'custom') {
+      return CUSTOM_VAT_SELECT_OPTION
     }
     return selectVatRateOptions.find((option) =>
       option.country === (line.vatCountry || defaultVatOption.country)
@@ -265,7 +299,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           if (!existingVersion && firstOption) {
             setForm(prev => {
               const isPristine = prev.pricingLines.every((line) =>
-                !line.description.trim() && Number(line.price) === 0
+                !line.description.trim() && Number(line.price) === 0 &&
+                line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true
               )
               if (!isPristine) return prev
               return {
@@ -275,6 +310,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   vatRate: firstOption.rate,
                   vatCountry: firstOption.country,
                   vatLabel: firstOption.label,
+                  vatRateMode: firstOption.isCustom ? 'custom' : 'preset',
+                  vatRateExplicitlyEntered: firstOption.isCustom ? false : true,
                 })),
               }
             })
@@ -309,7 +346,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     () => form.pricingLines.filter((line) => {
       const price = Number(line.price)
       const vatRate = Number(line.vatRate)
-      return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+      const hasEnteredCustomRate = line.vatRateMode !== 'custom' || line.vatRateExplicitlyEntered === true
+      return line.description.trim() && Number.isFinite(price) && price > 0 && hasEnteredCustomRate && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
     }),
     [form.pricingLines],
   )
@@ -321,7 +359,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
   const addPricingLine = () => updateForm('pricingLines', [
     ...form.pricingLines,
-    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country, defaultVatOption.label),
+    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country, defaultVatOption.label, !!defaultVatOption.isCustom),
   ])
   const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
   const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
@@ -331,14 +369,23 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const updatePricingLineVat = (index: number, option: VatRateOption) => {
+    const key = form.pricingLines[index]?.clientKey || `line-${index}`
     const updated = [...form.pricingLines]
     updated[index] = {
       ...updated[index],
       vatRate: option.rate,
       vatCountry: option.country,
       vatLabel: option.label,
+      vatRateMode: option.isCustom ? 'custom' : 'preset',
+      vatRateExplicitlyEntered: option.isCustom ? false : true,
     }
     updateForm('pricingLines', updated)
+    setVatRateDrafts(prev => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
 
   // Milestones helpers
@@ -377,7 +424,36 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error('Please specify whether materials are included')
       return
     }
-    const validPricingLines = validPricingLinesForTotal
+    const invalidVatLine = form.pricingLines.find((line, index) => {
+      const hasContent = line.description.trim() || Number(line.price) > 0
+      if (!hasContent) return false
+
+      const key = line.clientKey || `line-${index}`
+      const draft = vatRateDrafts[key]
+      const vatRate = draft === undefined ? Number(line.vatRate) : parseFlexibleNumber(draft)
+      return (
+        (draft === undefined && line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true) ||
+        !Number.isFinite(vatRate) ||
+        vatRate < 0 ||
+        vatRate > 100
+      )
+    })
+    if (invalidVatLine) {
+      toast.error('Enter a valid VAT rate for every pricing line before submitting')
+      return
+    }
+
+    const pricingLinesWithDrafts = form.pricingLines.map((line, index) => {
+      const key = line.clientKey || `line-${index}`
+      const draft = vatRateDrafts[key]
+      if (draft === undefined) return line
+      return { ...line, vatRate: parseFlexibleNumber(draft) }
+    })
+    const validPricingLines = pricingLinesWithDrafts.filter((line) => {
+      const price = Number(line.price)
+      const vatRate = Number(line.vatRate)
+      return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+    })
     if (validPricingLines.length === 0) {
       toast.error('Add at least one pricing line')
       return
@@ -429,7 +505,13 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         materialsIncluded: form.materialsIncluded,
         materials: form.materialsIncluded ? form.materials.filter(m => m.name.trim()) : [],
         description: form.description,
-        pricingLines: validPricingLines.map(({ clientKey: _clientKey, ...line }) => line),
+        pricingLines: validPricingLines.map((line) => {
+          const submittedLine = { ...line }
+          delete submittedLine.clientKey
+          delete submittedLine.vatRateMode
+          delete submittedLine.vatRateExplicitlyEntered
+          return submittedLine
+        }),
         totalAmount: pricingTotal,
         currency: form.currency,
         milestones: form.useMilestones ? form.milestones.filter(m => m.title.trim()) : [],
@@ -593,7 +675,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           </Label>
           <div className="mt-2 space-y-3">
             {form.pricingLines.map((line, index) => (
-              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_40px] gap-2 items-start">
+              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_110px_40px] gap-2 items-start">
                 <Input
                   value={line.description}
                   onChange={e => updatePricingLine(index, 'description', e.target.value)}
@@ -628,6 +710,41 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                     ))}
                   </SelectContent>
                 </Select>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={vatRateDrafts[line.clientKey || `line-${index}`] ?? String(line.vatRate ?? '').replace('.', ',')}
+                  onChange={e => {
+                    const key = line.clientKey || `line-${index}`
+                    const raw = e.target.value
+                    setVatRateDrafts(prev => ({ ...prev, [key]: raw }))
+                    const rate = raw === '' ? 0 : parseFlexibleNumber(raw)
+                    const updated = [...form.pricingLines]
+                    updated[index] = { ...updated[index], vatRateMode: 'custom', vatRateExplicitlyEntered: true, vatLabel: 'Custom VAT rate' }
+                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
+                      updated[index].vatRate = rate
+                    }
+                    updateForm('pricingLines', updated)
+                  }}
+                  onBlur={() => {
+                    const key = line.clientKey || `line-${index}`
+                    const draft = vatRateDrafts[key]
+                    if (draft === undefined) return
+                    const rate = parseFlexibleNumber(draft)
+                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
+                      const updated = [...form.pricingLines]
+                      updated[index] = { ...updated[index], vatRate: rate, vatRateMode: 'custom', vatRateExplicitlyEntered: true, vatLabel: 'Custom VAT rate' }
+                      updateForm('pricingLines', updated)
+                      setVatRateDrafts(prev => {
+                        const next = { ...prev }
+                        delete next[key]
+                        return next
+                      })
+                    }
+                  }}
+                  placeholder="VAT %"
+                  aria-label={`VAT percentage for pricing line ${index + 1}`}
+                />
                 <Button type="button" variant="ghost" size="icon" onClick={() => removePricingLine(index)} disabled={form.pricingLines.length === 1} className="text-red-500 hover:text-red-700">
                   <Trash2 className="h-4 w-4" />
                 </Button>

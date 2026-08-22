@@ -146,7 +146,8 @@ export default function AddressAutocomplete({
         if (coordinates) {
           const placeData: PlaceData = {
             formatted_address: addressToValidate,
-            coordinates
+            coordinates: { lat: coordinates.lat, lng: coordinates.lng },
+            address_components: coordinates.address_components,
           };
           onChange(addressToValidate, placeData);
         } else {
@@ -177,7 +178,8 @@ export default function AddressAutocomplete({
         if (coordinates) {
           const placeData: PlaceData = {
             formatted_address: companyAddress,
-            coordinates
+            coordinates: { lat: coordinates.lat, lng: coordinates.lng },
+            address_components: coordinates.address_components,
           };
           onChange(companyAddress, placeData);
         } else {
