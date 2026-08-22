@@ -19,7 +19,6 @@ export interface SiteAnnouncement {
   activeCountries: string[];
   locale: string;
   frequency: AnnouncementFrequency;
-  autoTranslate: boolean;
   delaySeconds: number;
   dismissible: boolean;
   requireMarketingConsent: boolean;

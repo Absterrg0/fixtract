@@ -282,27 +282,19 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel htmlFor="announcement-locale">
-                {form.autoTranslate ? "Source language" : "Language"}
-              </FormFieldLabel>
-              {form.autoTranslate ? (
-                <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
-                  English — translated automatically
-                </div>
-              ) : (
-                <Select value={form.locale} onValueChange={(v) => patch({ locale: v })}>
-                  <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LOCALE_OPTIONS.map((l) => (
-                      <SelectItem key={l.value} value={l.value}>
-                        {l.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <FormFieldLabel htmlFor="announcement-locale">Language</FormFieldLabel>
+              <Select value={form.locale} onValueChange={(locale) => patch({ locale })}>
+                <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOCALE_OPTIONS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
           </div>
 
@@ -389,14 +381,6 @@ function AnnouncementFormDialogBody({
                 onCheckedChange={(dismissible) => patch({ dismissible })}
               />
             )}
-            <FormSettingRow
-              title="Automatic translation"
-              description="Translate to each visitor's preferred language"
-              checked={form.autoTranslate}
-              onCheckedChange={(autoTranslate) =>
-                patch({ autoTranslate, locale: autoTranslate ? "en" : form.locale })
-              }
-            />
             <FormSettingRow
               title="Needs marketing consent"
               description="Cookie opt-in required"

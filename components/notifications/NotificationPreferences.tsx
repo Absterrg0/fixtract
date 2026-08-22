@@ -260,11 +260,15 @@ const NotificationPreferences: React.FC = () => {
     const previous = prefs.marketingLocale || 'en';
     setPrefs((current) => ({ ...current, marketingLocale }));
     setMarketingLocaleSaving(true);
-    const ok = await patchMarketingLocale(marketingLocale);
-    setMarketingLocaleSaving(false);
-    if (!ok) {
+    try {
+      if (await patchMarketingLocale(marketingLocale)) return;
       setPrefs((current) => ({ ...current, marketingLocale: previous }));
       toast.error('Failed to save marketing email language. Please try again.');
+    } catch {
+      setPrefs((current) => ({ ...current, marketingLocale: previous }));
+      toast.error('Failed to save marketing email language. Please try again.');
+    } finally {
+      setMarketingLocaleSaving(false);
     }
   }, [prefs.marketingLocale]);
 

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   announcementStatus,
+  formatAnnouncementMarketDate,
   frequencyLabel,
   localeLabel,
   SELECT_TRIGGER_CLASS,
@@ -144,11 +145,11 @@ export function AnnouncementsCard({
                       </div>
                       <div>
                         <span className="block font-medium text-slate-700">Starts</span>
-                        {new Date(item.startsAt).toLocaleDateString()}
+                        {formatAnnouncementMarketDate(new Date(item.startsAt))}
                       </div>
                       <div>
                         <span className="block font-medium text-slate-700">Ends</span>
-                        {new Date(item.endsAt).toLocaleDateString()}
+                        {formatAnnouncementMarketDate(new Date(item.endsAt))}
                       </div>
                       <div>
                         <span className="block font-medium text-slate-700">Impressions</span>
@@ -166,7 +167,6 @@ export function AnnouncementsCard({
                     {item.type !== "top_bar" ? (
                       <p className="mt-2 text-xs text-slate-400">
                         Frequency: {frequencyLabel(item.frequency)}
-                        {item.autoTranslate ? " · Auto-translated" : ""}
                       </p>
                     ) : null}
                   </div>

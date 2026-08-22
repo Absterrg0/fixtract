@@ -148,7 +148,6 @@ export interface AnnouncementFormState {
   countries: string[];
   locale: string;
   frequency: AnnouncementFrequency;
-  autoTranslate: boolean;
   startsAt: string;
   endsAt: string;
   isActive: boolean;
@@ -184,7 +183,6 @@ export function emptyAnnouncementForm(): AnnouncementFormState {
     countries: [],
     locale: "en",
     frequency: "once_pageview",
-    autoTranslate: false,
     startsAt: formatAnnouncementMarketDate(now),
     endsAt: formatAnnouncementMarketDate(in30),
     isActive: true,
@@ -208,7 +206,6 @@ export function buildAnnouncementPayload(form: AnnouncementFormState) {
     activeCountries: form.countries,
     locale: form.locale || "en",
     frequency: announcementUsesOverlay(form.type) ? form.frequency : "once_pageview",
-    autoTranslate: form.autoTranslate,
     startsAt: toAnnouncementScheduleIso(form.startsAt, false),
     endsAt: toAnnouncementScheduleIso(form.endsAt, true),
     isActive: form.isActive,
@@ -233,7 +230,6 @@ export function announcementToForm(a: AdminSiteAnnouncement): AnnouncementFormSt
     frequency: FREQUENCY_OPTIONS.some((f) => f.value === a.frequency)
       ? a.frequency
       : "once_pageview",
-    autoTranslate: a.autoTranslate === true,
     startsAt: formatAnnouncementMarketDate(new Date(a.startsAt)),
     endsAt: formatAnnouncementMarketDate(new Date(a.endsAt)),
     isActive: a.isActive,
@@ -257,7 +253,6 @@ export function toLiveAnnouncement(a: AdminSiteAnnouncement): LiveSiteAnnounceme
     activeCountries: a.activeCountries,
     locale: a.locale,
     frequency: a.frequency,
-    autoTranslate: a.autoTranslate,
     delaySeconds: a.delaySeconds,
     dismissible: a.dismissible,
     requireMarketingConsent: a.requireMarketingConsent,
