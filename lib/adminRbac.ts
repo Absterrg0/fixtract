@@ -1,5 +1,53 @@
-export const ADMIN_ROLES = ['super', 'care', 'marketing', 'quality', 'finance'] as const;
+export const ADMIN_ROLES = [
+  'super',
+  'care',
+  'marketing',
+  'quality',
+  'finance',
+  'operations',
+  'content_creator',
+] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
+export const ADMIN_ACCESS_LEVELS = ['write', 'read', 'none'] as const;
+export type AdminAccessLevel = (typeof ADMIN_ACCESS_LEVELS)[number];
+export const ADMIN_ACCESS_AREA_KEYS = [
+  'staff', 'platform', 'maintenance', 'user_delete', 'bookings', 'disputes', 'cancellations',
+  'chat', 'support', 'chat_reports', 'customers', 'warranty', 'professionals_approve',
+  'professionals_manage', 'projects', 'services', 'cms', 'campaigns', 'discounts', 'loyalty',
+  'referrals', 'backlinks', 'favorites', 'reviews', 'payments', 'kpi', 'audit', 'email_logs',
+] as const;
+export type AdminAccessArea = (typeof ADMIN_ACCESS_AREA_KEYS)[number];
+export type AdminPermissionLevels = Partial<Record<AdminAccessArea, AdminAccessLevel>>;
+export const ADMIN_ACCESS_AREA_LABELS: Record<AdminAccessArea, string> = {
+  staff: 'Staff & roles',
+  platform: 'Platform / site settings',
+  maintenance: 'Maintenance jobs',
+  user_delete: 'User delete / anonymize',
+  bookings: 'Bookings',
+  disputes: 'Disputes',
+  cancellations: 'Cancellations',
+  chat: 'Support chat',
+  support: 'Support tickets',
+  chat_reports: 'Chat reports',
+  customers: 'Customers',
+  warranty: 'Warranty claims',
+  professionals_approve: 'Professional approvals',
+  professionals_manage: 'Professional management',
+  projects: 'Project approvals',
+  services: 'Services',
+  cms: 'CMS',
+  campaigns: 'Email campaigns',
+  discounts: 'Discount codes',
+  loyalty: 'Loyalty & points',
+  referrals: 'Referrals',
+  backlinks: 'Backlinks',
+  favorites: 'Favorites',
+  reviews: 'Review moderation',
+  payments: 'Payments',
+  kpi: 'KPI dashboard',
+  audit: 'Audit logs',
+  email_logs: 'Email logs',
+};
 
 export type AdminPermission =
   | 'staff.manage'
@@ -71,6 +119,8 @@ export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   marketing: 'Marketing',
   quality: 'Quality',
   finance: 'Finance',
+  operations: 'Operations',
+  content_creator: 'Content Creator',
 };
 
 /** Human-readable admin areas each role can open (keep aligned with server ROLE_PERMISSIONS). */
@@ -116,6 +166,18 @@ export const ADMIN_ROLE_ACCESS: Record<AdminRole, string[]> = {
     'Audit logs',
     'Email logs',
     'Bookings (read only)',
+  ],
+  operations: [
+    'Bookings',
+    'Customers',
+    'Professional management',
+    'Project approvals',
+    'Services',
+    'Warranty claims',
+  ],
+  content_creator: [
+    'CMS',
+    'Email campaigns',
   ],
 };
 
