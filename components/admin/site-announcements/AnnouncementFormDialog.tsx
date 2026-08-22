@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import {
   DELAY_OPTIONS,
+  FREQUENCY_OPTIONS,
   LOCALE_OPTIONS,
   PLACEMENT_OPTIONS,
   PRIORITY_OPTIONS,
@@ -281,19 +282,27 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel htmlFor="announcement-locale">Language</FormFieldLabel>
-              <Select value={form.locale} onValueChange={(v) => patch({ locale: v })}>
-                <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LOCALE_OPTIONS.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormFieldLabel htmlFor="announcement-locale">
+                {form.autoTranslate ? "Source language" : "Language"}
+              </FormFieldLabel>
+              {form.autoTranslate ? (
+                <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                  English — translated automatically
+                </div>
+              ) : (
+                <Select value={form.locale} onValueChange={(v) => patch({ locale: v })}>
+                  <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCALE_OPTIONS.map((l) => (
+                      <SelectItem key={l.value} value={l.value}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </FormField>
           </div>
 
@@ -325,24 +334,44 @@ function AnnouncementFormDialogBody({
           </div>
 
           {showsOverlayOptions && (
-            <FormField>
-              <FormFieldLabel htmlFor="announcement-delay">Show after</FormFieldLabel>
-              <Select
-                value={form.delaySeconds}
-                onValueChange={(v) => patch({ delaySeconds: v })}
-              >
-                <SelectTrigger id="announcement-delay" className={SELECT_TRIGGER_CLASS}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DELAY_OPTIONS.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+            <div className="grid w-full grid-cols-2 gap-4">
+              <FormField>
+                <FormFieldLabel htmlFor="announcement-delay">Show after</FormFieldLabel>
+                <Select
+                  value={form.delaySeconds}
+                  onValueChange={(v) => patch({ delaySeconds: v })}
+                >
+                  <SelectTrigger id="announcement-delay" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DELAY_OPTIONS.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField>
+                <FormFieldLabel htmlFor="announcement-frequency">Frequency</FormFieldLabel>
+                <Select
+                  value={form.frequency}
+                  onValueChange={(v) => patch({ frequency: v as typeof form.frequency })}
+                >
+                  <SelectTrigger id="announcement-frequency" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FREQUENCY_OPTIONS.map((frequency) => (
+                      <SelectItem key={frequency.value} value={frequency.value}>
+                        {frequency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
           )}
 
           <div className="space-y-0 rounded-lg bg-slate-50 px-4 py-2">
@@ -360,6 +389,14 @@ function AnnouncementFormDialogBody({
                 onCheckedChange={(dismissible) => patch({ dismissible })}
               />
             )}
+            <FormSettingRow
+              title="Automatic translation"
+              description="Translate to each visitor's preferred language"
+              checked={form.autoTranslate}
+              onCheckedChange={(autoTranslate) =>
+                patch({ autoTranslate, locale: autoTranslate ? "en" : form.locale })
+              }
+            />
             <FormSettingRow
               title="Needs marketing consent"
               description="Cookie opt-in required"

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   announcementStatus,
+  frequencyLabel,
   localeLabel,
   SELECT_TRIGGER_CLASS,
   STATUS_FILTER_OPTIONS,
@@ -136,6 +137,38 @@ export function AnnouncementsCard({
                       {localeLabel(item.locale)}
                       {item.discountCode ? ` · code ${item.discountCode}` : ""}
                     </p>
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-500 sm:grid-cols-3 lg:grid-cols-6">
+                      <div>
+                        <span className="block font-medium text-slate-700">Priority</span>
+                        {item.priority}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-slate-700">Starts</span>
+                        {new Date(item.startsAt).toLocaleDateString()}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-slate-700">Ends</span>
+                        {new Date(item.endsAt).toLocaleDateString()}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-slate-700">Impressions</span>
+                        {item.impressions ?? 0}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-slate-700">Clicks</span>
+                        {item.clicks ?? 0}
+                      </div>
+                      <div>
+                        <span className="block font-medium text-slate-700">Dismissals</span>
+                        {item.dismissals ?? 0}
+                      </div>
+                    </div>
+                    {item.type !== "top_bar" ? (
+                      <p className="mt-2 text-xs text-slate-400">
+                        Frequency: {frequencyLabel(item.frequency)}
+                        {item.autoTranslate ? " · Auto-translated" : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button

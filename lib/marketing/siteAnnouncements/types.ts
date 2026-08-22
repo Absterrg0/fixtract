@@ -1,4 +1,11 @@
 export type AnnouncementType = "top_bar" | "modal" | "exit_intent";
+export type AnnouncementFrequency =
+  | "once"
+  | "once_week"
+  | "once_3_days"
+  | "once_day"
+  | "once_session"
+  | "once_pageview";
 
 export interface SiteAnnouncement {
   _id: string;
@@ -11,6 +18,8 @@ export interface SiteAnnouncement {
   discountCode?: string;
   activeCountries: string[];
   locale: string;
+  frequency: AnnouncementFrequency;
+  autoTranslate: boolean;
   delaySeconds: number;
   dismissible: boolean;
   requireMarketingConsent: boolean;
