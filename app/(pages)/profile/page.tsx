@@ -14,6 +14,8 @@ import PasswordChange from "@/components/PasswordChange"
 import PrivacyAndData from "@/components/PrivacyAndData"
 import EmployeeAvailability from "@/components/EmployeeAvailability"
 import NotificationPreferences from "@/components/notifications/NotificationPreferences"
+import AdminAvailability from "@/components/AdminAvailability"
+import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
 import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -1466,7 +1468,7 @@ function ProfileContent() {
 
     if (isProfessional && professionalTabs.has(tab)) {
       setProfileTab(tab)
-    } else if (!isProfessional && (customerTabs.has(tab) || (tab === 'availability' && user?.role === 'employee'))) {
+    } else if (!isProfessional && (customerTabs.has(tab) || (tab === 'availability' && (user?.role === 'employee' || user?.role === 'admin')))) {
       setProfileTab(tab)
     }
   }, [searchParams, user?.role])
@@ -2721,7 +2723,7 @@ function ProfileContent() {
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              {user?.role === 'employee' && (
+              {(user?.role === 'employee' || user?.role === 'admin') && (
                 <TabsTrigger value="availability">Availability</TabsTrigger>
               )}
             </TabsList>
@@ -2776,6 +2778,12 @@ function ProfileContent() {
                       <Shield className="h-4 w-4 text-gray-500" />
                       <span className="text-sm capitalize">{user?.role?.replace('_', ' ')}</span>
                     </div>
+                    {user?.role === 'admin' && user.adminRole && (
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">{ADMIN_ROLE_LABELS[user.adminRole as AdminRole]}</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -3092,6 +3100,11 @@ function ProfileContent() {
                 </TabsContent>
               )
             }
+            {user?.role === 'admin' && (
+              <TabsContent value="availability" className="space-y-6">
+                <AdminAvailability />
+              </TabsContent>
+            )}
           </Tabs >
         )
         }

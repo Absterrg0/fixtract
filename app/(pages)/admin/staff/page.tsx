@@ -1,15 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { addDays } from 'date-fns';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { RequireAdminPermission } from '@/components/admin/RequireAdminPermission';
 import {
-  ADMIN_ACCESS_MATRIX,
+  ADMIN_ACCESS_AREA_KEYS,
+  ADMIN_ACCESS_AREA_LABELS,
+  ADMIN_ACCESS_LEVELS,
   ADMIN_ROLE_ACCESS,
   ADMIN_ROLE_LABELS,
   ADMIN_ROLES,
+  type AdminAccessLevel,
+  type AdminPermissionLevels,
   type AdminRole,
 } from '@/lib/adminRbac';
 import { Button } from '@/components/ui/button';
@@ -24,7 +30,16 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Check, Copy, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar';
+import {
+  addIsoDays,
+  buildBlockedCalendarEvents,
+  hasStoredScheduleTimes,
+  resolveAdminAvailabilityTimeZone,
+  safeFormatInTimeZone,
+} from '@/lib/admin/availabilityCalendar';
+import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
 import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
 
 type StaffMember = {
@@ -37,10 +52,82 @@ type StaffMember = {
   invitePending?: boolean;
   inviteExpired?: boolean;
   permissions: string[];
+  permissionLevels?: AdminPermissionLevels;
   createdAt?: string;
+  currentStatusSince?: string;
+  timeZone?: string;
+  availability?: Record<string, { available?: boolean; startTime?: string; endTime?: string }>;
+  blockedDates?: Array<{ date: string; reason?: string }>;
+  blockedRanges?: Array<{ startDate: string; endDate: string; reason?: string }>;
 };
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+function buildAvailabilityCalendar(member: StaffMember, viewerTimeZone: string) {
+  const sourceTimeZone = resolveAdminAvailabilityTimeZone(member.timeZone, viewerTimeZone);
+  const resolvedViewerTimeZone = resolveAdminAvailabilityTimeZone(viewerTimeZone, 'UTC');
+  const today = new Date();
+  const viewerToday = safeFormatInTimeZone(today, resolvedViewerTimeZone, 'yyyy-MM-dd', 'UTC');
+  const viewerIsoDay = Number(safeFormatInTimeZone(today, resolvedViewerTimeZone, 'i', 'UTC'));
+  const viewerMonday = addIsoDays(viewerToday, 1 - viewerIsoDay);
+  const viewerWeekStart = fromZonedTime(`${viewerMonday}T00:00:00`, resolvedViewerTimeZone);
+  const viewerWeekEnd = fromZonedTime(`${addIsoDays(viewerMonday, 7)}T00:00:00`, resolvedViewerTimeZone);
+  const sourceSeed = safeFormatInTimeZone(addDays(viewerWeekStart, -2), sourceTimeZone, 'yyyy-MM-dd', resolvedViewerTimeZone);
+  const availability = member.availability || {};
+  const isTwentyFourSeven = !hasStoredScheduleTimes(availability);
+  const events: CalendarEvent[] = [];
+
+  for (let offset = 0; offset < 11; offset += 1) {
+    const sourceDate = addIsoDays(sourceSeed, offset);
+    const sourceDay = safeFormatInTimeZone(
+      fromZonedTime(`${sourceDate}T12:00:00`, sourceTimeZone),
+      sourceTimeZone,
+      'EEEE',
+      resolvedViewerTimeZone,
+    ).toLowerCase();
+    const schedule = availability[sourceDay];
+    if (isTwentyFourSeven) {
+      const start = fromZonedTime(`${sourceDate}T00:00:00`, sourceTimeZone);
+      const end = fromZonedTime(`${addIsoDays(sourceDate, 1)}T00:00:00`, sourceTimeZone);
+      if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
+      events.push({
+        id: `admin-availability-${sourceDate}`,
+        type: 'personal',
+        title: '24/7',
+        start,
+        end,
+        readOnly: true,
+      });
+      continue;
+    }
+
+    if (!schedule?.available || !schedule.startTime || !schedule.endTime) continue;
+
+    const start = fromZonedTime(`${sourceDate}T${schedule.startTime}:00`, sourceTimeZone);
+    const end = fromZonedTime(`${sourceDate}T${schedule.endTime}:00`, sourceTimeZone);
+    if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
+    events.push({
+      id: `admin-availability-${sourceDate}`,
+      type: 'personal',
+      title: 'Available',
+      start,
+      end,
+      readOnly: true,
+    });
+  }
+
+  events.push(
+    ...buildBlockedCalendarEvents(
+      member.blockedDates || [],
+      member.blockedRanges || [],
+      sourceTimeZone,
+      resolvedViewerTimeZone,
+      `admin-staff-${member._id}`,
+    ),
+  );
+
+  return { events, hasConfiguredSchedule: !isTwentyFourSeven };
+}
 
 function authInit(init?: RequestInit): RequestInit {
   return {
@@ -55,6 +142,7 @@ function authInit(init?: RequestInit): RequestInit {
 
 function StaffPageInner() {
   const { user } = useAuth();
+  const viewerTimeZone = user?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -64,6 +152,15 @@ function StaffPageInner() {
   const [adminRole, setAdminRole] = useState<AdminRole>('care');
   const [submitting, setSubmitting] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  const [roleAccess, setRoleAccess] = useState<Partial<Record<AdminRole, AdminPermissionLevels>>>({});
+  const [savingRoleAccess, setSavingRoleAccess] = useState(false);
+  const [availabilityMember, setAvailabilityMember] = useState<StaffMember | null>(null);
+  const availabilityCalendar = useMemo(
+    () => availabilityMember
+      ? buildAvailabilityCalendar(availabilityMember, viewerTimeZone)
+      : { events: [], hasConfiguredSchedule: false },
+    [availabilityMember, viewerTimeZone],
+  );
 
   const setRowBusy = (id: string, busy: boolean) => {
     setBusyIds((prev) => {
@@ -95,6 +192,17 @@ function StaffPageInner() {
   useEffect(() => {
     void load().catch(() => undefined);
   }, [load]);
+
+  useEffect(() => {
+    if (user?.adminRole !== 'super') return;
+    void fetch(`${API}/api/admin/staff/permissions`, authInit())
+      .then(async (res) => {
+        const json = await readJsonResponse<{ data?: { roles?: Partial<Record<AdminRole, AdminPermissionLevels>> } }>(res);
+        if (!res.ok || !json.success) throw new Error(messageFromApiBody(json, 'Failed to load role access'));
+        setRoleAccess(json.data?.roles || {});
+      })
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to load role access'));
+  }, [user?.adminRole]);
 
   const applyInviteResponse = (
     json: {
@@ -271,6 +379,48 @@ function StaffPageInner() {
     }
   };
 
+  const updateRoleAccess = async (role: AdminRole, area: (typeof ADMIN_ACCESS_AREA_KEYS)[number], level: AdminAccessLevel) => {
+    const previousRoleAccess = roleAccess;
+    const next = {
+      ...roleAccess,
+      [role]: { ...(roleAccess[role] || {}), [area]: level },
+    };
+    setRoleAccess(next);
+    setSavingRoleAccess(true);
+    try {
+      const res = await fetch(`${API}/api/admin/staff/permissions`, authInit({ method: 'PUT', body: JSON.stringify({ roles: next }) }));
+      const json = await readJsonResponse<{ data?: { roles?: Partial<Record<AdminRole, AdminPermissionLevels>> } }>(res);
+      if (!res.ok || !json.success) throw new Error(messageFromApiBody(json, 'Failed to save role access'));
+      setRoleAccess(json.data?.roles || next);
+      toast.success('Role permissions updated');
+    } catch (err: unknown) {
+      setRoleAccess(previousRoleAccess);
+      toast.error(err instanceof Error ? err.message : 'Failed to save role access');
+    } finally {
+      setSavingRoleAccess(false);
+    }
+  };
+
+  const formatAdminDate = (value?: string) => value
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: viewerTimeZone }).format(new Date(value))
+    : '—';
+
+  const formatViewerDate = (value: string, format = 'MMM d, yyyy HH:mm') => {
+    try {
+      return formatInTimeZone(new Date(value), viewerTimeZone, format);
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const roleSummary = (role: AdminRole) => {
+    const configured = roleAccess[role];
+    if (!configured) return ADMIN_ROLE_ACCESS[role];
+    return ADMIN_ACCESS_AREA_KEYS
+      .filter((area) => configured[area] && configured[area] !== 'none')
+      .map((area) => configured[area] === 'read' ? `${ADMIN_ACCESS_AREA_LABELS[area]} (read-only)` : ADMIN_ACCESS_AREA_LABELS[area]);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 pt-24 pb-12">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -284,7 +434,7 @@ function StaffPageInner() {
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900">Staff & roles</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Invite team members and assign care, marketing, quality, or finance access. Signed in as{' '}
+            Invite team members and assign configurable access. Signed in as{' '}
             {user?.name}.
           </p>
         </div>
@@ -406,9 +556,9 @@ function StaffPageInner() {
                                 : 'mt-0.5 block text-xs text-slate-500'
                             }
                           >
-                            {ADMIN_ROLE_ACCESS[role].slice(0, 3).join(' · ')}
-                            {ADMIN_ROLE_ACCESS[role].length > 3
-                              ? ` · +${ADMIN_ROLE_ACCESS[role].length - 3} more`
+                            {roleSummary(role).slice(0, 3).join(' · ')}
+                            {roleSummary(role).length > 3
+                              ? ` · +${roleSummary(role).length - 3} more`
                               : ''}
                           </span>
                         </span>
@@ -435,13 +585,16 @@ function StaffPageInner() {
               <p className="text-sm text-slate-500">No staff accounts yet.</p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[640px] text-left text-sm">
+                <table className="w-full min-w-[1180px] text-left text-sm">
                   <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-3 py-2.5 font-medium">Name</th>
                       <th className="px-3 py-2.5 font-medium">Email</th>
                       <th className="px-3 py-2.5 font-medium">Role</th>
+                      <th className="px-3 py-2.5 font-medium">Created on</th>
                       <th className="px-3 py-2.5 text-center font-medium">Status</th>
+                      <th className="px-3 py-2.5 font-medium">Status since</th>
+                      <th className="px-3 py-2.5 font-medium">Availability</th>
                       <th className="px-3 py-2.5 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
@@ -476,6 +629,7 @@ function StaffPageInner() {
                               </SelectContent>
                             </Select>
                           </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-slate-600">{formatAdminDate(member.createdAt)}</td>
                           <td className="px-3 py-3 text-center">
                             <Badge
                               variant={
@@ -492,6 +646,12 @@ function StaffPageInner() {
                                 ? 'Invite expired'
                                 : member.accountStatus}
                             </Badge>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-slate-600">{formatAdminDate(member.currentStatusSince)}</td>
+                          <td className="px-3 py-3">
+                            <Button variant="outline" size="sm" onClick={() => setAvailabilityMember(member)}>
+                              <CalendarDays className="mr-1.5 h-3.5 w-3.5" />Calendar
+                            </Button>
                           </td>
                           <td className="px-3 py-3 text-right">
                             {member.accountStatus !== 'suspended' &&
@@ -537,7 +697,7 @@ function StaffPageInner() {
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto p-0">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[1180px] text-left text-sm">
               <thead className="border-y bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Admin area</th>
@@ -549,17 +709,30 @@ function StaffPageInner() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {ADMIN_ACCESS_MATRIX.map((row) => (
-                  <tr key={row.area} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-2.5 text-slate-800">{row.area}</td>
+                {ADMIN_ACCESS_AREA_KEYS.map((area) => (
+                  <tr key={area} className="hover:bg-slate-50/80">
+                    <td className="px-4 py-2.5 text-slate-800">{ADMIN_ACCESS_AREA_LABELS[area]}</td>
                     {ADMIN_ROLES.map((role) => (
                       <td key={role} className="px-3 py-2.5 text-center">
-                        {row.roles.includes(role) ? (
-                          <Check className="mx-auto h-4 w-4 text-emerald-600" aria-label="Yes" />
+                        {user?.adminRole === 'super' ? (
+                          <Select
+                            value={roleAccess[role]?.[area] || 'none'}
+                            onValueChange={(value) => void updateRoleAccess(role, area, value as AdminAccessLevel)}
+                            disabled={savingRoleAccess || role === 'super'}
+                          >
+                            <SelectTrigger className="mx-auto h-8 w-[112px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ADMIN_ACCESS_LEVELS.map((level) => (
+                                <SelectItem key={level} value={level}>
+                                  {level === 'write' ? 'Write' : level === 'read' ? 'Read-only' : 'No'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
-                          <span className="text-slate-300" aria-label="No">
-                            —
-                          </span>
+                          <span className="text-xs capitalize text-slate-600">{roleAccess[role]?.[area] || '—'}</span>
                         )}
                       </td>
                     ))}
@@ -569,6 +742,32 @@ function StaffPageInner() {
             </table>
           </CardContent>
         </Card>
+
+        <Dialog open={Boolean(availabilityMember)} onOpenChange={(open) => { if (!open) setAvailabilityMember(null); }}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{availabilityMember?.name}&apos;s availability calendar</DialogTitle>
+              <DialogDescription>
+                Converted to your timezone ({viewerTimeZone}). The source schedule is stored in {availabilityMember?.timeZone || 'UTC'}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <WeeklyAvailabilityCalendar
+                title="Weekly availability"
+                description={availabilityCalendar.hasConfiguredSchedule
+                  ? `Displayed in your timezone (${viewerTimeZone}).`
+                  : 'No weekly schedule is configured, so this admin is available 24/7.'}
+                events={availabilityCalendar.events}
+                dayStart="00:00"
+                dayEnd="23:59"
+                visibleDays={[0, 1, 2, 3, 4, 5, 6]}
+                timeZone={viewerTimeZone}
+              />
+              {availabilityMember?.blockedDates?.length ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Blocked dates</p>{availabilityMember.blockedDates.map((item, index) => <p key={`${item.date}-${index}`}>{formatViewerDate(item.date, 'MMM d, yyyy')}{item.reason ? ` — ${item.reason}` : ''}</p>)}</div> : null}
+              {availabilityMember?.blockedRanges?.length ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Blocked slots</p>{availabilityMember.blockedRanges.map((range, index) => <p key={`${range.startDate}-${index}`}>{formatViewerDate(range.startDate)} – {formatViewerDate(range.endDate)}{range.reason ? ` — ${range.reason}` : ''}</p>)}</div> : null}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -13,10 +13,12 @@ interface User {
   name: string
   email: string
   marketingLocale?: string
+  timeZone?: string
   phone: string
   role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
   adminRole?: AdminRole
   adminPermissions?: AdminPermission[]
+  adminPermissionLevels?: Partial<Record<string, 'write' | 'read' | 'none'>>
   isEmailVerified: boolean
   isPhoneVerified: boolean
   vatNumber?: string
