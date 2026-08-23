@@ -32,6 +32,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar';
+import {
+  addIsoDays,
+  buildBlockedCalendarEvents,
+  hasStoredScheduleTimes,
+  resolveAdminAvailabilityTimeZone,
+  safeFormatInTimeZone,
+} from '@/lib/admin/availabilityCalendar';
 import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
 import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
 
@@ -56,79 +63,70 @@ type StaffMember = {
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function addIsoDays(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function buildAvailabilityCalendar(member: StaffMember, viewerTimeZone: string) {
-  const sourceTimeZone = member.timeZone || 'UTC';
+  const sourceTimeZone = resolveAdminAvailabilityTimeZone(member.timeZone, viewerTimeZone);
+  const resolvedViewerTimeZone = resolveAdminAvailabilityTimeZone(viewerTimeZone, 'UTC');
   const today = new Date();
-  const viewerToday = formatInTimeZone(today, viewerTimeZone, 'yyyy-MM-dd');
-  const viewerIsoDay = Number(formatInTimeZone(today, viewerTimeZone, 'i'));
+  const viewerToday = safeFormatInTimeZone(today, resolvedViewerTimeZone, 'yyyy-MM-dd', 'UTC');
+  const viewerIsoDay = Number(safeFormatInTimeZone(today, resolvedViewerTimeZone, 'i', 'UTC'));
   const viewerMonday = addIsoDays(viewerToday, 1 - viewerIsoDay);
-  const viewerWeekStart = fromZonedTime(`${viewerMonday}T00:00:00`, viewerTimeZone);
-  const viewerWeekEnd = fromZonedTime(`${addIsoDays(viewerMonday, 7)}T00:00:00`, viewerTimeZone);
-  const sourceSeed = formatInTimeZone(addDays(viewerWeekStart, -2), sourceTimeZone, 'yyyy-MM-dd');
-  const hasConfiguredSchedule = Object.values(member.availability || {}).some(
-    (day) => day?.startTime || day?.endTime,
-  );
+  const viewerWeekStart = fromZonedTime(`${viewerMonday}T00:00:00`, resolvedViewerTimeZone);
+  const viewerWeekEnd = fromZonedTime(`${addIsoDays(viewerMonday, 7)}T00:00:00`, resolvedViewerTimeZone);
+  const sourceSeed = safeFormatInTimeZone(addDays(viewerWeekStart, -2), sourceTimeZone, 'yyyy-MM-dd', resolvedViewerTimeZone);
+  const availability = member.availability || {};
+  const isTwentyFourSeven = !hasStoredScheduleTimes(availability);
   const events: CalendarEvent[] = [];
 
   for (let offset = 0; offset < 11; offset += 1) {
     const sourceDate = addIsoDays(sourceSeed, offset);
-    const sourceDay = formatInTimeZone(
+    const sourceDay = safeFormatInTimeZone(
       fromZonedTime(`${sourceDate}T12:00:00`, sourceTimeZone),
       sourceTimeZone,
       'EEEE',
+      resolvedViewerTimeZone,
     ).toLowerCase();
-    const schedule = member.availability?.[sourceDay];
-    const startTime = hasConfiguredSchedule ? schedule?.startTime : '00:00';
-    const endTime = hasConfiguredSchedule ? schedule?.endTime : '23:59';
-    if (hasConfiguredSchedule && (!schedule?.available || !startTime || !endTime)) continue;
+    const schedule = availability[sourceDay];
+    if (isTwentyFourSeven) {
+      const start = fromZonedTime(`${sourceDate}T00:00:00`, sourceTimeZone);
+      const end = fromZonedTime(`${addIsoDays(sourceDate, 1)}T00:00:00`, sourceTimeZone);
+      if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
+      events.push({
+        id: `admin-availability-${sourceDate}`,
+        type: 'personal',
+        title: '24/7',
+        start,
+        end,
+        readOnly: true,
+      });
+      continue;
+    }
 
-    const start = fromZonedTime(`${sourceDate}T${startTime}:00`, sourceTimeZone);
-    const end = fromZonedTime(`${sourceDate}T${endTime}:00`, sourceTimeZone);
+    if (!schedule?.available || !schedule.startTime || !schedule.endTime) continue;
+
+    const start = fromZonedTime(`${sourceDate}T${schedule.startTime}:00`, sourceTimeZone);
+    const end = fromZonedTime(`${sourceDate}T${schedule.endTime}:00`, sourceTimeZone);
     if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
     events.push({
       id: `admin-availability-${sourceDate}`,
       type: 'personal',
-      title: hasConfiguredSchedule ? 'Available' : '24/7',
+      title: 'Available',
       start,
       end,
       readOnly: true,
     });
   }
 
-  member.blockedDates?.forEach((item, index) => {
-    const start = new Date(item.date);
-    if (Number.isNaN(start.getTime())) return;
-    events.push({
-      id: `admin-blocked-date-${index}`,
-      type: 'company',
-      title: item.reason ? `Blocked: ${item.reason}` : 'Blocked',
-      start,
-      end: new Date(start.getTime() + 24 * 60 * 60 * 1000),
-      readOnly: true,
-    });
-  });
+  events.push(
+    ...buildBlockedCalendarEvents(
+      member.blockedDates || [],
+      member.blockedRanges || [],
+      sourceTimeZone,
+      resolvedViewerTimeZone,
+      `admin-staff-${member._id}`,
+    ),
+  );
 
-  member.blockedRanges?.forEach((range, index) => {
-    const start = new Date(range.startDate);
-    const end = new Date(range.endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
-    events.push({
-      id: `admin-blocked-range-${index}`,
-      type: 'company',
-      title: range.reason ? `Blocked: ${range.reason}` : 'Blocked',
-      start,
-      end,
-      readOnly: true,
-    });
-  });
-
-  return { events, hasConfiguredSchedule };
+  return { events, hasConfiguredSchedule: !isTwentyFourSeven };
 }
 
 function authInit(init?: RequestInit): RequestInit {
@@ -382,6 +380,7 @@ function StaffPageInner() {
   };
 
   const updateRoleAccess = async (role: AdminRole, area: (typeof ADMIN_ACCESS_AREA_KEYS)[number], level: AdminAccessLevel) => {
+    const previousRoleAccess = roleAccess;
     const next = {
       ...roleAccess,
       [role]: { ...(roleAccess[role] || {}), [area]: level },
@@ -395,6 +394,7 @@ function StaffPageInner() {
       setRoleAccess(json.data?.roles || next);
       toast.success('Role permissions updated');
     } catch (err: unknown) {
+      setRoleAccess(previousRoleAccess);
       toast.error(err instanceof Error ? err.message : 'Failed to save role access');
     } finally {
       setSavingRoleAccess(false);

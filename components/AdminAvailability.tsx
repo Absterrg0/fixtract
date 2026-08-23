@@ -11,6 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar'
+import {
+  addIsoDays,
+  buildBlockedCalendarEvents,
+  hasStoredScheduleTimes,
+  resolveAdminAvailabilityTimeZone,
+  safeFormatInTimeZone,
+} from '@/lib/admin/availabilityCalendar'
 
 type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 type DaySchedule = { available: boolean; startTime?: string; endTime?: string }
@@ -28,12 +35,6 @@ const defaultAvailability = (): Record<DayKey, DaySchedule> => Object.fromEntrie
   DAYS.map(({ key }) => [key, { available: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(key), startTime: '09:00', endTime: '17:00' }]),
 ) as Record<DayKey, DaySchedule>
 
-function addIsoDays(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
 export default function AdminAvailability() {
   const { checkAuth } = useAuth()
   const [availability, setAvailability] = useState(defaultAvailability)
@@ -46,34 +47,47 @@ export default function AdminAvailability() {
   const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const viewerTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', [])
-  const hasConfiguredSchedule = useMemo(
-    () => Object.values(availability).some((day) => day.available && day.startTime && day.endTime),
-    [availability],
-  )
+  const resolvedTimeZone = resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone)
+  const isTwentyFourSeven = !hasStoredScheduleTimes(availability)
   const scheduleEvents = useMemo<CalendarEvent[]>(() => {
     const today = new Date()
-    const todayValue = formatInTimeZone(today, timeZone, 'yyyy-MM-dd')
-    const todayKey = formatInTimeZone(today, timeZone, 'EEEE').toLowerCase() as DayKey
+    const todayValue = safeFormatInTimeZone(today, resolvedTimeZone, 'yyyy-MM-dd', viewerTimeZone)
+    const todayKey = safeFormatInTimeZone(today, resolvedTimeZone, 'EEEE', viewerTimeZone).toLowerCase() as DayKey
     const todayIndex = DAYS.findIndex(({ key }) => key === todayKey)
     const mondayValue = addIsoDays(todayValue, -Math.max(todayIndex, 0))
 
-    return DAYS.flatMap(({ key }, index) => {
+    const weeklyEvents = DAYS.flatMap(({ key }, index) => {
       const day = availability[key]
       const date = addIsoDays(mondayValue, index)
-      const startTime = hasConfiguredSchedule ? day.startTime : '00:00'
-      const endTime = hasConfiguredSchedule ? day.endTime : '23:59'
-      if (hasConfiguredSchedule && (!day.available || !startTime || !endTime)) return []
+
+      if (isTwentyFourSeven) {
+        return [{
+          id: `admin-availability-${key}`,
+          type: 'personal' as const,
+          title: '24/7',
+          start: fromZonedTime(`${date}T00:00:00`, resolvedTimeZone),
+          end: fromZonedTime(`${addIsoDays(date, 1)}T00:00:00`, resolvedTimeZone),
+          readOnly: true,
+        }]
+      }
+
+      if (!day.available || !day.startTime || !day.endTime) return []
 
       return [{
         id: `admin-availability-${key}`,
         type: 'personal' as const,
-        title: hasConfiguredSchedule ? 'Available' : '24/7',
-        start: fromZonedTime(`${date}T${startTime}:00`, timeZone),
-        end: fromZonedTime(`${date}T${endTime}:00`, timeZone),
+        title: 'Available',
+        start: fromZonedTime(`${date}T${day.startTime}:00`, resolvedTimeZone),
+        end: fromZonedTime(`${date}T${day.endTime}:00`, resolvedTimeZone),
         readOnly: true,
       }]
     })
-  }, [availability, hasConfiguredSchedule, timeZone])
+
+    return [
+      ...weeklyEvents,
+      ...buildBlockedCalendarEvents(blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone),
+    ]
+  }, [availability, blockedDates, blockedRanges, isTwentyFourSeven, resolvedTimeZone, viewerTimeZone])
 
   useEffect(() => {
     void fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, { credentials: 'include' })
@@ -82,10 +96,11 @@ export default function AdminAvailability() {
         if (!res.ok || !json.success) throw new Error(json.msg || 'Failed to load availability')
         setLoadError(false)
         const loadedTimeZone = json.data?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        const normalizedTimeZone = resolveAdminAvailabilityTimeZone(loadedTimeZone, viewerTimeZone)
         setAvailability({ ...defaultAvailability(), ...(json.data?.availability || {}) })
-        setBlockedDates((json.data?.blockedDates || []).map((item: BlockedDate) => ({ date: item.date ? formatInTimeZone(new Date(item.date), loadedTimeZone, 'yyyy-MM-dd') : '', reason: item.reason || '' })).filter((item: BlockedDate) => item.date))
-        setBlockedRanges((json.data?.blockedRanges || []).map((range: BlockedRange) => ({ startDate: range.startDate ? formatInTimeZone(new Date(range.startDate), loadedTimeZone, "yyyy-MM-dd'T'HH:mm") : '', endDate: range.endDate ? formatInTimeZone(new Date(range.endDate), loadedTimeZone, "yyyy-MM-dd'T'HH:mm") : '', reason: range.reason || '' })))
-        setTimeZone(loadedTimeZone)
+        setBlockedDates((json.data?.blockedDates || []).map((item: BlockedDate) => ({ date: item.date ? safeFormatInTimeZone(new Date(item.date), normalizedTimeZone, 'yyyy-MM-dd', viewerTimeZone) : '', reason: item.reason || '' })).filter((item: BlockedDate) => item.date))
+        setBlockedRanges((json.data?.blockedRanges || []).map((range: BlockedRange) => ({ startDate: range.startDate ? safeFormatInTimeZone(new Date(range.startDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', endDate: range.endDate ? safeFormatInTimeZone(new Date(range.endDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', reason: range.reason || '' })))
+        setTimeZone(normalizedTimeZone)
       })
       .catch((error: unknown) => { setLoadError(true); toast.error(error instanceof Error ? error.message : 'Failed to load availability') })
       .finally(() => setLoading(false))
@@ -95,18 +110,24 @@ export default function AdminAvailability() {
     if (loadError || loading) return
     setSaving(true)
     try {
+      const normalizedTimeZone = resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone)
       const blockedDatesUtc = blockedDates.map((item) => ({
         ...item,
-        date: fromZonedTime(`${item.date}T00:00:00`, timeZone).toISOString(),
+        date: fromZonedTime(`${item.date}T00:00:00`, normalizedTimeZone).toISOString(),
       }))
       const blockedRangesUtc = blockedRanges.map((range) => ({
         ...range,
-        startDate: fromZonedTime(range.startDate, timeZone).toISOString(),
-        endDate: fromZonedTime(range.endDate, timeZone).toISOString(),
+        startDate: fromZonedTime(range.startDate, normalizedTimeZone).toISOString(),
+        endDate: fromZonedTime(range.endDate, normalizedTimeZone).toISOString(),
       }))
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ availability, blockedDates: blockedDatesUtc, blockedRanges: blockedRangesUtc, timeZone }),
+        body: JSON.stringify({
+          availability,
+          blockedDates: blockedDatesUtc,
+          blockedRanges: blockedRangesUtc,
+          timeZone: resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone),
+        }),
       })
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.msg || 'Failed to save availability')
@@ -128,12 +149,12 @@ export default function AdminAvailability() {
         <div className="grid gap-2 sm:max-w-md"><Label htmlFor="admin-time-zone">Timezone</Label><Input id="admin-time-zone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} placeholder="Europe/Brussels" /><p className="text-xs text-slate-500">Your browser timezone is {viewerTimeZone}. Use an IANA timezone such as Europe/Brussels or America/New_York.</p></div>
         <WeeklyAvailabilityCalendar
           title="Weekly availability calendar"
-          description={hasConfiguredSchedule ? `Displayed in ${timeZone}.` : 'No weekly schedule is configured, so this admin is available 24/7.'}
+          description={isTwentyFourSeven ? 'No weekly schedule is configured, so this admin is available 24/7.' : `Displayed in ${resolvedTimeZone}.`}
           events={scheduleEvents}
           dayStart="00:00"
           dayEnd="23:59"
           visibleDays={[0, 1, 2, 3, 4, 5, 6]}
-          timeZone={timeZone}
+          timeZone={resolvedTimeZone}
         />
         <div className="space-y-2">
           {DAYS.map(({ key, label }) => { const day = availability[key]; return <div key={key} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[130px_110px_1fr_1fr] sm:items-center"><span className="font-medium">{label}</span><label className="flex items-center gap-2 text-sm"><Checkbox checked={day.available} onCheckedChange={(checked) => setAvailability((current) => ({ ...current, [key]: { ...current[key], available: checked === true } }))} />Available</label><div className="grid gap-1"><Label htmlFor={`admin-${key}-start`} className="text-xs text-slate-500">Start</Label><Input id={`admin-${key}-start`} type="time" value={day.startTime || '09:00'} disabled={!day.available} onChange={(event) => setAvailability((current) => ({ ...current, [key]: { ...current[key], startTime: event.target.value } }))} /></div><div className="grid gap-1"><Label htmlFor={`admin-${key}-end`} className="text-xs text-slate-500">End</Label><Input id={`admin-${key}-end`} type="time" value={day.endTime || '17:00'} disabled={!day.available} onChange={(event) => setAvailability((current) => ({ ...current, [key]: { ...current[key], endTime: event.target.value } }))} /></div></div> })}

@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { addWeeks, differenceInMinutes } from 'date-fns'
+import { differenceInMinutes } from 'date-fns'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { normalizeTimezone } from '@/lib/timezoneDisplay'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -127,10 +128,18 @@ export default function WeeklyAvailabilityCalendar({
   onEventClick,
   className,
 }: WeeklyAvailabilityCalendarProps) {
-  const calendarTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const calendarTimeZone = normalizeTimezone(timeZone, browserTimeZone)
   const [weekStart, setWeekStart] = useState<Date>(
     () => startOfWeekInTimeZone(new Date(), calendarTimeZone)
   )
+
+  const shiftWeek = (deltaWeeks: number) => {
+    setWeekStart((prev) => {
+      const weekStartDate = formatInTimeZone(prev, calendarTimeZone, 'yyyy-MM-dd')
+      return fromZonedTime(`${addIsoDays(weekStartDate, deltaWeeks * 7)}T00:00:00`, calendarTimeZone)
+    })
+  }
 
   const startMinutes = parseTimeToMinutes(dayStart)
   const endMinutes = parseTimeToMinutes(dayEnd)
@@ -238,7 +247,7 @@ export default function WeeklyAvailabilityCalendar({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setWeekStart((prev) => addWeeks(prev, -1))}
+              onClick={() => shiftWeek(-1)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -248,7 +257,7 @@ export default function WeeklyAvailabilityCalendar({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setWeekStart((prev) => addWeeks(prev, 1))}
+              onClick={() => shiftWeek(1)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
