@@ -15,6 +15,7 @@ import { PREVIEW_DURATION_MS, shouldSkipAnnouncements } from "@/lib/marketing/si
 import { fetchPublicSiteAnnouncements } from "@/lib/marketing/siteAnnouncements/api";
 import {
   dismissAnnouncement,
+  isAnnouncementFrequencyBlocked,
   isAnnouncementDismissed,
 } from "@/lib/marketing/siteAnnouncements/dismissStorage";
 import { trackPromoClick } from "@/lib/marketing/siteAnnouncements/analytics";
@@ -146,7 +147,8 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
           }
           if (
             hiddenIds.has(`${item._id}:${item.updatedAt}`) ||
-            isAnnouncementDismissed(item)
+            isAnnouncementDismissed(item) ||
+            isAnnouncementFrequencyBlocked(item)
           ) {
             return false;
           }
@@ -164,7 +166,9 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
       hide,
       onCta,
     };
-  }, [skip, consent.marketingOk, items, hiddenIds, hide, onCta, clock]);
+    // pathname re-runs the localStorage dismissal/frequency predicates after client-side navigation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skip, pathname, consent.marketingOk, items, hiddenIds, hide, onCta, clock]);
 
   const previewValue = useMemo<PreviewCtx>(
     () => ({ preview, startPreview, clearPreview }),

@@ -1,5 +1,6 @@
 import type {
   AnnouncementType,
+  AnnouncementFrequency,
   SiteAnnouncement as LiveSiteAnnouncement,
 } from "@/lib/marketing/siteAnnouncements/types";
 import { authFetch } from "@/lib/utils";
@@ -38,6 +39,15 @@ export const PRIORITY_OPTIONS = [
   { value: "5", label: "Higher" },
   { value: "10", label: "Highest" },
 ] as const;
+
+export const FREQUENCY_OPTIONS: ReadonlyArray<{ value: AnnouncementFrequency; label: string }> = [
+  { value: "once", label: "Once" },
+  { value: "once_week", label: "Once/week" },
+  { value: "once_3_days", label: "Once/3 days" },
+  { value: "once_day", label: "Once/1 day" },
+  { value: "once_session", label: "Once/session" },
+  { value: "once_pageview", label: "Once/pageview" },
+];
 
 export const PLACEMENT_OPTIONS = [
   { value: "top_bar", label: "Banner under navbar" },
@@ -87,6 +97,10 @@ export function localeLabel(locale: string): string {
   return LOCALE_OPTIONS.find((l) => l.value === locale)?.label ?? locale;
 }
 
+export function frequencyLabel(frequency: AnnouncementFrequency): string {
+  return FREQUENCY_OPTIONS.find((option) => option.value === frequency)?.label ?? frequency;
+}
+
 export function announcementUsesOverlay(type: AnnouncementType): boolean {
   return type === "modal" || type === "exit_intent";
 }
@@ -118,6 +132,9 @@ export type AdminSiteAnnouncement = LiveSiteAnnouncement & {
   isActive: boolean;
   priority: number;
   createdAt: string;
+  impressions: number;
+  clicks: number;
+  dismissals: number;
 };
 
 export interface AnnouncementFormState {
@@ -130,6 +147,7 @@ export interface AnnouncementFormState {
   discountCode: string;
   countries: string[];
   locale: string;
+  frequency: AnnouncementFrequency;
   startsAt: string;
   endsAt: string;
   isActive: boolean;
@@ -164,6 +182,7 @@ export function emptyAnnouncementForm(): AnnouncementFormState {
     discountCode: "",
     countries: [],
     locale: "en",
+    frequency: "once_pageview",
     startsAt: formatAnnouncementMarketDate(now),
     endsAt: formatAnnouncementMarketDate(in30),
     isActive: true,
@@ -186,6 +205,7 @@ export function buildAnnouncementPayload(form: AnnouncementFormState) {
     discountCode: form.discountCode.trim() || undefined,
     activeCountries: form.countries,
     locale: form.locale || "en",
+    frequency: announcementUsesOverlay(form.type) ? form.frequency : "once_pageview",
     startsAt: toAnnouncementScheduleIso(form.startsAt, false),
     endsAt: toAnnouncementScheduleIso(form.endsAt, true),
     isActive: form.isActive,
@@ -207,6 +227,9 @@ export function announcementToForm(a: AdminSiteAnnouncement): AnnouncementFormSt
     discountCode: a.discountCode || "",
     countries: [...a.activeCountries],
     locale: LOCALE_OPTIONS.some((l) => l.value === a.locale) ? a.locale : "en",
+    frequency: FREQUENCY_OPTIONS.some((f) => f.value === a.frequency)
+      ? a.frequency
+      : "once_pageview",
     startsAt: formatAnnouncementMarketDate(new Date(a.startsAt)),
     endsAt: formatAnnouncementMarketDate(new Date(a.endsAt)),
     isActive: a.isActive,
@@ -229,6 +252,7 @@ export function toLiveAnnouncement(a: AdminSiteAnnouncement): LiveSiteAnnounceme
     discountCode: a.discountCode,
     activeCountries: a.activeCountries,
     locale: a.locale,
+    frequency: a.frequency,
     delaySeconds: a.delaySeconds,
     dismissible: a.dismissible,
     requireMarketingConsent: a.requireMarketingConsent,

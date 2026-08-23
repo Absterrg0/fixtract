@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import {
   DELAY_OPTIONS,
+  FREQUENCY_OPTIONS,
   LOCALE_OPTIONS,
   PLACEMENT_OPTIONS,
   PRIORITY_OPTIONS,
@@ -282,7 +283,7 @@ function AnnouncementFormDialogBody({
             </FormField>
             <FormField>
               <FormFieldLabel htmlFor="announcement-locale">Language</FormFieldLabel>
-              <Select value={form.locale} onValueChange={(v) => patch({ locale: v })}>
+              <Select value={form.locale} onValueChange={(locale) => patch({ locale })}>
                 <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />
                 </SelectTrigger>
@@ -325,24 +326,44 @@ function AnnouncementFormDialogBody({
           </div>
 
           {showsOverlayOptions && (
-            <FormField>
-              <FormFieldLabel htmlFor="announcement-delay">Show after</FormFieldLabel>
-              <Select
-                value={form.delaySeconds}
-                onValueChange={(v) => patch({ delaySeconds: v })}
-              >
-                <SelectTrigger id="announcement-delay" className={SELECT_TRIGGER_CLASS}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DELAY_OPTIONS.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+            <div className="grid w-full grid-cols-2 gap-4">
+              <FormField>
+                <FormFieldLabel htmlFor="announcement-delay">Show after</FormFieldLabel>
+                <Select
+                  value={form.delaySeconds}
+                  onValueChange={(v) => patch({ delaySeconds: v })}
+                >
+                  <SelectTrigger id="announcement-delay" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DELAY_OPTIONS.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField>
+                <FormFieldLabel htmlFor="announcement-frequency">Frequency</FormFieldLabel>
+                <Select
+                  value={form.frequency}
+                  onValueChange={(v) => patch({ frequency: v as typeof form.frequency })}
+                >
+                  <SelectTrigger id="announcement-frequency" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FREQUENCY_OPTIONS.map((frequency) => (
+                      <SelectItem key={frequency.value} value={frequency.value}>
+                        {frequency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
           )}
 
           <div className="space-y-0 rounded-lg bg-slate-50 px-4 py-2">

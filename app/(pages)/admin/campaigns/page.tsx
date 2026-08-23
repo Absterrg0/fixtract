@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
+import { EU_COUNTRIES } from "@/lib/countries";
+import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,1002 +14,110 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Send,
-  RefreshCw,
-  Users,
-  Loader2,
-  Mail,
-  BarChart3,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Send, RefreshCw, Users, Loader2, Mail, BarChart3, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminAccess } from "@/hooks/useAdminAccess";
+import { errMessage, formatDate, normalizeLanguages, normalizeServices, requireApiBase, type LanguageOption, type ServiceOption } from "@/lib/admin/marketing";
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-const LOCALES = ["en", "nl", "fr"] as const;
-type Locale = (typeof LOCALES)[number];
-type CampaignType = "newsletter" | "promotion" | "reengagement";
+const CAMPAIGN_TYPES = ["newsletter", "promotion", "reengagement"] as const;
+const ROLES = ["customer", "professional"] as const;
+type Locale = string;
+type CampaignType = (typeof CAMPAIGN_TYPES)[number];
+type Role = (typeof ROLES)[number];
+interface LocaleContent { subject: string; htmlContent: string; previewText?: string; brevoTemplateId?: number }
+interface BrevoTemplate { id: number; name: string; subject: string; tag: string; modifiedAt: string }
+interface CampaignDelivery { locale: Locale; recipientCount: number; subscriberCount?: number; deduplicatedRecipientCount?: number; brevoCampaignId?: number; stats?: { sent: number; delivered: number; uniqueViews: number; uniqueClicks: number; unsubscriptions: number }; error?: string }
+interface Campaign { _id: string; name: string; type: CampaignType; status: string; content: Record<Locale, LocaleContent>; audience: { countries: string[]; serviceKeys?: string[]; interestedServices?: string[]; locales: Locale[]; roles: Role[] }; inactiveDays?: number; autoSend: boolean; scheduledAt?: string | null; sentAt?: string | null; lastPreviewCount?: number; lastPreviewAt?: string; deliveries: CampaignDelivery[]; lastError?: string; utmCampaign?: string; updatedAt: string }
+interface FormState { name: string; type: CampaignType; countries: string[]; serviceKeys: string[]; locales: Locale[]; roles: Role[]; inactiveDays: string; autoSend: boolean; scheduledAt: string; utmCampaign: string; content: Record<Locale, LocaleContent> }
+interface AudiencePreview { total: number; byLocale: Record<string, number>; byRole: { customer: number; professional: number }; deduplicated: number; excluded: { suppressed: number; invalidEmail: number; missingLocale: number; roleMismatch: number; localeMismatch: number }; fallbackLocaleCount: number; overLimit: boolean; truncated: boolean; criteriaHash?: string }
 
-function errMessage(e: unknown, fallback: string): string {
-  return e instanceof Error && e.message ? e.message : fallback;
-}
-
-function toDatetimeLocalValue(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function toScheduledIso(value: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function requireApiBase(): string {
-  if (!API_BASE) {
-    throw new Error("NEXT_PUBLIC_BACKEND_URL is not configured");
-  }
-  return API_BASE;
-}
-
-interface LocaleContent {
-  subject: string;
-  htmlContent: string;
-  previewText?: string;
-  brevoTemplateId?: number;
-}
-
-interface BrevoTemplate {
-  id: number;
-  name: string;
-  subject: string;
-  tag: string;
-  modifiedAt: string;
-}
-
-interface Campaign {
-  _id: string;
-  name: string;
-  type: CampaignType;
-  status: string;
-  content: Partial<Record<Locale, LocaleContent>>;
-  audience: {
-    countries: string[];
-    interestedServices: string[];
-    locales: Locale[];
-    roles: Array<"customer" | "professional">;
-  };
-  inactiveDays?: number;
-  autoSend: boolean;
-  scheduledAt?: string | null;
-  sentAt?: string | null;
-  deliveries: Array<{
-    locale: Locale;
-    recipientCount: number;
-    brevoCampaignId?: number;
-    stats?: {
-      sent: number;
-      delivered: number;
-      uniqueViews: number;
-      uniqueClicks: number;
-      unsubscriptions: number;
-    };
-    error?: string;
-  }>;
-  lastError?: string;
-  utmCampaign?: string;
-  updatedAt: string;
-}
-
-interface FormState {
-  name: string;
-  type: CampaignType;
-  countries: string;
-  interestedServices: string;
-  locales: Locale[];
-  roles: Array<"customer" | "professional">;
-  inactiveDays: string;
-  autoSend: boolean;
-  scheduledAt: string;
-  utmCampaign: string;
-  content: Record<Locale, LocaleContent>;
-}
-
-const emptyContent = (): LocaleContent => ({
-  subject: "",
-  htmlContent: "",
-  previewText: "",
-});
-
-const emptyForm = (): FormState => ({
-  name: "",
-  type: "newsletter",
-  countries: "",
-  interestedServices: "",
-  locales: ["en"],
-  roles: ["customer", "professional"],
-  inactiveDays: "60",
-  autoSend: false,
-  scheduledAt: "",
-  utmCampaign: "",
-  content: {
-    en: emptyContent(),
-    nl: emptyContent(),
-    fr: emptyContent(),
-  },
-});
-
-const statusColor = (status: string) => {
-  switch (status) {
-    case "sent":
-      return "bg-emerald-100 text-emerald-800";
-    case "scheduled":
-      return "bg-blue-100 text-blue-800";
-    case "failed":
-      return "bg-rose-100 text-rose-800";
-    case "sending":
-      return "bg-amber-100 text-amber-800";
-    default:
-      return "bg-slate-100 text-slate-700";
-  }
-};
+function emptyContent(): LocaleContent { return { subject: "", htmlContent: "", previewText: "" }; }
+function emptyForm(): FormState { return { name: "", type: "newsletter", countries: [], serviceKeys: [], locales: ["en"], roles: ["customer", "professional"], inactiveDays: "60", autoSend: false, scheduledAt: "", utmCampaign: "", content: { en: emptyContent() } }; }
+function toDatetimeLocalValue(iso: string) { const date = new Date(iso); if (Number.isNaN(date.getTime())) return ""; const pad = (value: number) => String(value).padStart(2, "0"); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; }
+function toScheduledIso(value: string): string | null { if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date.toISOString(); }
+function statusColor(status: string) { return { sent: "bg-emerald-100 text-emerald-800", scheduled: "bg-blue-100 text-blue-800", failed: "bg-rose-100 text-rose-800", sending: "bg-amber-100 text-amber-800" }[status] || "bg-slate-100 text-slate-700"; }
 
 export default function AdminCampaignsPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { canAccessPath } = useAdminAccess();
   const canManage = canAccessPath("/admin/campaigns");
-  const isAdmin = Boolean(isAuthenticated && user?.role === "admin");
-  const showPage = !authLoading && isAdmin && canManage;
-
+  const showPage = !authLoading && Boolean(isAuthenticated && user?.role === "admin") && canManage;
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ q: "", status: "all", type: "all" });
+  const [searchInput, setSearchInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [activeLocaleTab, setActiveLocaleTab] = useState<Locale>("en");
-  const [audiencePreview, setAudiencePreview] = useState<{
-    count: number;
-    truncated: boolean;
-  } | null>(null);
+  const [languages, setLanguages] = useState<LanguageOption[]>(() => normalizeLanguages([]));
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
   const [audienceLoading, setAudienceLoading] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testLocale, setTestLocale] = useState<Locale>("en");
+  const [testSending, setTestSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [templates, setTemplates] = useState<BrevoTemplate[] | null>(null);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [actionIds, setActionIds] = useState<Set<string>>(() => new Set());
   const latestLoadId = useRef(0);
   const latestPreviewId = useRef(0);
-  const previewAudienceKey = useRef("");
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAdmin) {
-      router.replace("/login");
-      return;
-    }
-    if (!canManage) router.replace("/dashboard");
-  }, [authLoading, isAdmin, canManage, router]);
+  useEffect(() => { if (!authLoading && !isAuthenticated) router.replace("/login"); else if (!authLoading && isAuthenticated && user?.role !== "admin") router.replace("/dashboard"); else if (!authLoading && isAuthenticated && !canManage) router.replace("/dashboard"); }, [authLoading, canManage, isAuthenticated, router, user?.role]);
+  useEffect(() => { if (user?.email) setTestEmail((current) => current || user.email); }, [user?.email]);
+  const load = useCallback(async () => { const loadId = ++latestLoadId.current; setLoading(true); try { const params = new URLSearchParams({ page: String(page), limit: "25" }); if (filters.q.trim()) params.set("q", filters.q.trim()); if (filters.status !== "all") params.set("status", filters.status); if (filters.type !== "all") params.set("type", filters.type); const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns?${params}`); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load campaigns"); if (loadId === latestLoadId.current) { const nextPages = Math.max(1, Number(json.data?.pagination?.totalPages) || 1); setTotalPages(nextPages); if (page > nextPages) { setPage(nextPages); return; } setCampaigns(json.data?.campaigns || []); } } catch (error) { if (loadId === latestLoadId.current) toast.error(errMessage(error, "Failed to load campaigns")); } finally { if (loadId === latestLoadId.current) setLoading(false); } }, [filters, page]);
+  useEffect(() => { if (showPage) void load(); }, [load, showPage]);
+  useEffect(() => { setPage(1); }, [filters]);
+  useEffect(() => { const timer = setTimeout(() => setFilters((current) => (current.q === searchInput ? current : { ...current, q: searchInput })), 300); return () => clearTimeout(timer); }, [searchInput]);
+  useEffect(() => { if (!showPage) return; const controller = new AbortController(); authFetch(`${requireApiBase()}/api/public/marketing/languages`, { signal: controller.signal }).then(async (res) => { const json = await res.json().catch(() => null); if (!res.ok || !json?.success) throw new Error(json?.msg || "Language catalog unavailable"); if (!controller.signal.aborted) setLanguages(normalizeLanguages(json.data?.languages || json.data)); }).catch(() => {}); return () => controller.abort(); }, [showPage]);
+  useEffect(() => { if (!dialogOpen) return; const controller = new AbortController(); const countryQuery = form.countries.join(","); setServicesLoading(true); setServicesError(null); authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/service-options${countryQuery ? `?countries=${encodeURIComponent(countryQuery)}` : ""}`, { signal: controller.signal }).then(async (res) => { const json = await res.json().catch(() => null); if (!res.ok || !json?.success) throw new Error(json?.msg || "Service options unavailable"); if (!controller.signal.aborted) setServices(normalizeServices(json.data?.services || json.data?.options || json.data)); }).catch((error) => { if (!controller.signal.aborted) { setServices([]); setServicesError(errMessage(error, "Service options unavailable")); } }).finally(() => { if (!controller.signal.aborted) setServicesLoading(false); }); return () => controller.abort(); }, [dialogOpen, form.countries]);
+  useEffect(() => { if (!dialogOpen || templates !== null) return; const controller = new AbortController(); setTemplatesLoading(true); authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/templates`, { signal: controller.signal }).then(async (res) => { const json = await res.json().catch(() => null); if (!res.ok || !json?.success) throw new Error(json?.msg || "Template lookup failed"); if (!controller.signal.aborted) setTemplates(json.data?.templates || []); }).catch((error) => { if (!controller.signal.aborted) toast.error(errMessage(error, "Failed to load Brevo templates")); }).finally(() => { if (!controller.signal.aborted) setTemplatesLoading(false); }); return () => controller.abort(); }, [dialogOpen, templates]);
 
-  const beginAction = (id: string) => {
-    setActionIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  };
+  const availableLanguages = useMemo(() => { const selected = new Set(form.countries); const supported = languages.filter((language) => selected.size === 0 || language.countries.length === 0 || language.countries.some((country) => selected.has(country))); const retained = languages.filter((language) => form.locales.includes(language.code)); return Array.from(new Map([...supported, ...retained].map((language) => [language.code, language])).values()); }, [form.countries, form.locales, languages]);
+  const countryOptions: MultiSelectOption[] = useMemo(() => EU_COUNTRIES.map((country) => ({ value: country.code, label: `${country.name} (${country.code})` })), []);
+  const serviceOptions: MultiSelectOption[] = useMemo(() => services.map((service) => ({ value: service.key, label: service.label, hint: service.countries?.join(", ") })), [services]);
+  const openCreate = () => { setEditingId(null); setForm(emptyForm()); setAudiencePreview(null); setActiveLocaleTab("en"); setTestLocale("en"); setDialogOpen(true); };
+  const openEdit = (campaign: Campaign) => { const content = campaign.content || {}; const existingLocales = Object.keys(content); const locales = campaign.audience?.locales?.length ? campaign.audience.locales : existingLocales.length ? existingLocales : ["en"]; const serviceKeys = campaign.audience?.serviceKeys?.length ? campaign.audience.serviceKeys : campaign.audience?.interestedServices || []; setEditingId(campaign._id); setForm({ name: campaign.name, type: campaign.type, countries: campaign.audience?.countries || [], serviceKeys, locales, roles: campaign.audience?.roles?.length ? campaign.audience.roles : ["customer", "professional"], inactiveDays: String(campaign.inactiveDays || 60), autoSend: Boolean(campaign.autoSend), scheduledAt: campaign.scheduledAt ? toDatetimeLocalValue(campaign.scheduledAt) : "", utmCampaign: campaign.utmCampaign || "", content: Object.fromEntries(Array.from(new Set([...locales, ...existingLocales])).map((locale) => [locale, content[locale] || emptyContent()])) }); setAudiencePreview(null); setActiveLocaleTab(locales[0] || "en"); setTestLocale(locales[0] || "en"); setDialogOpen(true); };
+  const beginAction = (id: string) => setActionIds((current) => new Set(current).add(id));
+  const endAction = (id: string) => setActionIds((current) => { const next = new Set(current); next.delete(id); return next; });
+  const payload = useMemo(() => { const content: Record<Locale, LocaleContent> = {}; Object.entries(form.content).forEach(([locale, block]) => { if (block.subject.trim() && (block.htmlContent.trim() || block.brevoTemplateId)) content[locale] = { ...block, subject: block.subject.trim(), previewText: block.previewText?.trim() || undefined }; }); return { name: form.name.trim(), type: form.type, audience: { countries: form.countries, serviceKeys: form.serviceKeys, interestedServices: form.serviceKeys, locales: form.locales, roles: form.roles }, content, inactiveDays: form.type === "reengagement" ? Number(form.inactiveDays) || 60 : undefined, autoSend: form.type === "reengagement" ? form.autoSend : false, scheduledAt: toScheduledIso(form.scheduledAt), utmCampaign: form.utmCampaign.trim() || undefined }; }, [form]);
+  const audienceKey = useMemo(() => JSON.stringify({ type: payload.type, audience: payload.audience, inactiveDays: payload.inactiveDays }), [payload]);
+  useEffect(() => { latestPreviewId.current += 1; setAudiencePreview(null); }, [audienceKey]);
+  const previewAudience = async () => { if (!form.locales.length || !form.roles.length) { toast.error("Select at least one audience locale and role"); return; } const requestId = ++latestPreviewId.current; setAudienceLoading(true); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/preview-audience`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: payload.type, audience: payload.audience, inactiveDays: payload.inactiveDays, contentLocales: form.locales }) }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Preview failed"); const data = json.data || {}; const next: AudiencePreview = { total: Number(data.total ?? data.count) || 0, byLocale: data.byLocale && typeof data.byLocale === "object" ? Object.fromEntries(Object.entries(data.byLocale).map(([locale, count]) => [locale, Number(count) || 0])) : {}, byRole: { customer: Number(data.byRole?.customer) || 0, professional: Number(data.byRole?.professional) || 0 }, deduplicated: Number(data.deduplicated) || 0, excluded: { suppressed: Number(data.excluded?.suppressed) || 0, invalidEmail: Number(data.excluded?.invalidEmail) || 0, missingLocale: Number(data.excluded?.missingLocale) || 0, roleMismatch: Number(data.excluded?.roleMismatch) || 0, localeMismatch: Number(data.excluded?.localeMismatch) || 0 }, fallbackLocaleCount: Number(data.fallbackLocaleCount) || 0, overLimit: Boolean(data.overLimit || data.truncated), truncated: Boolean(data.truncated || data.overLimit), criteriaHash: data.criteriaHash }; if (requestId === latestPreviewId.current) { setAudiencePreview(next); if (next.overLimit) toast.error("Audience exceeds the 5,000-recipient delivery limit"); } } catch (error) { if (requestId === latestPreviewId.current) toast.error(errMessage(error, "Audience preview failed")); } finally { setAudienceLoading(false); } };
+  const handleSave = async () => { if (!payload.name || !Object.keys(payload.content).length) { toast.error("Name and at least one locale with subject and content are required"); return; } const missing = form.locales.filter((locale) => !payload.content[locale]); if (missing.length) { toast.error(`Provide content for every selected locale: ${missing.join(", ")}`); return; } if (form.scheduledAt && !payload.scheduledAt) { toast.error("Enter a valid schedule date and time"); return; } setSaving(true); try { const base = requireApiBase(); const res = await authFetch(editingId ? `${base}/api/admin/marketing-campaigns/${editingId}` : `${base}/api/admin/marketing-campaigns`, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Save failed"); toast.success(editingId ? "Campaign updated" : "Campaign created"); setDialogOpen(false); await load(); } catch (error) { toast.error(errMessage(error, "Save failed")); } finally { setSaving(false); } };
+  const handleTestSend = async () => { if (!testEmail.trim()) { toast.error("Enter an email address for the test"); return; } if (!payload.content[testLocale]) { toast.error(`Add content for ${testLocale.toUpperCase()} before sending a test`); return; } setTestSending(true); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/test-send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: testEmail.trim(), locale: testLocale, campaign: payload }) }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Test send failed"); toast.success(`Test email sent to ${testEmail.trim()}`); } catch (error) { toast.error(errMessage(error, "Test send failed")); } finally { setTestSending(false); } };
+  const handleSend = async (id: string) => { if (!confirm("Send this campaign now via Brevo to the matched audience?")) return; beginAction(id); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/send`, { method: "POST" }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Send failed"); toast.success("Campaign sent"); await load(); } catch (error) { toast.error(errMessage(error, "Send failed")); } finally { endAction(id); } };
+  const handleStats = async (id: string) => { beginAction(id); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/stats`, { method: "POST" }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Refresh failed"); toast.success("Stats refreshed from Brevo"); await load(); } catch (error) { toast.error(errMessage(error, "Refresh failed")); } finally { endAction(id); } };
+  const handleDelete = async (id: string) => { if (!confirm("Delete this campaign?")) return; beginAction(id); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}`, { method: "DELETE" }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Delete failed"); toast.success("Deleted"); if (campaigns.length === 1 && page > 1) setPage((current) => current - 1); else await load(); } catch (error) { toast.error(errMessage(error, "Delete failed")); } finally { endAction(id); } };
+  const syncSubscribers = async () => { setSyncing(true); try { const res = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers/sync`, { method: "POST" }); const json = await res.json(); if (!res.ok || !json.success) throw new Error(json.msg || "Sync failed"); toast.success(`Synced subscribers (upserted ${json.data.upserted}, unsubscribed ${json.data.unsubscribed})`); } catch (error) { toast.error(errMessage(error, "Sync failed")); } finally { setSyncing(false); } };
 
-  const endAction = (id: string) => {
-    setActionIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-
-  const load = useCallback(async () => {
-    const loadId = ++latestLoadId.current;
-    setLoading(true);
-    try {
-      const res = await authFetch(
-        `${requireApiBase()}/api/admin/marketing-campaigns?page=${page}&limit=25`,
-      );
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load");
-      if (loadId === latestLoadId.current) {
-        const nextTotalPages = Math.max(1, Number(json.data.pagination?.totalPages) || 1);
-        setTotalPages(nextTotalPages);
-        if (page > nextTotalPages) {
-          setPage(nextTotalPages);
-          return;
-        }
-        setCampaigns(json.data.campaigns || []);
-      }
-    } catch (e: unknown) {
-      if (loadId === latestLoadId.current) {
-        toast.error(errMessage(e, "Failed to load campaigns"));
-      }
-    } finally {
-      if (loadId === latestLoadId.current) {
-        setLoading(false);
-      }
-    }
-  }, [page]);
-
-  useEffect(() => {
-    if (showPage) load();
-  }, [showPage, load]);
-
-  useEffect(() => {
-    if (!dialogOpen || templates !== null) return;
-    const controller = new AbortController();
-    setTemplatesLoading(true);
-    let base: string;
-    try {
-      base = requireApiBase();
-    } catch (error) {
-      // Keep templates null so reopening the dialog can retry.
-      setTemplatesLoading(false);
-      toast.error(errMessage(error, "Failed to load Brevo templates"));
-      return;
-    }
-    authFetch(`${base}/api/admin/marketing-campaigns/templates`, {
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.success) throw new Error(json?.msg || "Template lookup failed");
-        if (!controller.signal.aborted) setTemplates(json.data?.templates || []);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        // Keep templates null so a transient failure can retry on reopen.
-        toast.error(errMessage(error, "Failed to load Brevo templates"));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setTemplatesLoading(false);
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [dialogOpen, templates]);
-
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm());
-    setAudiencePreview(null);
-    setActiveLocaleTab("en");
-    setDialogOpen(true);
-  };
-
-  const openEdit = (c: Campaign) => {
-    setEditingId(c._id);
-    setForm({
-      name: c.name,
-      type: c.type,
-      countries: (c.audience?.countries || []).join(", "),
-      interestedServices: (c.audience?.interestedServices || []).join(", "),
-      locales: (c.audience?.locales?.length ? c.audience.locales : LOCALES.filter((l) => c.content?.[l])) as Locale[],
-      roles: c.audience?.roles?.length ? c.audience.roles : ["customer", "professional"],
-      inactiveDays: String(c.inactiveDays || 60),
-      autoSend: Boolean(c.autoSend),
-      scheduledAt: c.scheduledAt ? toDatetimeLocalValue(c.scheduledAt) : "",
-      utmCampaign: c.utmCampaign || "",
-      content: {
-        en: c.content?.en || emptyContent(),
-        nl: c.content?.nl || emptyContent(),
-        fr: c.content?.fr || emptyContent(),
-      },
-    });
-    setAudiencePreview(null);
-    setActiveLocaleTab("en");
-    setDialogOpen(true);
-  };
-
-  const payload = useMemo(() => {
-    const content: Partial<Record<Locale, LocaleContent>> = {};
-    for (const locale of LOCALES) {
-      const block = form.content[locale];
-      if (block.subject.trim() && (block.htmlContent.trim() || block.brevoTemplateId)) {
-        content[locale] = {
-          subject: block.subject.trim(),
-          htmlContent: block.htmlContent,
-          previewText: block.previewText?.trim() || undefined,
-          brevoTemplateId: block.brevoTemplateId || undefined,
-        };
-      }
-    }
-    return {
-      name: form.name.trim(),
-      type: form.type,
-      audience: {
-        countries: form.countries
-          .split(",")
-          .map((c) => c.trim().toUpperCase())
-          .filter(Boolean),
-        interestedServices: form.interestedServices
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        locales: form.locales,
-        roles: form.roles,
-      },
-      content,
-      inactiveDays: form.type === "reengagement" ? Number(form.inactiveDays) || 60 : undefined,
-      autoSend: form.type === "reengagement" ? form.autoSend : false,
-      scheduledAt: toScheduledIso(form.scheduledAt),
-      utmCampaign: form.utmCampaign.trim() || undefined,
-    };
-  }, [form]);
-
-  const audienceKey = useMemo(
-    () => JSON.stringify([payload.audience, payload.inactiveDays]),
-    [payload.audience, payload.inactiveDays],
-  );
-
-  useEffect(() => {
-    previewAudienceKey.current = audienceKey;
-    latestPreviewId.current += 1;
-    setAudiencePreview(null);
-    setAudienceLoading(false);
-  }, [audienceKey]);
-
-  const previewAudience = async () => {
-    if (form.locales.length === 0 || form.roles.length === 0) {
-      toast.error("Select at least one audience locale and role");
-      return;
-    }
-    const requestId = ++latestPreviewId.current;
-    const requestKey = audienceKey;
-    setAudienceLoading(true);
-    try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/preview-audience`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audience: payload.audience,
-          inactiveDays: payload.inactiveDays,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Preview failed");
-      const nextPreview = {
-        count: Number(json.data.count) || 0,
-        truncated: Boolean(json.data.truncated),
-      };
-      if (
-        requestId !== latestPreviewId.current ||
-        requestKey !== previewAudienceKey.current
-      ) {
-        return;
-      }
-      setAudiencePreview(nextPreview);
-      if (nextPreview.truncated) {
-        toast.error("Audience exceeds the 5,000-recipient delivery limit");
-      }
-    } catch (e: unknown) {
-      if (requestId === latestPreviewId.current) {
-        toast.error(errMessage(e, "Audience preview failed"));
-      }
-    } finally {
-      if (requestId === latestPreviewId.current) {
-        setAudienceLoading(false);
-      }
-    }
-  };
-
-  const handleSave = async () => {
-    if (!payload.name || Object.keys(payload.content).length === 0) {
-      toast.error("Name and at least one locale with subject and content are required");
-      return;
-    }
-    if (form.locales.length === 0 || form.roles.length === 0) {
-      toast.error("Select at least one audience locale and role");
-      return;
-    }
-    const missingLocaleContent = form.locales.filter((locale) => !payload.content[locale]);
-    if (missingLocaleContent.length > 0) {
-      toast.error(`Provide content for every selected locale: ${missingLocaleContent.join(", ")}`);
-      return;
-    }
-    if (form.scheduledAt && !payload.scheduledAt) {
-      toast.error("Enter a valid schedule date and time");
-      return;
-    }
-    setSaving(true);
-    try {
-      const base = requireApiBase();
-      const url = editingId
-        ? `${base}/api/admin/marketing-campaigns/${editingId}`
-        : `${base}/api/admin/marketing-campaigns`;
-      const res = await authFetch(url, {
-        method: editingId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Save failed");
-      toast.success(editingId ? "Campaign updated" : "Campaign created");
-      setDialogOpen(false);
-      await load();
-    } catch (e: unknown) {
-      toast.error(errMessage(e, "Save failed"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSend = async (id: string) => {
-    if (!confirm("Send this campaign now via Brevo to the matched audience?")) return;
-    beginAction(id);
-    try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/send`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Send failed");
-      toast.success("Campaign sent");
-      await load();
-    } catch (e: unknown) {
-      toast.error(errMessage(e, "Send failed"));
-    } finally {
-      endAction(id);
-    }
-  };
-
-  const handleStats = async (id: string) => {
-    beginAction(id);
-    try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}/stats`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Refresh failed");
-      toast.success("Stats refreshed from Brevo");
-      await load();
-    } catch (e: unknown) {
-      toast.error(errMessage(e, "Refresh failed"));
-    } finally {
-      endAction(id);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this campaign?")) return;
-    beginAction(id);
-    try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-campaigns/${id}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Delete failed");
-      toast.success("Deleted");
-      if (campaigns.length === 1 && page > 1) {
-        setPage((current) => current - 1);
-      } else {
-        await load();
-      }
-    } catch (e: unknown) {
-      toast.error(errMessage(e, "Delete failed"));
-    } finally {
-      endAction(id);
-    }
-  };
-
-  const syncSubscribers = async () => {
-    setSyncing(true);
-    try {
-      const res = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers/sync`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Sync failed");
-      toast.success(
-        `Synced subscribers (upserted ${json.data.upserted}, unsubscribed ${json.data.unsubscribed})`,
-      );
-    } catch (e: unknown) {
-      toast.error(errMessage(e, "Sync failed"));
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  if (authLoading || !showPage) {
-    return (
-      <div className="p-8">
-        <Skeleton className="h-10 w-64 mb-4" />
-        <Skeleton className="h-40 w-full" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Email campaigns</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Multilingual newsletters, promotions, and re-engagement via Brevo — filtered by region
-            and interested service.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={syncSubscribers} disabled={syncing}>
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Users className="h-4 w-4 mr-2" />}
-            Sync subscribers
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            New campaign
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-      ) : campaigns.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No campaigns yet</CardTitle>
-            <CardDescription>
-              Create a draft, sync subscribers from opted-in users, preview the audience, then send
-              through Brevo.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            {campaigns.map((c) => {
-            const hasStartedDelivery = (c.deliveries || []).some((delivery) =>
-              Boolean(delivery.brevoCampaignId),
-            );
-            const canMutate = ["draft", "scheduled", "failed"].includes(c.status) && !hasStartedDelivery;
-            const totals = (c.deliveries || []).reduce(
-              (acc, d) => {
-                acc.recipients += d.recipientCount || 0;
-                acc.sent += d.stats?.sent || 0;
-                acc.opens += d.stats?.uniqueViews || 0;
-                acc.clicks += d.stats?.uniqueClicks || 0;
-                return acc;
-              },
-              { recipients: 0, sent: 0, opens: 0, clicks: 0 },
-            );
-            return (
-              <Card key={c._id}>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Mail className="h-4 w-4" />
-                        {c.name}
-                      </CardTitle>
-                      <CardDescription className="mt-1 flex flex-wrap gap-2 items-center">
-                        <Badge variant="outline">{c.type}</Badge>
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${statusColor(c.status)}`}>
-                          {c.status}
-                        </span>
-                        {c.autoSend && <Badge variant="secondary">auto re-engagement</Badge>}
-                        {c.lastError && <span className="text-rose-600">{c.lastError}</span>}
-                      </CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {canMutate && (
-                        <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                          <Pencil className="h-3.5 w-3.5 mr-1" />
-                          Edit
-                        </Button>
-                      )}
-                      {["draft", "scheduled", "failed"].includes(c.status) && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleSend(c._id)}
-                          disabled={actionIds.has(c._id)}
-                        >
-                          {actionIds.has(c._id) ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Send className="h-3.5 w-3.5 mr-1" />
-                          )}
-                          Send now
-                        </Button>
-                      )}
-                      {c.status === "sent" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleStats(c._id)}
-                          disabled={actionIds.has(c._id)}
-                        >
-                          <BarChart3 className="h-3.5 w-3.5 mr-1" />
-                          Refresh stats
-                        </Button>
-                      )}
-                      {canMutate && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(c._id)}
-                          disabled={actionIds.has(c._id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground grid gap-1 sm:grid-cols-4">
-                  <div>Recipients (send): {totals.recipients}</div>
-                  <div>Sent: {totals.sent}</div>
-                  <div>Unique opens: {totals.opens}</div>
-                  <div>Unique clicks: {totals.clicks}</div>
-                  {c.scheduledAt && (
-                    <div className="sm:col-span-4">
-                      Eligible after: {new Date(c.scheduledAt).toLocaleString()}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-            })}
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages || loading}
-                onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
-                }
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingId ? "Edit campaign" : "New campaign"}</DialogTitle>
-            <DialogDescription>
-              Audience is a closed set: promotions-opted-in subscribers matching region / service /
-              locale filters.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Spring promo BE"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v: CampaignType) => setForm((f) => ({ ...f, type: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newsletter">Newsletter</SelectItem>
-                    <SelectItem value="promotion">Promotion</SelectItem>
-                    <SelectItem value="reengagement">Re-engagement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Countries (comma ISO, empty = all)</Label>
-                <Input
-                  value={form.countries}
-                  onChange={(e) => setForm((f) => ({ ...f, countries: e.target.value }))}
-                  placeholder="BE, NL, FR"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Interested services (comma, empty = all)</Label>
-                <Input
-                  value={form.interestedServices}
-                  onChange={(e) => setForm((f) => ({ ...f, interestedServices: e.target.value }))}
-                  placeholder="Plumbing, Painting"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              {LOCALES.map((locale) => (
-                <label key={locale} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={form.locales.includes(locale)}
-                    onCheckedChange={(checked) =>
-                      setForm((f) => ({
-                        ...f,
-                        locales: checked
-                          ? Array.from(new Set([...f.locales, locale]))
-                          : f.locales.length > 1
-                            ? f.locales.filter((l) => l !== locale)
-                            : f.locales,
-                      }))
-                    }
-                  />
-                  Audience locale {locale.toUpperCase()}
-                </label>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              {(["customer", "professional"] as const).map((role) => (
-                <label key={role} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={form.roles.includes(role)}
-                    onCheckedChange={(checked) =>
-                      setForm((f) => ({
-                        ...f,
-                        roles: checked
-                          ? Array.from(new Set([...f.roles, role]))
-                          : f.roles.length > 1
-                            ? f.roles.filter((r) => r !== role)
-                            : f.roles,
-                      }))
-                    }
-                  />
-                  {role}
-                </label>
-              ))}
-            </div>
-
-            {form.type === "reengagement" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Inactive days</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.inactiveDays}
-                    onChange={(e) => setForm((f) => ({ ...f, inactiveDays: e.target.value }))}
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-sm mt-7">
-                  <Checkbox
-                    checked={form.autoSend}
-                    onCheckedChange={(checked) =>
-                      setForm((f) => ({ ...f, autoSend: Boolean(checked) }))
-                    }
-                  />
-                  Auto-send via daily cron
-                </label>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Eligible after (optional)</Label>
-                <Input
-                  type="datetime-local"
-                  value={form.scheduledAt}
-                  onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Delivery is attempted during the first daily campaign run after this time (08:00 UTC).
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>UTM campaign</Label>
-                <Input
-                  value={form.utmCampaign}
-                  onChange={(e) => setForm((f) => ({ ...f, utmCampaign: e.target.value }))}
-                  placeholder="spring_2026"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 border-b">
-              {LOCALES.map((locale) => (
-                <button
-                  key={locale}
-                  type="button"
-                  className={`px-3 py-2 text-sm ${
-                    activeLocaleTab === locale
-                      ? "border-b-2 border-foreground font-medium"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => setActiveLocaleTab(locale)}
-                >
-                  {locale.toUpperCase()}
-                  {form.content[locale].subject ? " ✓" : ""}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Subject ({activeLocaleTab})</Label>
-                <Input
-                  value={form.content[activeLocaleTab].subject}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      content: {
-                        ...f.content,
-                        [activeLocaleTab]: {
-                          ...f.content[activeLocaleTab],
-                          subject: e.target.value,
-                        },
-                      },
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Preview text</Label>
-                <Input
-                  value={form.content[activeLocaleTab].previewText || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      content: {
-                        ...f.content,
-                        [activeLocaleTab]: {
-                          ...f.content[activeLocaleTab],
-                          previewText: e.target.value,
-                        },
-                      },
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>HTML body</Label>
-                <Textarea
-                  className="min-h-[160px] font-mono text-xs"
-                  value={form.content[activeLocaleTab].htmlContent}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      content: {
-                        ...f.content,
-                        [activeLocaleTab]: {
-                          ...f.content[activeLocaleTab],
-                          htmlContent: e.target.value,
-                        },
-                      },
-                    }))
-                  }
-                  placeholder="<h1>Hello</h1><p>...</p>"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Brevo template</Label>
-                <Select
-                  value={String(form.content[activeLocaleTab].brevoTemplateId || "inline")}
-                  disabled={templatesLoading}
-                  onValueChange={(value) =>
-                    setForm((f) => ({
-                      ...f,
-                      content: {
-                        ...f.content,
-                        [activeLocaleTab]: {
-                          ...f.content[activeLocaleTab],
-                          brevoTemplateId: value === "inline" ? undefined : Number(value),
-                          subject:
-                            f.content[activeLocaleTab].subject ||
-                            templates?.find((template) => String(template.id) === value)?.subject ||
-                            "",
-                        },
-                      },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={templatesLoading ? "Loading templates..." : "Use inline HTML"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="inline">Use inline HTML</SelectItem>
-                    {form.content[activeLocaleTab].brevoTemplateId &&
-                      !(templates || []).some(
-                        (template) =>
-                          template.id ===
-                          form.content[activeLocaleTab].brevoTemplateId,
-                      ) && (
-                        <SelectItem
-                          value={String(
-                            form.content[activeLocaleTab].brevoTemplateId,
-                          )}
-                        >
-                          Template #
-                          {form.content[activeLocaleTab].brevoTemplateId} (inactive)
-                        </SelectItem>
-                      )}
-                    {(templates || []).map((template) => (
-                      <SelectItem key={template.id} value={String(template.id)}>
-                        {template.name} (#{template.id})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button type="button" variant="outline" onClick={previewAudience} disabled={audienceLoading}>
-                {audienceLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Preview audience
-              </Button>
-              {audiencePreview && (
-                <span
-                  className={
-                    audiencePreview.truncated
-                      ? "text-sm text-rose-600"
-                      : "text-sm text-muted-foreground"
-                  }
-                >
-                  {audiencePreview.count} matching subscribers
-                  {audiencePreview.truncated ? " (over 5,000 limit)" : ""}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+  if (authLoading || !showPage) return <div className="p-8"><Skeleton className="mb-4 h-10 w-64" /><Skeleton className="h-40 w-full" /></div>;
+  const activeContent = form.content[activeLocaleTab] || emptyContent();
+  const editorLocaleOptions = Array.from(new Map([...availableLanguages, ...form.locales.map((code) => ({ code, label: code.toUpperCase(), countries: [] }))].map((language) => [language.code, language])).values());
+  return <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">Email campaigns</h1><p className="mt-1 text-sm text-muted-foreground">Multilingual newsletters, promotions, and re-engagement via Brevo.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={syncSubscribers} disabled={syncing}>{syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}Sync subscribers</Button><Button variant="outline" onClick={() => router.push("/admin/campaigns/subscribers")}><Users className="mr-2 h-4 w-4" />Subscribers</Button><Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" />New campaign</Button></div></div>
+    <Card><CardContent className="grid gap-3 p-4 md:grid-cols-[1.5fr_repeat(2,1fr)]"><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search campaigns" aria-label="Search campaigns" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div><Select value={filters.status} onValueChange={(status) => setFilters((current) => ({ ...current, status }))}><SelectTrigger aria-label="Filter by status"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{["draft", "scheduled", "sending", "sent", "failed"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><Select value={filters.type} onValueChange={(type) => setFilters((current) => ({ ...current, type }))}><SelectTrigger aria-label="Filter by campaign type"><SelectValue placeholder="Campaign type" /></SelectTrigger><SelectContent><SelectItem value="all">All campaign types</SelectItem>{CAMPAIGN_TYPES.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></CardContent></Card>
+    {loading ? <div className="space-y-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : campaigns.length === 0 ? <Card><CardHeader><CardTitle>No campaigns found</CardTitle><CardDescription>Create a draft or change the filters to view campaigns.</CardDescription></CardHeader></Card> : <div className="space-y-3">{campaigns.map((campaign) => { const deliveries = campaign.deliveries || []; const totals = deliveries.reduce((acc, delivery) => ({ recipients: acc.recipients + (delivery.recipientCount || 0), sent: acc.sent + (delivery.stats?.sent || 0), delivered: acc.delivered + (delivery.stats?.delivered || 0), opens: acc.opens + (delivery.stats?.uniqueViews || 0), clicks: acc.clicks + (delivery.stats?.uniqueClicks || 0) }), { recipients: 0, sent: 0, delivered: 0, opens: 0, clicks: 0 }); const busy = actionIds.has(campaign._id); const canMutate = ["draft", "scheduled", "failed"].includes(campaign.status) && !deliveries.some((delivery) => Boolean(delivery.brevoCampaignId)); return <Card key={campaign._id}><CardHeader className="pb-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-lg"><Mail className="h-4 w-4" />{campaign.name}</CardTitle><CardDescription className="mt-1 flex flex-wrap items-center gap-2"><Badge variant="outline">{campaign.type}</Badge><span className={`rounded-full px-2 py-0.5 text-xs ${statusColor(campaign.status)}`}>{campaign.status}</span>{campaign.autoSend && <Badge variant="secondary">auto re-engagement</Badge>}{campaign.lastError && <span className="text-rose-600">{campaign.lastError}</span>}</CardDescription></div><div className="flex flex-wrap gap-2">{canMutate && <Button size="sm" variant="outline" onClick={() => openEdit(campaign)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>}{["draft", "scheduled", "failed"].includes(campaign.status) && <Button size="sm" onClick={() => void handleSend(campaign._id)} disabled={busy}>{busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}Send now</Button>}{campaign.status === "sent" && <Button size="sm" variant="outline" onClick={() => void handleStats(campaign._id)} disabled={busy}><BarChart3 className="mr-1 h-3.5 w-3.5" />Refresh stats</Button>}{canMutate && <Button size="sm" variant="ghost" onClick={() => void handleDelete(campaign._id)} disabled={busy}><Trash2 className="h-3.5 w-3.5 text-rose-500" /></Button>}</div></div></CardHeader><CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-5"><div>Recipients: {totals.recipients}</div><div>Sent: {totals.sent}</div><div>Delivered: {totals.delivered}</div><div>Unique opens: {totals.opens}</div><div>Unique clicks: {totals.clicks}</div>{campaign.scheduledAt && campaign.status !== "sent" && <div className="rounded-md bg-blue-50 px-3 py-2 text-blue-800 sm:col-span-5">Scheduled for {formatDate(campaign.scheduledAt)}. Delivery runs during the next campaign job.</div>}{campaign.lastPreviewAt && <div className="sm:col-span-5">Last exact preview: {campaign.lastPreviewCount ?? 0} recipients on {formatDate(campaign.lastPreviewAt)}</div>}</CardContent></Card>; })}{totalPages > 1 && <div className="flex items-center justify-between"><Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</Button><span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span><Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</Button></div>}</div>}
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{editingId ? "Edit campaign" : "New campaign"}</DialogTitle><DialogDescription>Build the campaign and preview the exact deduplicated audience the server will use.</DialogDescription></DialogHeader><div className="space-y-5 py-2">
+      <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Spring promo BE" /></div><div className="space-y-2"><Label>Campaign type</Label><Select value={form.type} onValueChange={(type: CampaignType) => setForm((current) => ({ ...current, type }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CAMPAIGN_TYPES.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></div></div>
+      <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Countries</Label><MultiSelectCombobox options={countryOptions} value={form.countries} onChange={(countries) => setForm((current) => ({ ...current, countries }))} placeholder="All countries" emptySelectionLabel="All countries" searchPlaceholder="Search countries" ariaLabel="Campaign countries" /></div><div className="space-y-2"><Label>Interested services</Label><MultiSelectCombobox options={serviceOptions} value={form.serviceKeys} onChange={(serviceKeys) => setForm((current) => ({ ...current, serviceKeys }))} placeholder={servicesLoading ? "Loading services…" : "All services"} emptySelectionLabel="All services" searchPlaceholder="Search services" ariaLabel="Interested services" />{servicesError ? <p className="text-xs text-rose-600">{servicesError}</p> : <p className="text-xs text-muted-foreground">Canonical service options are loaded from the marketing service catalog.</p>}</div></div>
+      <div className="space-y-2"><Label>Audience roles</Label><div className="flex flex-wrap gap-4 pt-2">{ROLES.map((role) => <label key={role} className="flex items-center gap-2 text-sm"><Checkbox checked={form.roles.includes(role)} disabled={form.roles.length === 1 && form.roles.includes(role)} onCheckedChange={(checked) => setForm((current) => ({ ...current, roles: checked ? Array.from(new Set([...current.roles, role])) : current.roles.filter((item) => item !== role) }))} />{role}</label>)}</div></div>
+      {form.type === "reengagement" && <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Inactive days</Label><Input type="number" min={1} value={form.inactiveDays} onChange={(event) => setForm((current) => ({ ...current, inactiveDays: event.target.value }))} /></div><label className="mt-7 flex items-center gap-2 text-sm"><Checkbox checked={form.autoSend} onCheckedChange={(checked) => setForm((current) => ({ ...current, autoSend: Boolean(checked) }))} />Auto-send via daily cron</label></div>}
+      <div className="flex flex-wrap gap-4">{availableLanguages.map((language) => <label key={language.code} className="flex items-center gap-2 text-sm"><Checkbox checked={form.locales.includes(language.code)} disabled={form.locales.length === 1 && form.locales.includes(language.code)} onCheckedChange={(checked) => setForm((current) => { const locales = checked ? Array.from(new Set([...current.locales, language.code])) : current.locales.filter((locale) => locale !== language.code); const content = { ...current.content }; locales.forEach((locale) => { if (!content[locale]) content[locale] = emptyContent(); }); return { ...current, locales, content }; })} />Audience locale {language.code.toUpperCase()}</label>)}</div>
+      <div className="flex gap-2 overflow-x-auto border-b">{editorLocaleOptions.map((language) => <button key={language.code} type="button" className={`whitespace-nowrap px-3 py-2 text-sm ${activeLocaleTab === language.code ? "border-b-2 border-foreground font-medium" : "text-muted-foreground"}`} onClick={() => setActiveLocaleTab(language.code)}>{language.code.toUpperCase()}{form.content[language.code]?.subject ? " ✓" : ""}</button>)}</div>
+      <div className="space-y-3"><div className="space-y-2"><Label>Subject ({activeLocaleTab.toUpperCase()})</Label><Input value={activeContent.subject} onChange={(event) => setForm((current) => ({ ...current, content: { ...current.content, [activeLocaleTab]: { ...activeContent, subject: event.target.value } } }))} /></div><div className="space-y-2"><Label>Preview text</Label><Input value={activeContent.previewText || ""} onChange={(event) => setForm((current) => ({ ...current, content: { ...current.content, [activeLocaleTab]: { ...activeContent, previewText: event.target.value } } }))} /></div><div className="space-y-2"><Label>HTML body</Label><Textarea className="min-h-[160px] font-mono text-xs" value={activeContent.htmlContent} onChange={(event) => setForm((current) => ({ ...current, content: { ...current.content, [activeLocaleTab]: { ...activeContent, htmlContent: event.target.value } } }))} placeholder="<h1>Hello</h1><p>...</p>" /></div><div className="space-y-2"><Label>Brevo template</Label><Select value={String(activeContent.brevoTemplateId || "inline")} disabled={templatesLoading} onValueChange={(value) => setForm((current) => ({ ...current, content: { ...current.content, [activeLocaleTab]: { ...activeContent, brevoTemplateId: value === "inline" ? undefined : Number(value), subject: activeContent.subject || templates?.find((template) => String(template.id) === value)?.subject || "" } } }))}><SelectTrigger><SelectValue placeholder={templatesLoading ? "Loading templates..." : "Use inline HTML"} /></SelectTrigger><SelectContent><SelectItem value="inline">Use inline HTML</SelectItem>{(templates || []).map((template) => <SelectItem key={template.id} value={String(template.id)}>{template.name} (#{template.id})</SelectItem>)}</SelectContent></Select></div></div>
+      <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Eligible after (optional)</Label><Input type="datetime-local" value={form.scheduledAt} onChange={(event) => setForm((current) => ({ ...current, scheduledAt: event.target.value }))} /><p className="text-xs text-muted-foreground">Delivery is attempted during the first daily campaign run after this time (08:00 UTC).</p></div><div className="space-y-2"><Label>UTM campaign</Label><Input value={form.utmCampaign} onChange={(event) => setForm((current) => ({ ...current, utmCampaign: event.target.value }))} placeholder="spring_2026" /></div></div>
+      <div className="rounded-lg border bg-muted/20 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-medium">Exact audience preview</h3><p className="text-xs text-muted-foreground">Preview uses the server-side resolver; it is never the send authority.</p></div><Button type="button" variant="outline" onClick={() => void previewAudience()} disabled={audienceLoading}>{audienceLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Preview audience</Button></div>{audiencePreview ? <div className="grid gap-2 text-sm sm:grid-cols-3"><div>Exact total: <strong>{audiencePreview.total}</strong></div><div>By language: {form.locales.map((locale) => `${locale.toUpperCase()} ${audiencePreview.byLocale[locale] || 0}`).join(", ") || "—"}</div><div>By account type: customer {audiencePreview.byRole.customer}, professional {audiencePreview.byRole.professional}</div><div>Deduplicated: {audiencePreview.deduplicated}</div><div>Fallback language: {audiencePreview.fallbackLocaleCount}</div><div>Suppressed: {audiencePreview.excluded.suppressed}</div><div>Invalid email: {audiencePreview.excluded.invalidEmail}</div><div>Missing language: {audiencePreview.excluded.missingLocale}</div><div>Role mismatch: {audiencePreview.excluded.roleMismatch}</div><div>Language mismatch: {audiencePreview.excluded.localeMismatch}</div><div className={audiencePreview.overLimit ? "font-medium text-rose-600 sm:col-span-3" : "text-emerald-700 sm:col-span-3"}>{audiencePreview.overLimit ? "Over the 5,000-recipient limit; this cannot be sent." : "Audience is within the delivery limit."}</div></div> : <p className="text-sm text-muted-foreground">Run a preview after changing filters to see exact counts by language and account type, plus deduplication and exclusions.</p>}</div>
+      <div className="rounded-lg border p-4"><div className="mb-3"><h3 className="text-sm font-medium">Send a test email</h3><p className="text-xs text-muted-foreground">Uses this unsaved draft and does not create or mutate a campaign.</p></div><div className="grid gap-3 sm:grid-cols-[1fr_180px_auto]"><Input type="email" value={testEmail} onChange={(event) => setTestEmail(event.target.value)} placeholder="you@example.com" aria-label="Test email address" /><Select value={testLocale} onValueChange={setTestLocale}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{form.locales.map((locale) => <SelectItem key={locale} value={locale}>{locale.toUpperCase()}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" onClick={() => void handleTestSend()} disabled={testSending}>{testSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Send test</Button></div></div>
+    </div><DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={() => void handleSave()} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save</Button></DialogFooter></DialogContent></Dialog>
+  </div>;
 }

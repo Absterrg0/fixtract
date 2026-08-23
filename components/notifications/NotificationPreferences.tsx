@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Bell, Mail, Smartphone, BookOpen, MessageSquare, Tag, Settings } from 'lucide-react';
+import { Bell, Mail, Smartphone, BookOpen, MessageSquare, Tag, Settings, Languages } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/utils';
 import { useFCM } from '@/contexts/FCMProvider';
@@ -23,6 +23,19 @@ interface Preferences {
   messages: Preference;
   promotions: Preference;
   system: Preference;
+  marketingLocale?: string;
+}
+
+const MARKETING_LOCALES = [
+  { code: 'en', label: 'English' },
+  { code: 'nl', label: 'Nederlands' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+] as const;
+
+interface MarketingLocaleOption {
+  code: string;
+  label: string;
 }
 
 const DEFAULT_PREFS: Preferences = {
@@ -30,6 +43,7 @@ const DEFAULT_PREFS: Preferences = {
   messages: { push: true, email: true },
   promotions: { push: false, email: false },
   system: { push: true, email: true },
+  marketingLocale: 'en',
 };
 
 const TYPE_META: { type: NotificationType; label: string; desc: string; icon: React.ReactNode }[] = [
@@ -47,8 +61,8 @@ const TYPE_META: { type: NotificationType; label: string; desc: string; icon: Re
   },
   {
     type: 'promotions',
-    label: 'Promotions',
-    desc: 'Loyalty rewards, special offers, and platform news.',
+    label: 'Promotional emails',
+    desc: 'Loyalty rewards, special offers, and platform news. You can unsubscribe at any time.',
     icon: <Tag className="h-5 w-5 text-amber-500" />,
   },
   {
@@ -82,6 +96,7 @@ async function fetchPrefs(): Promise<Preferences | null> {
     messages: { ...DEFAULT_PREFS.messages, ...data.messages },
     promotions: { ...DEFAULT_PREFS.promotions, ...data.promotions },
     system: { ...DEFAULT_PREFS.system, ...data.system },
+    marketingLocale: typeof data.marketingLocale === 'string' ? data.marketingLocale : DEFAULT_PREFS.marketingLocale,
   };
 }
 
@@ -97,6 +112,37 @@ async function patchPref(type: NotificationType, channel: Channel, enabled: bool
     body: JSON.stringify({ type, channel, enabled }),
   });
   return res.ok;
+}
+
+async function patchMarketingLocale(marketingLocale: string): Promise<boolean> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BACKEND_URL}/api/user/notification-preferences`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers,
+    body: JSON.stringify({ marketingLocale }),
+  });
+  return res.ok;
+}
+
+async function fetchMarketingLocales(): Promise<MarketingLocaleOption[]> {
+  const res = await fetch(`${BACKEND_URL}/api/public/marketing/languages`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Language catalog unavailable');
+  const json = await res.json();
+  const source = Array.isArray(json.data?.languages) ? json.data.languages : Array.isArray(json.data) ? json.data : [];
+  const catalog = source
+    .map((item: unknown) => {
+      if (typeof item === 'string') return { code: item, label: item.toUpperCase() };
+      if (!item || typeof item !== 'object') return null;
+      const record = item as Record<string, unknown>;
+      const code = String(record.code || record.locale || record.key || '').toLowerCase();
+      return code ? { code, label: String(record.label || record.name || code.toUpperCase()) } : null;
+    })
+    .filter((item: MarketingLocaleOption | null): item is MarketingLocaleOption => Boolean(item));
+  return catalog.length ? catalog : MARKETING_LOCALES.map(({ code, label }) => ({ code, label }));
 }
 
 // ------------------------------------------------------------------
@@ -148,6 +194,10 @@ const NotificationPreferences: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [pushBlocked, setPushBlocked] = useState(false);
+  const [marketingLocaleSaving, setMarketingLocaleSaving] = useState(false);
+  const [marketingLocales, setMarketingLocales] = useState<MarketingLocaleOption[]>(() =>
+    MARKETING_LOCALES.map(({ code, label }) => ({ code, label })),
+  );
 
   const syncPushBlocked = useCallback(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -162,6 +212,10 @@ const NotificationPreferences: React.FC = () => {
       .then((data) => { if (data) setPrefs(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    fetchMarketingLocales()
+      .then(setMarketingLocales)
+      .catch(() => {});
   }, [syncPushBlocked]);
 
   const handleToggle = useCallback(
@@ -201,6 +255,22 @@ const NotificationPreferences: React.FC = () => {
     await requestPermission();
     syncPushBlocked();
   }, [requestPermission, syncPushBlocked]);
+
+  const handleMarketingLocaleChange = useCallback(async (marketingLocale: string) => {
+    const previous = prefs.marketingLocale || 'en';
+    setPrefs((current) => ({ ...current, marketingLocale }));
+    setMarketingLocaleSaving(true);
+    try {
+      if (await patchMarketingLocale(marketingLocale)) return;
+      setPrefs((current) => ({ ...current, marketingLocale: previous }));
+      toast.error('Failed to save marketing email language. Please try again.');
+    } catch {
+      setPrefs((current) => ({ ...current, marketingLocale: previous }));
+      toast.error('Failed to save marketing email language. Please try again.');
+    } finally {
+      setMarketingLocaleSaving(false);
+    }
+  }, [prefs.marketingLocale]);
 
   if (loading) {
     return (
@@ -257,6 +327,31 @@ const NotificationPreferences: React.FC = () => {
           </button>
         </div>
       )}
+
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Languages className="mt-0.5 h-5 w-5 text-blue-500" />
+          <div className="min-w-0 flex-1">
+            <label htmlFor="marketing-email-language" className="text-sm font-medium text-gray-900">
+              Marketing email language
+            </label>
+            <p className="mt-1 text-xs text-gray-500">
+              We use this language for promotional emails when it is available. Country defaults are used only when no preference is set.
+            </p>
+            <select
+              id="marketing-email-language"
+              value={prefs.marketingLocale || 'en'}
+              disabled={marketingLocaleSaving}
+              onChange={(event) => void handleMarketingLocaleChange(event.target.value)}
+              className="mt-3 h-9 w-full max-w-xs rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+            >
+              {marketingLocales.map((locale) => (
+                <option key={locale.code} value={locale.code}>{locale.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Column headers */}
       <div className="hidden sm:grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5">
