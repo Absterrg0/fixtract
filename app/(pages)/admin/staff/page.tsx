@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { addDays } from 'date-fns';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +31,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar';
 import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
 import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
 
@@ -54,53 +56,79 @@ type StaffMember = {
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-
 function addIsoDays(value: string, days: number) {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
-function weekDateForDay(day: string, sourceTimeZone: string) {
+function buildAvailabilityCalendar(member: StaffMember, viewerTimeZone: string) {
+  const sourceTimeZone = member.timeZone || 'UTC';
   const today = new Date();
-  const sourceToday = formatInTimeZone(today, sourceTimeZone, 'yyyy-MM-dd');
-  const sourceDay = formatInTimeZone(today, sourceTimeZone, 'EEEE').toLowerCase();
-  const todayIndex = DAY_ORDER.indexOf(sourceDay);
-  const dayIndex = DAY_ORDER.indexOf(day);
-  return addIsoDays(sourceToday, (dayIndex - todayIndex + 7) % 7);
-}
+  const viewerToday = formatInTimeZone(today, viewerTimeZone, 'yyyy-MM-dd');
+  const viewerIsoDay = Number(formatInTimeZone(today, viewerTimeZone, 'i'));
+  const viewerMonday = addIsoDays(viewerToday, 1 - viewerIsoDay);
+  const viewerWeekStart = fromZonedTime(`${viewerMonday}T00:00:00`, viewerTimeZone);
+  const viewerWeekEnd = fromZonedTime(`${addIsoDays(viewerMonday, 7)}T00:00:00`, viewerTimeZone);
+  const sourceSeed = formatInTimeZone(addDays(viewerWeekStart, -2), sourceTimeZone, 'yyyy-MM-dd');
+  const hasConfiguredSchedule = Object.values(member.availability || {}).some(
+    (day) => day?.startTime || day?.endTime,
+  );
+  const events: CalendarEvent[] = [];
 
-function clockMinutes(value: string) {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
+  for (let offset = 0; offset < 11; offset += 1) {
+    const sourceDate = addIsoDays(sourceSeed, offset);
+    const sourceDay = formatInTimeZone(
+      fromZonedTime(`${sourceDate}T12:00:00`, sourceTimeZone),
+      sourceTimeZone,
+      'EEEE',
+    ).toLowerCase();
+    const schedule = member.availability?.[sourceDay];
+    const startTime = hasConfiguredSchedule ? schedule?.startTime : '00:00';
+    const endTime = hasConfiguredSchedule ? schedule?.endTime : '23:59';
+    if (hasConfiguredSchedule && (!schedule?.available || !startTime || !endTime)) continue;
 
-function convertAdminSchedule(
-  day: string,
-  schedule: { available?: boolean; startTime?: string; endTime?: string } | undefined,
-  sourceTimeZone: string,
-  targetTimeZone: string,
-) {
-  if (!schedule?.available || !schedule.startTime || !schedule.endTime) return null;
-  try {
-    const sourceDate = weekDateForDay(day, sourceTimeZone);
-    const start = fromZonedTime(`${sourceDate}T${schedule.startTime}:00`, sourceTimeZone);
-    const end = fromZonedTime(`${sourceDate}T${schedule.endTime}:00`, sourceTimeZone);
-    const startDay = formatInTimeZone(start, targetTimeZone, 'EEEE');
-    const endDay = formatInTimeZone(end, targetTimeZone, 'EEEE');
-    const startMinutes = clockMinutes(formatInTimeZone(start, targetTimeZone, 'HH:mm'));
-    const endMinutes = endDay === startDay ? clockMinutes(formatInTimeZone(end, targetTimeZone, 'HH:mm')) : 24 * 60;
-    return {
-      day: formatInTimeZone(start, targetTimeZone, 'EEE'),
-      start: formatInTimeZone(start, targetTimeZone, 'HH:mm'),
-      end: formatInTimeZone(end, targetTimeZone, 'HH:mm'),
-      startMinutes,
-      endMinutes,
-    };
-  } catch {
-    return { day: day.slice(0, 3), start: schedule.startTime, end: schedule.endTime, startMinutes: clockMinutes(schedule.startTime), endMinutes: clockMinutes(schedule.endTime) };
+    const start = fromZonedTime(`${sourceDate}T${startTime}:00`, sourceTimeZone);
+    const end = fromZonedTime(`${sourceDate}T${endTime}:00`, sourceTimeZone);
+    if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
+    events.push({
+      id: `admin-availability-${sourceDate}`,
+      type: 'personal',
+      title: hasConfiguredSchedule ? 'Available' : '24/7',
+      start,
+      end,
+      readOnly: true,
+    });
   }
+
+  member.blockedDates?.forEach((item, index) => {
+    const start = new Date(item.date);
+    if (Number.isNaN(start.getTime())) return;
+    events.push({
+      id: `admin-blocked-date-${index}`,
+      type: 'company',
+      title: item.reason ? `Blocked: ${item.reason}` : 'Blocked',
+      start,
+      end: new Date(start.getTime() + 24 * 60 * 60 * 1000),
+      readOnly: true,
+    });
+  });
+
+  member.blockedRanges?.forEach((range, index) => {
+    const start = new Date(range.startDate);
+    const end = new Date(range.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+    events.push({
+      id: `admin-blocked-range-${index}`,
+      type: 'company',
+      title: range.reason ? `Blocked: ${range.reason}` : 'Blocked',
+      start,
+      end,
+      readOnly: true,
+    });
+  });
+
+  return { events, hasConfiguredSchedule };
 }
 
 function authInit(init?: RequestInit): RequestInit {
@@ -129,6 +157,12 @@ function StaffPageInner() {
   const [roleAccess, setRoleAccess] = useState<Partial<Record<AdminRole, AdminPermissionLevels>>>({});
   const [savingRoleAccess, setSavingRoleAccess] = useState(false);
   const [availabilityMember, setAvailabilityMember] = useState<StaffMember | null>(null);
+  const availabilityCalendar = useMemo(
+    () => availabilityMember
+      ? buildAvailabilityCalendar(availabilityMember, viewerTimeZone)
+      : { events: [], hasConfiguredSchedule: false },
+    [availabilityMember, viewerTimeZone],
+  );
 
   const setRowBusy = (id: string, busy: boolean) => {
     setBusyIds((prev) => {
@@ -718,23 +752,17 @@ function StaffPageInner() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              {DAY_ORDER.map((day) => {
-                const converted = convertAdminSchedule(
-                  day,
-                  availabilityMember?.availability?.[day],
-                  availabilityMember?.timeZone || 'UTC',
-                  viewerTimeZone,
-                );
-                return (
-                  <div key={day} className="grid grid-cols-[110px_1fr_150px] items-center gap-3 rounded-md border px-3 py-2 text-sm">
-                    <span className="font-medium capitalize">{converted?.day || day}</span>
-                    <div className="relative h-7 overflow-hidden rounded bg-slate-100">
-                      {converted ? <><div className="absolute inset-y-0 left-0 right-0 flex justify-between px-1 text-[9px] text-slate-400"><span>00:00</span><span>12:00</span><span>24:00</span></div><div className="absolute inset-y-0 rounded bg-emerald-400/80" style={{ left: `${(converted.startMinutes / (24 * 60)) * 100}%`, width: `${Math.max(((converted.endMinutes - converted.startMinutes) / (24 * 60)) * 100, 1)}%` }} /></> : <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Unavailable</span>}
-                    </div>
-                    <span className="text-right text-slate-600">{converted ? `${converted.start} – ${converted.end}` : '—'}</span>
-                  </div>
-                );
-              })}
+              <WeeklyAvailabilityCalendar
+                title="Weekly availability"
+                description={availabilityCalendar.hasConfiguredSchedule
+                  ? `Displayed in your timezone (${viewerTimeZone}).`
+                  : 'No weekly schedule is configured, so this admin is available 24/7.'}
+                events={availabilityCalendar.events}
+                dayStart="00:00"
+                dayEnd="23:59"
+                visibleDays={[0, 1, 2, 3, 4, 5, 6]}
+                timeZone={viewerTimeZone}
+              />
               {availabilityMember?.blockedDates?.length ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Blocked dates</p>{availabilityMember.blockedDates.map((item, index) => <p key={`${item.date}-${index}`}>{formatViewerDate(item.date, 'MMM d, yyyy')}{item.reason ? ` — ${item.reason}` : ''}</p>)}</div> : null}
               {availabilityMember?.blockedRanges?.length ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Blocked slots</p>{availabilityMember.blockedRanges.map((range, index) => <p key={`${range.startDate}-${index}`}>{formatViewerDate(range.startDate)} – {formatViewerDate(range.endDate)}{range.reason ? ` — ${range.reason}` : ''}</p>)}</div> : null}
             </div>

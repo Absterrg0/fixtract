@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { addDays, addWeeks, differenceInMinutes, format, startOfWeek } from 'date-fns'
+import { addWeeks, differenceInMinutes } from 'date-fns'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,8 @@ interface WeeklyAvailabilityCalendarProps {
   dayEnd?: string
   /** Day-of-week indices to show (0=Sun, 1=Mon, ..., 6=Sat). Defaults to Mon-Fri [1,2,3,4,5]. */
   visibleDays?: number[]
+  /** IANA timezone used for day boundaries, labels, and event times. */
+  timeZone?: string
   onEventClick?: (event: CalendarEvent) => void
   className?: string
 }
@@ -65,12 +68,26 @@ const parseTimeToMinutes = (value: string): number => {
   return hours * 60 + minutes
 }
 
-const buildDayTime = (day: Date, minutesFromMidnight: number) => {
+const addIsoDays = (value: string, days: number) => {
+  const date = new Date(`${value}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+const buildDayTime = (day: Date, minutesFromMidnight: number, timeZone: string) => {
   const hours = Math.floor(minutesFromMidnight / 60)
   const minutes = minutesFromMidnight % 60
-  const value = new Date(day)
-  value.setHours(hours, minutes, 0, 0)
-  return value
+  const date = formatInTimeZone(day, timeZone, 'yyyy-MM-dd')
+  return fromZonedTime(
+    `${date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`,
+    timeZone,
+  )
+}
+
+const startOfWeekInTimeZone = (date: Date, timeZone: string) => {
+  const dateValue = formatInTimeZone(date, timeZone, 'yyyy-MM-dd')
+  const isoDay = Number(formatInTimeZone(date, timeZone, 'i'))
+  return fromZonedTime(`${addIsoDays(dateValue, 1 - isoDay)}T00:00:00`, timeZone)
 }
 
 const EVENT_STYLES: Record<
@@ -106,11 +123,13 @@ export default function WeeklyAvailabilityCalendar({
   dayStart = '09:00',
   dayEnd = '17:00',
   visibleDays,
+  timeZone,
   onEventClick,
   className,
 }: WeeklyAvailabilityCalendarProps) {
+  const calendarTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const [weekStart, setWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    () => startOfWeekInTimeZone(new Date(), calendarTimeZone)
   )
 
   const startMinutes = parseTimeToMinutes(dayStart)
@@ -124,15 +143,19 @@ export default function WeeklyAvailabilityCalendar({
   const activeDaysKey = visibleDays ? visibleDays.join(',') : '1,2,3,4,5'
   const days = useMemo(() => {
     const dayIndices = visibleDays ?? [1, 2, 3, 4, 5]
+    const weekStartDate = formatInTimeZone(weekStart, calendarTimeZone, 'yyyy-MM-dd')
     return dayIndices.map((dayIndex) => {
       // weekStart is Monday (weekStartsOn: 1), so offset accordingly
       // dayIndex 0=Sun, 1=Mon ... so Mon=0 offset, Tue=1 offset, etc.
       // weekStart is Monday, so offset = (dayIndex - 1 + 7) % 7
       const offset = (dayIndex - 1 + 7) % 7
-      return addDays(weekStart, offset)
+      return fromZonedTime(
+        `${addIsoDays(weekStartDate, offset)}T00:00:00`,
+        calendarTimeZone,
+      )
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekStart, activeDaysKey])
+  }, [weekStart, activeDaysKey, calendarTimeZone])
 
   const segmentsByDay = useMemo(() => {
     const dayMap = new Map<number, EventSegment[]>()
@@ -144,8 +167,8 @@ export default function WeeklyAvailabilityCalendar({
       if (event.end <= event.start) return
 
       for (const [dayIndex, day] of days.entries()) {
-        const dayStartTime = buildDayTime(day, startMinutes)
-        const dayEndTime = buildDayTime(day, endMinutes)
+        const dayStartTime = buildDayTime(day, startMinutes, calendarTimeZone)
+        const dayEndTime = buildDayTime(day, endMinutes, calendarTimeZone)
 
         if (event.end <= dayStartTime || event.start >= dayEndTime) continue
 
@@ -192,11 +215,12 @@ export default function WeeklyAvailabilityCalendar({
     })
 
     return dayMap
-  }, [days, events, startMinutes, endMinutes])
+  }, [days, events, startMinutes, endMinutes, calendarTimeZone])
 
-  const headerRange = `${format(days[0], 'MMM d')} - ${format(
+  const headerRange = `${formatInTimeZone(days[0], calendarTimeZone, 'MMM d')} - ${formatInTimeZone(
     days[days.length - 1],
-    'MMM d'
+    calendarTimeZone,
+    'MMM d',
   )}`
 
   return (
@@ -236,8 +260,8 @@ export default function WeeklyAvailabilityCalendar({
           <div />
           {days.map((day) => (
             <div key={day.toISOString()} className="text-sm font-semibold text-slate-700">
-              <div>{format(day, 'EEE')}</div>
-              <div className="text-xs text-slate-500">{format(day, 'MMM d')}</div>
+              <div>{formatInTimeZone(day, calendarTimeZone, 'EEE')}</div>
+              <div className="text-xs text-slate-500">{formatInTimeZone(day, calendarTimeZone, 'MMM d')}</div>
             </div>
           ))}
 
@@ -261,7 +285,7 @@ export default function WeeklyAvailabilityCalendar({
 
           {days.map((day, dayIndex) => {
             const daySegments = segmentsByDay.get(dayIndex) || []
-            const dayStartTime = buildDayTime(day, startMinutes)
+            const dayStartTime = buildDayTime(day, startMinutes, calendarTimeZone)
 
             return (
               <div
@@ -286,9 +310,10 @@ export default function WeeklyAvailabilityCalendar({
                   )
                   const width = `calc(${100 / segment.laneCount}% - 10px)`
                   const left = `calc(${(100 / segment.laneCount) * segment.laneIndex}% + 5px)`
-                  const timeLabel = `${format(segment.segmentStart, 'HH:mm')} - ${format(
+                  const timeLabel = `${formatInTimeZone(segment.segmentStart, calendarTimeZone, 'HH:mm')} - ${formatInTimeZone(
                     segment.segmentEnd,
-                    'HH:mm'
+                    calendarTimeZone,
+                    'HH:mm',
                   )}`
 
                   const location = segment.meta?.location
