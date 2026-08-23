@@ -458,6 +458,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                   options={CMS_COUNTRY_OPTIONS}
                   value={form.activeCountries || []}
                   onChange={(countries) => update({ activeCountries: countries })}
+                  ariaLabel="Target countries"
                   placeholder="All countries (default)"
                   emptySelectionLabel="All countries (default)"
                   searchPlaceholder="Search countries..."

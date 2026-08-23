@@ -5,7 +5,6 @@ import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
-import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -20,8 +19,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const country = await getVisitorCountryCode();
-  const { post, fetchError } = await fetchCmsPostWithError("blog", slug, country);
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) {
     throw new Error(`Failed to load blog metadata for ${slug}`);
   }
@@ -44,8 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const country = await getVisitorCountryCode();
-  const { post, fetchError } = await fetchCmsPostWithError("blog", slug, country);
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) throw new Error(`Failed to load blog post ${slug}`);
   if (!post && !fetchError) notFound();
   if (!post) notFound();

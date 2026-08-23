@@ -3,7 +3,6 @@ import { HelpCircle } from "lucide-react";
 import type { Metadata } from "next";
 import { type FaqGroup } from "@/lib/cms";
 import { publicGetFaq } from "@/lib/cms/public";
-import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import FaqAccordion from "@/components/cms/FaqAccordion";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -25,8 +24,7 @@ function stripHtml(html: string): string {
 export default async function FaqPage() {
   let groups: FaqGroup[];
   try {
-    const country = await getVisitorCountryCode();
-    const res = await publicGetFaq(country);
+    const res = await publicGetFaq();
     groups = res.groups;
   } catch (error) {
     if (process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD) throw error;

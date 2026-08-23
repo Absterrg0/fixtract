@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { sanitizeRichText } from "@/lib/cms/sanitize";
 import type {
   CmsContent,
@@ -6,6 +7,7 @@ import type {
   FaqCategory,
   FaqGroup,
 } from "@/lib/cms";
+import { getVisitorCountryCode, parseVisitorCountryCode } from "@/lib/cms/visitorCountry";
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
@@ -29,17 +31,29 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
   return (data?.data ?? data) as T;
 }
 
+async function getTrustedRequestCountry(): Promise<string | undefined> {
+  const requestCountry = parseVisitorCountryCode((await headers()).get("x-vercel-ip-country"));
+  if (requestCountry) return requestCountry;
+  // Local development has no platform geo header; retain the middleware's dev override.
+  return process.env.NODE_ENV === "production" ? undefined : getVisitorCountryCode();
+}
+
+async function cmsFetchHeaders(): Promise<HeadersInit | undefined> {
+  const country = await getTrustedRequestCountry();
+  return country ? { "x-vercel-ip-country": country } : undefined;
+}
+
 export async function publicListCms(
   type: CmsContentType,
-  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string; country?: string } = {}
+  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string } = {}
 ): Promise<CmsListResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.tag) qs.set("tag", params.tag);
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
-  if (params.country) qs.set("country", params.country);
   const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
+    headers: await cmsFetchHeaders(),
     next: { revalidate: 60, tags: ["cms", `cms:${type}`] },
   });
   const data = await parseJsonRequired<CmsListResponse>(res);
@@ -50,14 +64,11 @@ export async function publicListCms(
 export async function publicGetCms(
   type: CmsContentType,
   slug: string,
-  country?: string
 ): Promise<CmsContent | null> {
-  const qs = new URLSearchParams();
-  if (country) qs.set("country", country);
-  const query = qs.toString();
   const res = await fetch(
-    `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`,
+    `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`,
     {
+      headers: await cmsFetchHeaders(),
       next: { revalidate: 60, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
     },
   );
@@ -69,21 +80,18 @@ export async function publicGetCms(
 export async function fetchCmsPostWithError(
   type: CmsContentType,
   slug: string,
-  country?: string
 ): Promise<{ post: CmsContent | null; fetchError: boolean }> {
   try {
-    const post = await publicGetCms(type, slug, country);
+    const post = await publicGetCms(type, slug);
     return { post, fetchError: false };
   } catch {
     return { post: null, fetchError: true };
   }
 }
 
-export async function publicGetFaq(country?: string): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
-  const qs = new URLSearchParams();
-  if (country) qs.set("country", country);
-  const query = qs.toString();
-  const res = await fetch(`${API}/api/public/cms/faq${query ? `?${query}` : ""}`, {
+export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
+  const res = await fetch(`${API}/api/public/cms/faq`, {
+    headers: await cmsFetchHeaders(),
     next: { revalidate: 60, tags: ["cms", "cms:faq"] },
   });
   const data = await parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);
