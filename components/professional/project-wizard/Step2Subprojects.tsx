@@ -115,6 +115,7 @@ interface IDynamicField {
 
 interface ProjectData {
   subprojects?: ISubproject[];
+  requiredProfessionalFields?: Array<{ fieldName: string; label?: string }>;
   category?: string;
   service?: string;
   areaOfWork?: string;
@@ -422,10 +423,13 @@ export default function Step2Subprojects({
   }, [data.category, data.service, data.areaOfWork]);
 
   useEffect(() => {
-    onChange({ ...data, subprojects });
-    validateForm();
+    const requiredProfessionalFields = dynamicFields
+      .filter((field) => field.isRequired)
+      .map((field) => ({ fieldName: field.fieldName, label: field.label }));
+    onChange({ ...data, subprojects, requiredProfessionalFields });
+    validateForm(requiredProfessionalFields);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subprojects]);
+  }, [subprojects, dynamicFields]);
 
   // Fix pricing types when priceModel changes (ensure they match available options)
   useEffect(() => {
@@ -454,22 +458,14 @@ export default function Step2Subprojects({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
 
-  const validateForm = () => {
+  const validateForm = (
+    requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
+      .filter((field) => field.isRequired)
+      .map((field) => ({ fieldName: field.fieldName, label: field.label })),
+  ) => {
     const isValid =
       subprojects.length > 0 &&
-      subprojects.every((sub, index) => {
-        if (collectSubprojectErrors(sub, index).length > 0) return false;
-
-        const requiredFieldsMissing = dynamicFields
-          .filter((f) => f.isRequired)
-          .some((f) => {
-            const input = sub.professionalInputs?.find(
-              (i) => i.fieldName === f.fieldName
-            );
-            return !input || input.value === undefined || input.value === '' || input.value === null;
-          });
-        return !requiredFieldsMissing;
-      });
+      subprojects.every((sub, index) => collectSubprojectErrors(sub, index, requiredFields).length === 0);
     onValidate(isValid);
   };
 
