@@ -10,8 +10,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Loader2, RefreshCw, Send, Lock, MessageSquare } from "lucide-react"
+import { Loader2, RefreshCw, Send, Lock, MessageSquare, Search } from "lucide-react"
 import { toast } from "sonner"
+import AdminSupportInfoPanel from "@/components/admin/AdminSupportInfoPanel"
 
 interface AdminConversation {
   _id: string
@@ -54,6 +55,8 @@ function AdminChatInner() {
   const conversationId = selectedId
 
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all')
+  const [inboxSearchInput, setInboxSearchInput] = useState("")
+  const [inboxSearch, setInboxSearch] = useState("")
   const [inboxPage, setInboxPage] = useState(1)
   const [inboxTotal, setInboxTotal] = useState(0)
   const [conversations, setConversations] = useState<AdminConversationListItem[]>([])
@@ -93,6 +96,7 @@ function AdminChatInner() {
         limit: '20',
       })
       if (inboxFilter === 'mine') qs.set('mine', 'true')
+      if (inboxSearch) qs.set('q', inboxSearch)
       const res = await authFetch(`${BACKEND}/api/admin/conversations?${qs}`)
       const json = await res.json()
       if (requestId !== inboxRequestIdRef.current) return
@@ -118,11 +122,18 @@ function AdminChatInner() {
         setListLoading(false)
       }
     }
-  }, [inboxFilter, inboxPage])
+  }, [inboxFilter, inboxPage, inboxSearch])
 
   useEffect(() => {
     setInboxPage(1)
-  }, [inboxFilter])
+  }, [inboxFilter, inboxSearch])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setInboxSearch(inboxSearchInput.trim())
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [inboxSearchInput])
 
   const load = useCallback(async (silent = false) => {
     if (!conversationId) {
@@ -180,7 +191,7 @@ function AdminChatInner() {
   const pollConversations = useCallback(() => loadConversations(true), [loadConversations])
 
   useChatPolling(pollMessages, 6000, user?.role === 'admin' && !!conversationId, [conversationId])
-  useChatPolling(pollConversations, 15000, user?.role === 'admin', [inboxFilter])
+  useChatPolling(pollConversations, 15000, user?.role === 'admin', [inboxFilter, inboxSearch])
 
   useEffect(() => {
     const container = messagesContainerRef.current
@@ -267,7 +278,7 @@ function AdminChatInner() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto pt-20">
+      <div className="max-w-7xl mx-auto pt-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
@@ -279,11 +290,21 @@ function AdminChatInner() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_280px] gap-4">
           <Card className="h-[70vh] overflow-hidden">
             <CardContent className="p-0 h-full overflow-y-auto">
               <div className="border-b px-4 py-3 space-y-2">
                 <div className="text-sm font-semibold text-gray-700">Inbox</div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={inboxSearchInput}
+                    onChange={(e) => setInboxSearchInput(e.target.value)}
+                    placeholder="Search name, email, username…"
+                    className="h-8 pl-8 text-sm"
+                    aria-label="Search support inbox"
+                  />
+                </div>
                 <div className="flex gap-1">
                   <Button
                     type="button"
@@ -437,6 +458,18 @@ function AdminChatInner() {
                       <p className="text-center text-gray-400 py-8">No messages yet.</p>
                     ) : (
                       messages.map((m) => {
+                        if (m.senderRole === "system") {
+                          return (
+                            <div key={m._id} className="flex justify-center">
+                              <p className="max-w-[90%] rounded-full bg-gray-100 px-3 py-1 text-center text-xs text-gray-600">
+                                {m.text}
+                                <span className="mt-0.5 block text-[10px] text-gray-400">
+                                  {new Date(m.createdAt).toLocaleString()}
+                                </span>
+                              </p>
+                            </div>
+                          )
+                        }
                         const mine = m.senderRole === 'admin'
                         return (
                           <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -481,6 +514,13 @@ function AdminChatInner() {
               </Card>
             )}
           </div>
+
+          <div className="hidden xl:block">
+            <AdminSupportInfoPanel conversationId={conversationId} />
+          </div>
+        </div>
+        <div className="mt-4 xl:hidden">
+          <AdminSupportInfoPanel conversationId={conversationId} />
         </div>
       </div>
     </div>
