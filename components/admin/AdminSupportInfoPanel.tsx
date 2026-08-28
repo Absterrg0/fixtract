@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Award, Mail, Phone, Star, UserRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -51,35 +51,51 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
   const [user, setUser] = useState<ParticipantUser | null>(null)
   const [kpis, setKpis] = useState<ParticipantKpis | null>(null)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!conversationId) {
       setUser(null)
       setKpis(null)
       setError(null)
+      setLoading(false)
       return
     }
+
+    const controller = new AbortController()
+    let cancelled = false
     setLoading(true)
     setError(null)
-    try {
-      const res = await authFetch(`${BACKEND}/api/admin/conversations/${conversationId}/participant`)
-      const json = await res.json()
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || "Failed to load participant")
+
+    const load = async () => {
+      try {
+        const res = await authFetch(
+          `${BACKEND}/api/admin/conversations/${conversationId}/participant`,
+          { signal: controller.signal },
+        )
+        const json = await res.json()
+        if (cancelled || controller.signal.aborted) return
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.msg || "Failed to load participant")
+        }
+        setUser(json.data?.user ?? null)
+        setKpis(json.data?.kpis ?? null)
+      } catch (err) {
+        if (cancelled || controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return
+        }
+        setUser(null)
+        setKpis(null)
+        setError("Could not load participant info")
+      } finally {
+        if (!cancelled && !controller.signal.aborted) setLoading(false)
       }
-      setUser(json.data?.user ?? null)
-      setKpis(json.data?.kpis ?? null)
-    } catch {
-      setUser(null)
-      setKpis(null)
-      setError("Could not load participant info")
-    } finally {
-      setLoading(false)
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+      controller.abort()
     }
   }, [conversationId])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   return (
     <Card className="h-[70vh] overflow-hidden">
@@ -91,12 +107,12 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
           <p className="px-4 py-8 text-center text-sm text-gray-400">Select a chat to see details.</p>
         ) : loading ? (
           <div className="space-y-3 p-4">
-            <div className="h-5 w-32 rounded bg-gray-200/80 animate-pulse" />
-            <div className="h-4 w-48 rounded bg-gray-200/80 animate-pulse" />
-            <div className="h-4 w-40 rounded bg-gray-200/80 animate-pulse" />
+            <div className="h-5 w-32 rounded bg-gray-200/80 motion-safe:animate-pulse" />
+            <div className="h-4 w-48 rounded bg-gray-200/80 motion-safe:animate-pulse" />
+            <div className="h-4 w-40 rounded bg-gray-200/80 motion-safe:animate-pulse" />
             <div className="mt-6 space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-4 w-full rounded bg-gray-200/80 animate-pulse" />
+                <div key={i} className="h-4 w-full rounded bg-gray-200/80 motion-safe:animate-pulse" />
               ))}
             </div>
           </div>

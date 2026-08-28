@@ -125,12 +125,9 @@ function AdminChatInner() {
   }, [inboxFilter, inboxPage, inboxSearch])
 
   useEffect(() => {
-    setInboxPage(1)
-  }, [inboxFilter, inboxSearch])
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       setInboxSearch(inboxSearchInput.trim())
+      setInboxPage(1)
     }, 300)
     return () => window.clearTimeout(timer)
   }, [inboxSearchInput])
@@ -191,7 +188,7 @@ function AdminChatInner() {
   const pollConversations = useCallback(() => loadConversations(true), [loadConversations])
 
   useChatPolling(pollMessages, 6000, user?.role === 'admin' && !!conversationId, [conversationId])
-  useChatPolling(pollConversations, 15000, user?.role === 'admin', [inboxFilter, inboxSearch])
+  useChatPolling(pollConversations, 15000, user?.role === 'admin')
 
   useEffect(() => {
     const container = messagesContainerRef.current
@@ -300,7 +297,7 @@ function AdminChatInner() {
                   <Input
                     value={inboxSearchInput}
                     onChange={(e) => setInboxSearchInput(e.target.value)}
-                    placeholder="Search name, email, username…"
+                    placeholder="Search name, email, username, phone…"
                     className="h-8 pl-8 text-sm"
                     aria-label="Search support inbox"
                   />
@@ -311,7 +308,10 @@ function AdminChatInner() {
                     size="sm"
                     variant={inboxFilter === 'all' ? 'default' : 'outline'}
                     className="h-7 px-2.5 text-xs"
-                    onClick={() => setInboxFilter('all')}
+                    onClick={() => {
+                      setInboxFilter('all')
+                      setInboxPage(1)
+                    }}
                   >
                     All
                   </Button>
@@ -320,7 +320,10 @@ function AdminChatInner() {
                     size="sm"
                     variant={inboxFilter === 'mine' ? 'default' : 'outline'}
                     className="h-7 px-2.5 text-xs"
-                    onClick={() => setInboxFilter('mine')}
+                    onClick={() => {
+                      setInboxFilter('mine')
+                      setInboxPage(1)
+                    }}
                   >
                     Mine
                   </Button>
@@ -515,12 +518,9 @@ function AdminChatInner() {
             )}
           </div>
 
-          <div className="hidden xl:block">
+          <div className="order-3 mt-4 lg:col-span-2 xl:order-none xl:col-span-1 xl:col-start-3 xl:mt-0">
             <AdminSupportInfoPanel conversationId={conversationId} />
           </div>
-        </div>
-        <div className="mt-4 xl:hidden">
-          <AdminSupportInfoPanel conversationId={conversationId} />
         </div>
       </div>
     </div>
