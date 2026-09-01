@@ -107,6 +107,33 @@ export function cmsCoverAlt(item: Pick<CmsContent, "title" | "coverImageAlt">): 
   return alt || item.title || "Cover image";
 }
 
+/** Persist unsigned S3 locators. Preview may use a presigned URL; the API must not. */
+export function persistableCmsMediaUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString() || undefined;
+  } catch {
+    return trimmed;
+  }
+}
+
+const CMS_IMG_SRC_RE = /<img\b([^>]*?)(?<!-)src=(["'])([^"']+)\2([^>]*)>/gi;
+
+export function persistableCmsHtml(html?: string): string {
+  if (!html) return "";
+  if (!/<img\b/i.test(html)) return html;
+  CMS_IMG_SRC_RE.lastIndex = 0;
+  return html.replace(CMS_IMG_SRC_RE, (_full, before, quote, src, after) => {
+    const canonical = persistableCmsMediaUrl(src) || src;
+    return `<img${before}src=${quote}${canonical}${quote}${after}>`;
+  });
+}
+
 export function relatedContentIds(item: Pick<CmsContent, "relatedContent">): string[] {
   if (!Array.isArray(item.relatedContent)) return [];
   return item.relatedContent
