@@ -114,6 +114,11 @@ export function persistableCmsMediaUrl(url?: string): string | undefined {
   if (!trimmed) return undefined;
   try {
     const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    const isS3 =
+      /^[\w.-]+\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host) ||
+      /^s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host);
+    if (!isS3) return trimmed;
     parsed.search = "";
     parsed.hash = "";
     return parsed.toString() || undefined;
@@ -122,15 +127,42 @@ export function persistableCmsMediaUrl(url?: string): string | undefined {
   }
 }
 
-const CMS_IMG_SRC_RE = /<img\b([^>]*?)(?<!-)src=(["'])([^"']+)\2([^>]*)>/gi;
+function rewriteImgSrcAttributes(attrs: string, rewriteSrc: (src: string) => string): string {
+  let out = "";
+  let i = 0;
+  while (i < attrs.length) {
+    const ch = attrs[i];
+    if (ch === '"' || ch === "'") {
+      const end = attrs.indexOf(ch, i + 1);
+      const take = end === -1 ? attrs.length : end + 1;
+      out += attrs.slice(i, take);
+      i = take;
+      continue;
+    }
+
+    const rest = attrs.slice(i);
+    const m = rest.match(/^(src)(\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'>=]+))/i);
+    const prev = i === 0 ? " " : attrs[i - 1];
+    if (m && /[\s/]/.test(prev)) {
+      const raw = m[3] ?? m[4] ?? m[5] ?? "";
+      const next = rewriteSrc(raw);
+      const quote = m[3] !== undefined ? '"' : m[4] !== undefined ? "'" : "";
+      out += `src${m[2]}${quote}${next}${quote}`;
+      i += m[0].length;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
 
 export function persistableCmsHtml(html?: string): string {
   if (!html) return "";
   if (!/<img\b/i.test(html)) return html;
-  CMS_IMG_SRC_RE.lastIndex = 0;
-  return html.replace(CMS_IMG_SRC_RE, (_full, before, quote, src, after) => {
-    const canonical = persistableCmsMediaUrl(src) || src;
-    return `<img${before}src=${quote}${canonical}${quote}${after}>`;
+  return html.replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
+    return `<img${rewriteImgSrcAttributes(attrs, (src) => persistableCmsMediaUrl(src) || src)}>`;
   });
 }
 
