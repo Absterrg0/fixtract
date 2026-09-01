@@ -206,6 +206,8 @@ interface VatManagement {
   logicRules: VatLogicRule[]
 }
 
+const ARTICLE_47_FIELD_NAME = 'article47_immovable'
+
 interface ServiceConfiguration {
   _id?: string
   category: string
@@ -1558,9 +1560,13 @@ export default function ServiceConfigurationManagement() {
                         id="vat-article47-classification"
                         className="border rounded-md px-3 py-2 bg-white text-sm w-full"
                         value={formData.vatManagement.article47Classification || 'immovable'}
-                        onChange={(e) => updateVatManagement({
-                          article47Classification: e.target.value as VatManagement['article47Classification'],
-                        })}
+                        onChange={(e) => {
+                          const article47Classification = e.target.value as VatManagement['article47Classification']
+                          updateVatManagement({
+                            article47Classification,
+                            ...(article47Classification === 'movable' ? { exemptFromBelgianReverseCharge: false } : {}),
+                          })
+                        }}
                       >
                         <option value="immovable">Immovable</option>
                         <option value="movable">Movable</option>
@@ -1570,6 +1576,7 @@ export default function ServiceConfigurationManagement() {
                         Place of supply and Belgian B2B reverse charge follow this classification. Project dependent adds an Article 47 question for the professional.
                       </p>
                     </div>
+                    {formData.vatManagement.article47Classification !== 'movable' && (
                     <div className="flex items-center space-x-2 pt-6">
                       <Switch
                         checked={!!formData.vatManagement.exemptFromBelgianReverseCharge}
@@ -1577,6 +1584,7 @@ export default function ServiceConfigurationManagement() {
                       />
                       <Label className="text-sm">Immovable but exempt from Belgian reverse charge</Label>
                     </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -1775,6 +1783,10 @@ export default function ServiceConfigurationManagement() {
                                 {(formData.vatManagement?.professionalVatQuestions || []).map(q => (
                                   <option key={`p-${q.fieldName}`} value={q.fieldName}>{q.fieldName} (professional)</option>
                                 ))}
+                                {formData.vatManagement?.article47Classification === 'project_dependent' &&
+                                  !(formData.vatManagement?.professionalVatQuestions || []).some((q) => q.fieldName === ARTICLE_47_FIELD_NAME) && (
+                                  <option value={ARTICLE_47_FIELD_NAME}>{ARTICLE_47_FIELD_NAME} (Article 47)</option>
+                                )}
                               </select>
                               <select
                                 className="border rounded-md px-3 py-2 bg-white text-sm"
