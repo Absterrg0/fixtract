@@ -1538,7 +1538,12 @@ export default function ServiceConfigurationManagement() {
                 <Switch
                   id="vat-enabled"
                   checked={!!formData.vatManagement?.enabled}
-                  onCheckedChange={(checked) => updateVatManagement({ enabled: Boolean(checked) })}
+                  onCheckedChange={(checked) => updateVatManagement({
+                    enabled: Boolean(checked),
+                    ...(checked && !formData.vatManagement?.article47Classification
+                      ? { article47Classification: 'immovable' as const }
+                      : {}),
+                  })}
                 />
               </div>
 
