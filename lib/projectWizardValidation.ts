@@ -235,7 +235,8 @@ export function collectSubprojectErrors(
 type ProfessionalInputValue = string | number | { min?: number; max?: number } | null | undefined
 
 export function isProfessionalInputMissing(value: ProfessionalInputValue): boolean {
-  if (value === undefined || value === null || value === "") return true
+  if (value === undefined || value === null) return true
+  if (typeof value === "string") return value.trim() === ""
   if (typeof value === "object") {
     return (value.min == null) && (value.max == null)
   }

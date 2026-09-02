@@ -158,12 +158,48 @@ function rewriteImgSrcAttributes(attrs: string, rewriteSrc: (src: string) => str
   return out;
 }
 
+function replaceImgTags(html: string, rewriteAttrs: (attrs: string) => string): string {
+  let result = "";
+  let i = 0;
+  const needle = "<img";
+  const lower = html.toLowerCase();
+  while (i < html.length) {
+    const start = lower.indexOf(needle, i);
+    if (start === -1) {
+      result += html.slice(i);
+      break;
+    }
+    result += html.slice(i, start);
+    let j = start + needle.length;
+    let quote: '"' | "'" | null = null;
+    while (j < html.length) {
+      const ch = html[j];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === ">") {
+        const attrs = html.slice(start + needle.length, j);
+        result += `<img${rewriteAttrs(attrs)}>`;
+        i = j + 1;
+        break;
+      }
+      j += 1;
+    }
+    if (j >= html.length) {
+      result += html.slice(start);
+      break;
+    }
+  }
+  return result;
+}
+
 export function persistableCmsHtml(html?: string): string {
   if (!html) return "";
   if (!/<img\b/i.test(html)) return html;
-  return html.replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
-    return `<img${rewriteImgSrcAttributes(attrs, (src) => persistableCmsMediaUrl(src) || src)}>`;
-  });
+  return replaceImgTags(html, (attrs) =>
+    rewriteImgSrcAttributes(attrs, (src) => persistableCmsMediaUrl(src) || src),
+  );
 }
 
 export function relatedContentIds(item: Pick<CmsContent, "relatedContent">): string[] {

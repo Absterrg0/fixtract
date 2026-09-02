@@ -323,6 +323,7 @@ export default function Step2Subprojects({
 
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
+  const [dynamicFieldsLoaded, setDynamicFieldsLoaded] = useState(false);
   const [projectTypes, setProjectTypes] = useState<string[]>([]);
   const [configPricingOptions, setConfigPricingOptions] = useState<Array<{ name: string; pricingType: string; unit?: string }>>([]);
   const [configIncludedItems, setConfigIncludedItems] = useState<
@@ -344,6 +345,7 @@ export default function Step2Subprojects({
   );
 
   const fetchDynamicFields = async () => {
+    setDynamicFieldsLoaded(false);
     try {
       const params = new URLSearchParams({
         category: data.category || '',
@@ -370,6 +372,8 @@ export default function Step2Subprojects({
     } catch (error) {
       console.error('Failed to fetch dynamic fields:', error);
       toast.error('Failed to load service configuration');
+    } finally {
+      setDynamicFieldsLoaded(true);
     }
   };
 
@@ -416,6 +420,7 @@ export default function Step2Subprojects({
   // Fetch dynamic fields when category/service changes
   useEffect(() => {
     if (data.category && data.service) {
+      setDynamicFieldsLoaded(false);
       fetchDynamicFields();
       fetchServiceIncludedItems();
     }
@@ -463,7 +468,9 @@ export default function Step2Subprojects({
       .filter((field) => field.isRequired)
       .map((field) => ({ fieldName: field.fieldName, label: field.label })),
   ) => {
+    const awaitingConfiguration = Boolean(data.category && data.service && !dynamicFieldsLoaded);
     const isValid =
+      !awaitingConfiguration &&
       subprojects.length > 0 &&
       subprojects.every((sub, index) => collectSubprojectErrors(sub, index, requiredFields).length === 0);
     onValidate(isValid);

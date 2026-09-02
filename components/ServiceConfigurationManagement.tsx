@@ -623,7 +623,10 @@ export default function ServiceConfigurationManagement() {
           return
         }
       }
-      const validVatQuestionFields = seenFieldNames
+      const validVatQuestionFields = new Set(seenFieldNames)
+      if (vat.article47Classification === 'project_dependent') {
+        validVatQuestionFields.add(ARTICLE_47_FIELD_NAME)
+      }
       for (const rule of vat.logicRules) {
         if (!rule.country.trim()) {
           toast.error('Each VAT logic rule needs a country')
@@ -799,7 +802,10 @@ export default function ServiceConfigurationManagement() {
     enabled: vat?.enabled ?? false,
     rateRuleGroup: vat?.rateRuleGroup || '',
     article47Classification: vat?.article47Classification || 'immovable',
-    exemptFromBelgianReverseCharge: Boolean(vat?.exemptFromBelgianReverseCharge),
+    exemptFromBelgianReverseCharge:
+      (vat?.article47Classification || 'immovable') === 'movable'
+        ? false
+        : Boolean(vat?.exemptFromBelgianReverseCharge),
     reducedVatQuestions: (vat?.reducedVatQuestions || []).map((question) => ({
       ...question,
       clientKey: question.clientKey || makeClientKey('vat-question'),
