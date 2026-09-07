@@ -77,8 +77,11 @@ export function buildBlockedCalendarEvents(
   blockedDates.forEach((item, index) => {
     if (!item.date) return
     try {
-      const start = fromZonedTime(`${item.date}T00:00:00`, resolvedTimeZone)
-      const end = fromZonedTime(`${addIsoDays(item.date, 1)}T00:00:00`, resolvedTimeZone)
+      const localDate = /^\d{4}-\d{2}-\d{2}$/.test(item.date)
+        ? item.date
+        : formatInTimeZone(new Date(item.date), resolvedTimeZone, 'yyyy-MM-dd')
+      const start = fromZonedTime(`${localDate}T00:00:00`, resolvedTimeZone)
+      const end = fromZonedTime(`${addIsoDays(localDate, 1)}T00:00:00`, resolvedTimeZone)
       events.push({
         id: `${idPrefix}-date-${index}`,
         type: 'company',
@@ -93,8 +96,19 @@ export function buildBlockedCalendarEvents(
   })
 
   blockedRanges.forEach((range, index) => {
-    const start = new Date(range.startDate)
-    const end = new Date(range.endDate)
+    // datetime-local values are admin-timezone wall-clock values. Parsing them
+    // with new Date() would reinterpret them in the browser timezone first.
+    let start: Date
+    let end: Date
+    try {
+      const parseRangeDate = (value: string) => /(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+        ? new Date(value)
+        : fromZonedTime(value, resolvedTimeZone)
+      start = parseRangeDate(range.startDate)
+      end = parseRangeDate(range.endDate)
+    } catch {
+      return
+    }
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
     events.push({
       id: `${idPrefix}-range-${index}`,

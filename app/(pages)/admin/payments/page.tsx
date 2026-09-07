@@ -795,6 +795,17 @@ export default function AdminPaymentsPage() {
                                 {payment.supplierInvoiceNumber || "Self-bill"} (PDF)
                               </a>
                             )}
+                            {payment.supplierInvoiceUblUrl && (
+                              <a
+                                href={payment.supplierInvoiceUblUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                Self-bill UBL (Peppol{payment.supplierPeppolDispatchStatus ? `: ${payment.supplierPeppolDispatchStatus}` : ""})
+                              </a>
+                            )}
                             {payment.supplierInvoiceUrl && payment.supplierPeppolDispatchStatus && (
                               <span className="text-xs text-gray-500">
                                 Supplier Peppol: {payment.supplierPeppolDispatchStatus}

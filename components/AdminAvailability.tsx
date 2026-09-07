@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime } from 'date-fns-tz'
 import { CalendarDays, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar'
 import {
-  addIsoDays,
   buildBlockedCalendarEvents,
   defaultAdminDaySchedule,
   hasStoredScheduleTimes,
@@ -59,47 +58,12 @@ export default function AdminAvailability() {
   const viewerTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', [])
   const resolvedTimeZone = resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone)
   const isTwentyFourSeven = !hasStoredScheduleTimes(availability)
-  const scheduleEvents = useMemo<CalendarEvent[]>(() => {
-    const today = new Date()
-    const todayValue = safeFormatInTimeZone(today, resolvedTimeZone, 'yyyy-MM-dd', viewerTimeZone)
-    const todayKey = safeFormatInTimeZone(today, resolvedTimeZone, 'EEEE', viewerTimeZone).toLowerCase() as DayKey
-    const todayIndex = DAYS.findIndex(({ key }) => key === todayKey)
-    const mondayValue = addIsoDays(todayValue, -Math.max(todayIndex, 0))
-
-    const weeklyEvents = DAYS.flatMap(({ key }, index) => {
-      const day = availability[key]
-      const date = addIsoDays(mondayValue, index)
-
-      if (isTwentyFourSeven) {
-        return [{
-          id: `admin-availability-${key}`,
-          type: 'personal' as const,
-          title: '24/7',
-          start: fromZonedTime(`${date}T00:00:00`, resolvedTimeZone),
-          end: fromZonedTime(`${addIsoDays(date, 1)}T00:00:00`, resolvedTimeZone),
-          readOnly: true,
-        }]
-      }
-
-      const startTime = parseClockTime(day.startTime)
-      const endTime = parseClockTime(day.endTime)
-      if (!day.available || !startTime || !endTime || endTime <= startTime) return []
-
-      return [{
-        id: `admin-availability-${key}`,
-        type: 'personal' as const,
-        title: 'Available',
-        start: fromZonedTime(`${date}T${startTime}:00`, resolvedTimeZone),
-        end: fromZonedTime(`${date}T${endTime}:00`, resolvedTimeZone),
-        readOnly: true,
-      }]
-    })
-
-    return [
-      ...weeklyEvents,
-      ...buildBlockedCalendarEvents(blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone),
-    ]
-  }, [availability, blockedDates, blockedRanges, isTwentyFourSeven, resolvedTimeZone, viewerTimeZone])
+  // Recurring weekly template is rendered by the calendar for whichever week is
+  // displayed. Only one-off blocks are absolute-date events here.
+  const blockedEvents = useMemo<CalendarEvent[]>(
+    () => buildBlockedCalendarEvents(blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone),
+    [blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone],
+  )
 
   useEffect(() => {
     void fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, { credentials: 'include' })
@@ -180,8 +144,10 @@ export default function AdminAvailability() {
         <div className="grid gap-2 sm:max-w-md"><Label htmlFor="admin-time-zone">Timezone</Label><Input id="admin-time-zone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} placeholder="Europe/Brussels" /><p className="text-xs text-slate-500">Your browser timezone is {viewerTimeZone}. Use an IANA timezone such as Europe/Brussels or America/New_York.</p></div>
         <WeeklyAvailabilityCalendar
           title="Weekly availability calendar"
-          description={isTwentyFourSeven ? 'No weekly schedule is configured, so this admin is available 24/7.' : `Displayed in ${resolvedTimeZone}.`}
-          events={scheduleEvents}
+          description={isTwentyFourSeven ? 'No weekly schedule is configured, so this admin is available 24/7.' : `Displayed in ${resolvedTimeZone}. Use the arrows to check any week — the schedule repeats weekly.`}
+          events={blockedEvents}
+          weeklySchedule={availability}
+          weeklyScheduleTimeZone={resolvedTimeZone}
           dayStart="00:00"
           dayEnd="23:59"
           visibleDays={[0, 1, 2, 3, 4, 5, 6]}

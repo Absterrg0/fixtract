@@ -72,10 +72,10 @@ const VALID_NON_FIRST_DUE_CONDITIONS = [
 const FALLBACK_VAT_RATE_OPTIONS: VatRateOption[] = [{
   rate: 0,
   country: '',
-  label: CUSTOM_VAT_RATE_PLACEHOLDER,
+  label: 'VAT unavailable — enter a booking address',
   reverseCharge: false,
-  source: 'standard',
-  isCustom: true,
+  source: 'legacy',
+  isCustom: false,
 }]
 
 const LEGACY_VAT_RATE_OPTION: VatRateOption = {
@@ -86,8 +86,8 @@ const LEGACY_VAT_RATE_OPTION: VatRateOption = {
   source: 'legacy',
 }
 
-// Always present in the VAT select so a line with a manually typed rate keeps
-// the select in sync instead of silently displaying an unrelated preset rate.
+// Kept for read compatibility with quotations created before the tier-only
+// selector was introduced. New quotations never add this option.
 const CUSTOM_VAT_SELECT_OPTION: VatRateOption = {
   rate: 0,
   country: '',
@@ -239,6 +239,13 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
 
+  // VAT country known -> Standard/Reduced only, no custom % (flowchart SSOT
+  // resolves the country rate; eligibility rules are ignored for quotations).
+  const vatCountryKnown = useMemo(
+    () => effectiveVatRateOptions.some((o) => Boolean(o.country) && !o.isCustom),
+    [effectiveVatRateOptions],
+  )
+
   const selectVatRateOptions = useMemo(() => {
     const options = [...effectiveVatRateOptions]
     if (form.pricingLines.some(isLegacyVatPricingLine)) {
@@ -247,12 +254,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         options.push(LEGACY_VAT_RATE_OPTION)
       }
     }
-    const customValue = getVatOptionValue(CUSTOM_VAT_SELECT_OPTION)
-    if (!options.some((option) => getVatOptionValue(option) === customValue)) {
-      options.push(CUSTOM_VAT_SELECT_OPTION)
-    }
     return options
-  }, [effectiveVatRateOptions, form.pricingLines])
+  }, [effectiveVatRateOptions, form.pricingLines, vatCountryKnown])
 
   const findVatOptionForPricingLine = (line: QuotationPricingLine) => {
     if (isLegacyVatPricingLine(line)) {
@@ -280,8 +283,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
         if (token) headers.Authorization = `Bearer ${token}`
 
+        const serviceCountry = form.serviceLocation?.country?.trim() || ''
+        const query = serviceCountry ? `?serviceCountry=${encodeURIComponent(serviceCountry)}` : ''
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/vat-rates`,
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/vat-rates${query}`,
           {
             method: 'GET',
             headers,
@@ -327,7 +332,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     return () => {
       cancelled = true
     }
-  }, [bookingId, existingVersion])
+  }, [bookingId, existingVersion, form.serviceLocation?.country])
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -501,6 +506,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
       const body: Record<string, unknown> = {
         scope: form.scope,
+        ...(form.serviceLocation?.country ? { serviceLocation: form.serviceLocation } : {}),
         warrantyDuration: form.warrantyDuration,
         materialsIncluded: form.materialsIncluded,
         materials: form.materialsIncluded ? form.materials.filter(m => m.name.trim()) : [],
@@ -569,6 +575,39 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             maxLength={100}
           />
           <p className="text-xs text-gray-400 mt-1">{form.scope.length}/100</p>
+        </div>
+
+        {/* Booking address — flowchart SSOT needs the service/property address
+            to determine VAT country for Standard/Reduced tier resolution. */}
+        <div>
+          <Label className="text-sm font-medium">Booking address (service location)</Label>
+              <p className="text-xs text-gray-500 mb-1">Country determines VAT via the flowchart. Select Standard or Reduced VAT below.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+            <Input
+              value={form.serviceLocation?.country || ''}
+              onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), country: e.target.value })}
+              placeholder="Country (e.g. BE, NL, DE)"
+              maxLength={50}
+            />
+            <Input
+              value={form.serviceLocation?.postalCode || ''}
+              onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), postalCode: e.target.value })}
+              placeholder="Postal code"
+              maxLength={50}
+            />
+            <Input
+              value={form.serviceLocation?.city || ''}
+              onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), city: e.target.value })}
+              placeholder="City"
+              maxLength={200}
+            />
+            <Input
+              value={form.serviceLocation?.address || ''}
+              onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), address: e.target.value })}
+              placeholder="Street address"
+              maxLength={500}
+            />
+          </div>
         </div>
 
         {/* Warranty */}
@@ -674,8 +713,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             <CreditCard className="h-4 w-4" /> Pricing Lines *
           </Label>
           <div className="mt-2 space-y-3">
+            {!vatCountryKnown && (
+              <p className="text-sm text-amber-700">Enter a valid booking address country to load the Standard and Reduced VAT rates.</p>
+            )}
             {form.pricingLines.map((line, index) => (
-              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_110px_40px] gap-2 items-start">
+              <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_180px_40px] gap-2 items-start">
                 <Input
                   value={line.description}
                   onChange={e => updatePricingLine(index, 'description', e.target.value)}
@@ -710,41 +752,6 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={vatRateDrafts[line.clientKey || `line-${index}`] ?? String(line.vatRate ?? '').replace('.', ',')}
-                  onChange={e => {
-                    const key = line.clientKey || `line-${index}`
-                    const raw = e.target.value
-                    setVatRateDrafts(prev => ({ ...prev, [key]: raw }))
-                    const rate = raw === '' ? 0 : parseFlexibleNumber(raw)
-                    const updated = [...form.pricingLines]
-                    updated[index] = { ...updated[index], vatRateMode: 'custom', vatRateExplicitlyEntered: true, vatLabel: 'Custom VAT rate' }
-                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
-                      updated[index].vatRate = rate
-                    }
-                    updateForm('pricingLines', updated)
-                  }}
-                  onBlur={() => {
-                    const key = line.clientKey || `line-${index}`
-                    const draft = vatRateDrafts[key]
-                    if (draft === undefined) return
-                    const rate = parseFlexibleNumber(draft)
-                    if (Number.isFinite(rate) && rate >= 0 && rate <= 100) {
-                      const updated = [...form.pricingLines]
-                      updated[index] = { ...updated[index], vatRate: rate, vatRateMode: 'custom', vatRateExplicitlyEntered: true, vatLabel: 'Custom VAT rate' }
-                      updateForm('pricingLines', updated)
-                      setVatRateDrafts(prev => {
-                        const next = { ...prev }
-                        delete next[key]
-                        return next
-                      })
-                    }
-                  }}
-                  placeholder="VAT %"
-                  aria-label={`VAT percentage for pricing line ${index + 1}`}
-                />
                 <Button type="button" variant="ghost" size="icon" onClick={() => removePricingLine(index)} disabled={form.pricingLines.length === 1} className="text-red-500 hover:text-red-700">
                   <Trash2 className="h-4 w-4" />
                 </Button>
