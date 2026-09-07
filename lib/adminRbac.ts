@@ -22,7 +22,7 @@ export const ADMIN_ACCESS_AREA_LABELS: Record<AdminAccessArea, string> = {
   staff: 'Staff & roles',
   platform: 'Platform / site settings',
   maintenance: 'Maintenance jobs',
-  user_delete: 'User delete / anonymize',
+  user_delete: 'User delete',
   bookings: 'Bookings',
   disputes: 'Disputes',
   cancellations: 'Cancellations',
@@ -130,7 +130,7 @@ export const ADMIN_ROLE_ACCESS: Record<AdminRole, string[]> = {
     'Staff & roles',
     'Platform / site settings',
     'Maintenance jobs',
-    'User delete / anonymize',
+    'User delete',
   ],
   care: [
     'Bookings',

@@ -55,8 +55,16 @@ export interface QuoteVersion {
   changeNote?: string
 }
 
+export interface QuotationServiceLocation {
+  country: string
+  address?: string
+  city?: string
+  postalCode?: string
+}
+
 export interface QuotationWizardFormData {
   scope: string
+  serviceLocation?: QuotationServiceLocation
   warrantyDuration: { value: number; unit: 'months' | 'years' }
   materialsIncluded: boolean | null
   materials: QuoteMaterial[]

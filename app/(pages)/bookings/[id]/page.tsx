@@ -4847,23 +4847,28 @@ function BookingDetailContent() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2 text-xs text-gray-700">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Invoice #</span>
-                          <span>{booking.payment.invoiceNumber || 'Generated'}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {booking.payment.invoiceUrl && (
-                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                              <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
-                            </Button>
-                          )}
-                          {booking.payment.invoiceUblUrl && (
-                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                              <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">Download UBL</a>
-                            </Button>
-                          )}
-                        </div>
-                        {(booking.payment.supplierInvoiceUrl || booking.payment.supplierInvoiceUblUrl) && (
+                        {viewerRole !== 'professional' && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Invoice #</span>
+                              <span>{booking.payment.invoiceNumber || 'Generated'}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {booking.payment.invoiceUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
+                                </Button>
+                              )}
+                              {booking.payment.invoiceUblUrl && (
+                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                  <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">Download UBL</a>
+                                </Button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                        {viewerRole !== 'customer' &&
+                          (booking.payment.supplierInvoiceUrl || booking.payment.supplierInvoiceUblUrl) && (
                           <div className="border-t border-gray-200 pt-2 space-y-2">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Self-bill #</span>
@@ -4883,12 +4888,12 @@ function BookingDetailContent() {
                             </div>
                           </div>
                         )}
-                        {booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
+                        {viewerRole !== 'professional' && booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
                           <p className="text-[11px] text-gray-500">
                             Peppol status: {booking.payment.peppolDispatchStatus}
                           </p>
                         )}
-                        {(booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
+                        {viewerRole !== 'professional' && (booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
                           <div className="border-t border-gray-200 pt-2 space-y-2">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Credit note #</span>
@@ -5449,4 +5454,3 @@ function BookingDetailContent() {
     </div>
   )
 }
-

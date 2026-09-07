@@ -42,6 +42,12 @@ interface EventSegment extends CalendarEvent {
   laneCount: number
 }
 
+export interface WeeklyScheduleDay {
+  available?: boolean
+  startTime?: string
+  endTime?: string
+}
+
 interface WeeklyAvailabilityCalendarProps {
   title?: string
   description?: string
@@ -54,6 +60,14 @@ interface WeeklyAvailabilityCalendarProps {
   timeZone?: string
   onEventClick?: (event: CalendarEvent) => void
   className?: string
+  /**
+   * Recurring weekly template (e.g. { monday: { available, startTime, endTime }, ... }).
+   * Rendered for whichever week is currently displayed, so navigating weeks keeps
+   * showing the schedule. One-off blocks stay in `events`.
+   */
+  weeklySchedule?: Record<string, WeeklyScheduleDay>
+  /** IANA timezone the weeklySchedule is defined in. Defaults to `timeZone`. */
+  weeklyScheduleTimeZone?: string
 }
 
 const parseTimeToMinutes = (value: string): number => {
@@ -89,6 +103,13 @@ const startOfWeekInTimeZone = (date: Date, timeZone: string) => {
   const dateValue = formatInTimeZone(date, timeZone, 'yyyy-MM-dd')
   const isoDay = Number(formatInTimeZone(date, timeZone, 'i'))
   return fromZonedTime(`${addIsoDays(dateValue, 1 - isoDay)}T00:00:00`, timeZone)
+}
+
+const parseScheduleClockTime = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d{1,3})?)?$/)
+  if (!match) return undefined
+  return `${match[1].padStart(2, '0')}:${match[2]}`
 }
 
 const EVENT_STYLES: Record<
@@ -127,6 +148,8 @@ export default function WeeklyAvailabilityCalendar({
   timeZone,
   onEventClick,
   className,
+  weeklySchedule,
+  weeklyScheduleTimeZone,
 }: WeeklyAvailabilityCalendarProps) {
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const calendarTimeZone = normalizeTimezone(timeZone, browserTimeZone)
@@ -151,13 +174,13 @@ export default function WeeklyAvailabilityCalendar({
 
   const activeDaysKey = visibleDays ? visibleDays.join(',') : '1,2,3,4,5'
   const days = useMemo(() => {
-    const dayIndices = visibleDays ?? [1, 2, 3, 4, 5]
+    const dayIndices = [...(visibleDays ?? [1, 2, 3, 4, 5])].sort(
+      (a, b) => ((a + 6) % 7) - ((b + 6) % 7),
+    )
     const weekStartDate = formatInTimeZone(weekStart, calendarTimeZone, 'yyyy-MM-dd')
     return dayIndices.map((dayIndex) => {
-      // weekStart is Monday (weekStartsOn: 1), so offset accordingly
-      // dayIndex 0=Sun, 1=Mon ... so Mon=0 offset, Tue=1 offset, etc.
-      // weekStart is Monday, so offset = (dayIndex - 1 + 7) % 7
-      const offset = (dayIndex - 1 + 7) % 7
+      // Keep the displayed Monday-to-Sunday dates in chronological order.
+      const offset = (dayIndex + 6) % 7
       return fromZonedTime(
         `${addIsoDays(weekStartDate, offset)}T00:00:00`,
         calendarTimeZone,
@@ -166,11 +189,94 @@ export default function WeeklyAvailabilityCalendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, activeDaysKey, calendarTimeZone])
 
+  const scheduleTimeZone = normalizeTimezone(weeklyScheduleTimeZone, calendarTimeZone)
+
+  const recurringEvents = useMemo<CalendarEvent[]>(() => {
+    if (!weeklySchedule) return []
+    const hasStoredTimes = Object.values(weeklySchedule).some(
+      (day) => day?.startTime || day?.endTime,
+    )
+    // Anchor on the currently displayed week (not today) so navigating weeks
+    // keeps rendering the recurring template. The +/-2 day buffer catches
+    // schedules whose source-timezone day overlaps a neighbouring viewer day.
+    const weekStartDate = formatInTimeZone(weekStart, calendarTimeZone, 'yyyy-MM-dd')
+    const viewerWeekStart = fromZonedTime(`${weekStartDate}T00:00:00`, calendarTimeZone)
+    const viewerWeekEnd = fromZonedTime(`${addIsoDays(weekStartDate, 7)}T00:00:00`, calendarTimeZone)
+    const seedDate = formatInTimeZone(
+      new Date(viewerWeekStart.getTime() - 2 * 24 * 60 * 60 * 1000),
+      scheduleTimeZone,
+      'yyyy-MM-dd',
+    )
+    const result: CalendarEvent[] = []
+    for (let offset = 0; offset < 11; offset += 1) {
+      const sourceDate = addIsoDays(seedDate, offset)
+      let weekday: string
+      try {
+        weekday = formatInTimeZone(
+          fromZonedTime(`${sourceDate}T12:00:00`, scheduleTimeZone),
+          scheduleTimeZone,
+          'EEEE',
+        ).toLowerCase()
+      } catch {
+        continue
+      }
+      if (hasStoredTimes) {
+        const schedule = weeklySchedule[weekday]
+        if (!schedule?.available) continue
+        const startTime = parseScheduleClockTime(schedule.startTime)
+        const endTime = parseScheduleClockTime(schedule.endTime)
+        if (!startTime || !endTime || endTime <= startTime) continue
+        let start: Date
+        let end: Date
+        try {
+          start = fromZonedTime(`${sourceDate}T${startTime}:00`, scheduleTimeZone)
+          end = fromZonedTime(`${sourceDate}T${endTime}:00`, scheduleTimeZone)
+        } catch {
+          continue
+        }
+        if (end <= viewerWeekStart || start >= viewerWeekEnd) continue
+        result.push({
+          id: `recurring-availability-${weekday}-${sourceDate}`,
+          type: 'personal',
+          title: 'Available',
+          start,
+          end,
+          readOnly: true,
+        })
+      } else {
+        // No weekly hours configured -> available 24/7 (matches admin semantics).
+        let start: Date
+        let end: Date
+        try {
+          start = fromZonedTime(`${sourceDate}T00:00:00`, scheduleTimeZone)
+          end = fromZonedTime(`${addIsoDays(sourceDate, 1)}T00:00:00`, scheduleTimeZone)
+        } catch {
+          continue
+        }
+        if (end <= viewerWeekStart || start >= viewerWeekEnd) continue
+        result.push({
+          id: `recurring-availability-24-7-${sourceDate}`,
+          type: 'personal',
+          title: '24/7',
+          start,
+          end,
+          readOnly: true,
+        })
+      }
+    }
+    return result
+  }, [weeklySchedule, weekStart, calendarTimeZone, scheduleTimeZone])
+
+  const allEvents = useMemo(
+    () => [...recurringEvents, ...events],
+    [recurringEvents, events],
+  )
+
   const segmentsByDay = useMemo(() => {
     const dayMap = new Map<number, EventSegment[]>()
     days.forEach((_, index) => { dayMap.set(index, []) })
 
-    events.forEach((event) => {
+    allEvents.forEach((event) => {
       if (!(event.start instanceof Date) || !(event.end instanceof Date)) return
       if (Number.isNaN(event.start.getTime()) || Number.isNaN(event.end.getTime())) return
       if (event.end <= event.start) return
@@ -224,7 +330,7 @@ export default function WeeklyAvailabilityCalendar({
     })
 
     return dayMap
-  }, [days, events, startMinutes, endMinutes, calendarTimeZone])
+  }, [days, allEvents, startMinutes, endMinutes, calendarTimeZone])
 
   const headerRange = `${formatInTimeZone(days[0], calendarTimeZone, 'MMM d')} - ${formatInTimeZone(
     days[days.length - 1],

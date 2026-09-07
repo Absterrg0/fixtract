@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { addDays } from 'date-fns';
-import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { RequireAdminPermission } from '@/components/admin/RequireAdminPermission';
@@ -33,12 +32,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/calendar/WeeklyAvailabilityCalendar';
 import {
-  addIsoDays,
   buildBlockedCalendarEvents,
   hasStoredScheduleTimes,
-  parseClockTime,
   resolveAdminAvailabilityTimeZone,
-  safeFormatInTimeZone,
 } from '@/lib/admin/availabilityCalendar';
 import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
 import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
@@ -67,71 +63,24 @@ const API = process.env.NEXT_PUBLIC_BACKEND_URL;
 function buildAvailabilityCalendar(member: StaffMember, viewerTimeZone: string) {
   const sourceTimeZone = resolveAdminAvailabilityTimeZone(member.timeZone, viewerTimeZone);
   const resolvedViewerTimeZone = resolveAdminAvailabilityTimeZone(viewerTimeZone, 'UTC');
-  const today = new Date();
-  const viewerToday = safeFormatInTimeZone(today, resolvedViewerTimeZone, 'yyyy-MM-dd', 'UTC');
-  const viewerIsoDay = Number(safeFormatInTimeZone(today, resolvedViewerTimeZone, 'i', 'UTC'));
-  const viewerMonday = addIsoDays(viewerToday, 1 - viewerIsoDay);
-  const viewerWeekStart = fromZonedTime(`${viewerMonday}T00:00:00`, resolvedViewerTimeZone);
-  const viewerWeekEnd = fromZonedTime(`${addIsoDays(viewerMonday, 7)}T00:00:00`, resolvedViewerTimeZone);
-  const sourceSeed = safeFormatInTimeZone(addDays(viewerWeekStart, -2), sourceTimeZone, 'yyyy-MM-dd', resolvedViewerTimeZone);
   const availability = member.availability || {};
-  const isTwentyFourSeven = !hasStoredScheduleTimes(availability);
-  const events: CalendarEvent[] = [];
-
-  for (let offset = 0; offset < 11; offset += 1) {
-    const sourceDate = addIsoDays(sourceSeed, offset);
-    const sourceDay = safeFormatInTimeZone(
-      fromZonedTime(`${sourceDate}T12:00:00`, sourceTimeZone),
-      sourceTimeZone,
-      'EEEE',
-      resolvedViewerTimeZone,
-    ).toLowerCase();
-    const schedule = availability[sourceDay];
-    if (isTwentyFourSeven) {
-      const start = fromZonedTime(`${sourceDate}T00:00:00`, sourceTimeZone);
-      const end = fromZonedTime(`${addIsoDays(sourceDate, 1)}T00:00:00`, sourceTimeZone);
-      if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
-      events.push({
-        id: `admin-availability-${sourceDate}`,
-        type: 'personal',
-        title: '24/7',
-        start,
-        end,
-        readOnly: true,
-      });
-      continue;
-    }
-
-    if (!schedule?.available || !schedule.startTime || !schedule.endTime) continue;
-
-    const startTime = parseClockTime(schedule.startTime);
-    const endTime = parseClockTime(schedule.endTime);
-    if (!startTime || !endTime || endTime <= startTime) continue;
-
-    const start = fromZonedTime(`${sourceDate}T${startTime}:00`, sourceTimeZone);
-    const end = fromZonedTime(`${sourceDate}T${endTime}:00`, sourceTimeZone);
-    if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
-    events.push({
-      id: `admin-availability-${sourceDate}`,
-      type: 'personal',
-      title: 'Available',
-      start,
-      end,
-      readOnly: true,
-    });
-  }
-
-  events.push(
-    ...buildBlockedCalendarEvents(
-      member.blockedDates || [],
-      member.blockedRanges || [],
-      sourceTimeZone,
-      resolvedViewerTimeZone,
-      `admin-staff-${member._id}`,
-    ),
+  const hasConfiguredSchedule = hasStoredScheduleTimes(availability);
+  // Recurring template is rendered by the calendar for the displayed week.
+  // Only one-off blocks are absolute-date events here.
+  const blockedEvents: CalendarEvent[] = buildBlockedCalendarEvents(
+    member.blockedDates || [],
+    member.blockedRanges || [],
+    sourceTimeZone,
+    resolvedViewerTimeZone,
+    `admin-staff-${member._id}`,
   );
 
-  return { events, hasConfiguredSchedule: !isTwentyFourSeven };
+  return {
+    blockedEvents,
+    weeklySchedule: availability,
+    sourceTimeZone,
+    hasConfiguredSchedule,
+  };
 }
 
 function authInit(init?: RequestInit): RequestInit {
@@ -163,7 +112,7 @@ function StaffPageInner() {
   const availabilityCalendar = useMemo(
     () => availabilityMember
       ? buildAvailabilityCalendar(availabilityMember, viewerTimeZone)
-      : { events: [], hasConfiguredSchedule: false },
+      : { blockedEvents: [], weeklySchedule: {}, sourceTimeZone: viewerTimeZone, hasConfiguredSchedule: false },
     [availabilityMember, viewerTimeZone],
   );
 
@@ -760,9 +709,11 @@ function StaffPageInner() {
               <WeeklyAvailabilityCalendar
                 title="Weekly availability"
                 description={availabilityCalendar.hasConfiguredSchedule
-                  ? `Displayed in your timezone (${viewerTimeZone}).`
+                  ? `Displayed in your timezone (${viewerTimeZone}). Use the arrows to check any week — the schedule repeats weekly.`
                   : 'No weekly schedule is configured, so this admin is available 24/7.'}
-                events={availabilityCalendar.events}
+                events={availabilityCalendar.blockedEvents}
+                weeklySchedule={availabilityCalendar.weeklySchedule}
+                weeklyScheduleTimeZone={availabilityCalendar.sourceTimeZone}
                 dayStart="00:00"
                 dayEnd="23:59"
                 visibleDays={[0, 1, 2, 3, 4, 5, 6]}
