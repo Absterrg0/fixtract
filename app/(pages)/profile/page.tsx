@@ -1547,7 +1547,9 @@ function ProfileContent() {
   }
 
   const hasVatChanges = vatNumber !== (user?.vatNumber || '')
-  const canValidate = vatNumber.trim() && vatNumber !== (user?.vatNumber || '')
+  const canValidate =
+    vatNumber.trim() &&
+    (vatNumber !== (user?.vatNumber || '') || !user?.isVatVerified)
 
   const isProfessional = user?.role === 'professional'
   const stripePayoutsEnabled = Boolean(stripeAccountStatus?.payoutsEnabled ?? stripeAccountStatus?.payouts_enabled)

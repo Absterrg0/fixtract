@@ -1058,6 +1058,7 @@ function CustomerSignupForm() {
                 <input
                   id='marketingOptIn'
                   type='checkbox'
+                  disabled={loading || addressValidating}
                   checked={formData.marketingOptIn}
                   onChange={(e) =>
                     setFormData((prev) => ({

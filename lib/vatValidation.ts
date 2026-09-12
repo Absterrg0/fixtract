@@ -138,7 +138,7 @@ export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidati
         parsedAddress: data.data.parsedAddress,
         autoPopulateRecommended: data.data.autoPopulateRecommended,
         error: data.data.error,
-        transient: data.data.transient === true
+        transient: data.data.viesUnavailable === true
       };
     } else {
       return {
