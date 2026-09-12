@@ -81,6 +81,7 @@ interface FormData {
 
 interface VatValidationState {
   valid?: boolean;
+  transient?: boolean;
   error?: string;
   companyName?: string;
   companyAddress?: string;
@@ -372,6 +373,7 @@ function CustomerSignupForm() {
       const result = await validateVATWithAPI(formatted);
       setVatValidation({
         valid: result.valid,
+        transient: result.transient === true,
         error: result.error,
         companyName: result.companyName,
         companyAddress: result.companyAddress,
@@ -912,7 +914,9 @@ function CustomerSignupForm() {
                         className={`flex items-start gap-2 text-sm p-3 rounded-lg ${
                           vatValidation.valid
                             ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
+                            : vatValidation.transient
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
                         }`}
                       >
                         {vatValidation.valid ? (
@@ -925,6 +929,20 @@ function CustomerSignupForm() {
                               {vatValidation.companyName && (
                                 <p className='text-xs mt-1'>
                                   {vatValidation.companyName}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        ) : vatValidation.transient ? (
+                          <>
+                            <AlertCircle className='h-4 w-4 mt-0.5 shrink-0' />
+                            <div>
+                              <p className='font-medium'>
+                                VIES is temporarily unavailable
+                              </p>
+                              {vatValidation.error && (
+                                <p className='text-xs mt-1'>
+                                  {vatValidation.error}
                                 </p>
                               )}
                             </div>
