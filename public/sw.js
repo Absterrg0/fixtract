@@ -93,10 +93,16 @@ if (self.__FIREBASE_CONFIG__) {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(
-    event.notification.data?.url || "/",
-    self.location.origin,
-  ).href;
+  // The server sends webpush.notification.data.url; messages displayed by the
+  // Firebase SDK instead nest the link under data.FCM_MSG.
+  const data = event.notification.data || {};
+  const fcmMessage = data.FCM_MSG || {};
+  const target =
+    data.url ||
+    fcmMessage.fcmOptions?.link ||
+    fcmMessage.notification?.click_action ||
+    "/";
+  const url = new URL(target, self.location.origin).href;
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
