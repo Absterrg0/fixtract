@@ -75,6 +75,8 @@ interface FormData {
   resolvedLocationKey?: string;
   // Referral
   referralCode: string;
+  // Marketing
+  marketingOptIn: boolean;
 }
 
 interface VatValidationState {
@@ -117,6 +119,7 @@ function CustomerSignupForm() {
     country: '',
     postalCode: '',
     referralCode: '',
+    marketingOptIn: false,
   });
   const [loading, setLoading] = useState(false);
   const [vatValidating, setVatValidating] = useState(false);
@@ -591,6 +594,7 @@ function CustomerSignupForm() {
         ...(trimmedReferralCode && referralValid === true && {
           referralCode: trimmedReferralCode,
         }),
+        marketingOptIn: formData.marketingOptIn,
       };
 
       const success = await signup(submitData);
@@ -1048,6 +1052,27 @@ function CustomerSignupForm() {
                   </p>
                 )}
               </div>
+
+              {/* Marketing opt-in (explicit, unchecked by default) */}
+              <label className='flex items-start gap-2.5 rounded-lg border border-gray-200 p-3 cursor-pointer'>
+                <input
+                  id='marketingOptIn'
+                  type='checkbox'
+                  checked={formData.marketingOptIn}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      marketingOptIn: e.target.checked,
+                    }))
+                  }
+                  className='mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                />
+                <span className='text-xs text-gray-600 leading-relaxed'>
+                  Email me offers, platform news, and loyalty rewards. Marketing
+                  only — separate from booking and account emails, and you can
+                  unsubscribe at any time.
+                </span>
+              </label>
 
               {/* Submit Button */}
               <Button
