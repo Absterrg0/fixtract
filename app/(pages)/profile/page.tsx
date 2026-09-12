@@ -96,6 +96,7 @@ function ProfileContent() {
   const [vatSaving, setVatSaving] = useState(false)
   const [vatValidation, setVatValidation] = useState<{
     valid?: boolean
+    transient?: boolean
     error?: string
     companyName?: string
     companyAddress?: string
@@ -717,6 +718,7 @@ function ProfileContent() {
       const result = await validateVATWithAPI(formatted)
       setVatValidation({
         valid: result.valid,
+        transient: result.transient === true,
         error: result.error,
         companyName: result.companyName,
         companyAddress: result.companyAddress,
@@ -780,7 +782,19 @@ function ProfileContent() {
       const result = await updateUserVAT(vatNumber)
 
       if (result.success) {
-        toast.success(vatNumber ? 'VAT number updated successfully' : 'VAT number removed successfully')
+        if (result.viesUnavailable) {
+          toast.warning(
+            'VAT number saved, but VIES is temporarily unavailable. Reverse charge will not apply until the number is verified — click Validate again in a few minutes.',
+            { duration: 8000 }
+          )
+        } else if (vatNumber && !result.isVatVerified) {
+          toast.error(
+            'VAT number saved but not verified by VIES. B2B reverse charge will not apply until it is verified.',
+            { duration: 8000 }
+          )
+        } else {
+          toast.success(vatNumber ? 'VAT number updated successfully' : 'VAT number removed successfully')
+        }
         // Refresh user data
         await checkAuth()
         setVatValidation({})
@@ -1763,11 +1777,15 @@ function ProfileContent() {
                       {vatValidation.valid !== undefined && (
                         <div className={`p-3 rounded-lg border ${vatValidation.valid
                           ? 'bg-green-50 border-green-200'
-                          : 'bg-red-50 border-red-200'
+                          : vatValidation.transient
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-red-50 border-red-200'
                           }`}>
                           <div className="flex items-start gap-2">
                             {vatValidation.valid ? (
                               <Check className="h-4 w-4 text-green-600 mt-0.5" />
+                            ) : vatValidation.transient ? (
+                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                             ) : (
                               <X className="h-4 w-4 text-red-600 mt-0.5" />
                             )}
@@ -1791,6 +1809,13 @@ function ProfileContent() {
                                     </p>
                                   )}
                                 </div>
+                              ) : vatValidation.transient ? (
+                                <div>
+                                  <p className="font-medium text-amber-800">VIES is temporarily unavailable</p>
+                                  {vatValidation.error && (
+                                    <p className="text-amber-700">{vatValidation.error}</p>
+                                  )}
+                                </div>
                               ) : (
                                 <div>
                                   <p className="font-medium text-red-800">Validation failed</p>
@@ -1806,17 +1831,28 @@ function ProfileContent() {
 
                       {/* Current VAT Status */}
                       {user?.vatNumber && (
-                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                        <div className={`p-3 rounded-lg border ${user.isVatVerified
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-amber-50 border-amber-200'
+                          }`}>
                           <div className="flex items-start gap-2">
-                            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                            {user.isVatVerified ? (
+                              <Check className="h-4 w-4 text-green-600 mt-0.5" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                            )}
                             <div className="flex-1 text-sm">
-                              <p className="font-medium text-blue-800">Current VAT Number</p>
-                              <p className="text-blue-700">
+                              <p className={`font-medium ${user.isVatVerified ? 'text-green-800' : 'text-amber-800'}`}>
+                                VAT number {user.isVatVerified ? 'verified' : 'not verified'}
+                              </p>
+                              <p className={user.isVatVerified ? 'text-green-700' : 'text-amber-700'}>
                                 {user.vatNumber} ({getVATCountryName(user.vatNumber)})
                               </p>
-                              <p className="text-blue-700">
-                                Status: {user.isVatVerified ? 'Verified' : 'Not Verified'}
-                              </p>
+                              {!user.isVatVerified && (
+                                <p className="text-amber-700 mt-1">
+                                  B2B reverse charge will not apply until VIES verifies this number. Check the value and click Validate again.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2965,17 +3001,26 @@ function ProfileContent() {
                       {vatValidation.valid !== undefined && (
                         <div className={`p-3 rounded-lg border ${vatValidation.valid
                           ? 'bg-green-50 border-green-200'
-                          : 'bg-red-50 border-red-200'
+                          : vatValidation.transient
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-red-50 border-red-200'
                           }`}>
                           <div className="flex items-start gap-2">
                             {vatValidation.valid ? (
                               <Check className="h-4 w-4 text-green-600 mt-0.5" />
+                            ) : vatValidation.transient ? (
+                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                             ) : (
                               <X className="h-4 w-4 text-red-600 mt-0.5" />
                             )}
                             <div className="flex-1 text-sm">
                               {vatValidation.valid ? (
                                 <p className="font-medium text-green-800">VAT number is valid</p>
+                              ) : vatValidation.transient ? (
+                                <div>
+                                  <p className="font-medium text-amber-800">VIES is temporarily unavailable</p>
+                                  <p className="text-amber-700">{vatValidation.error}</p>
+                                </div>
                               ) : (
                                 <p className="text-red-700">{vatValidation.error}</p>
                               )}
@@ -3006,6 +3051,35 @@ function ProfileContent() {
                           </Button>
                         )}
                       </div>
+
+                      {/* Current VAT Status */}
+                      {user?.vatNumber && (
+                        <div className={`p-3 rounded-lg border ${user.isVatVerified
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-amber-50 border-amber-200'
+                          }`}>
+                          <div className="flex items-start gap-2">
+                            {user.isVatVerified ? (
+                              <Check className="h-4 w-4 text-green-600 mt-0.5" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                            )}
+                            <div className="flex-1 text-sm">
+                              <p className={`font-medium ${user.isVatVerified ? 'text-green-800' : 'text-amber-800'}`}>
+                                VAT number {user.isVatVerified ? 'verified' : 'not verified'}
+                              </p>
+                              <p className={user.isVatVerified ? 'text-green-700' : 'text-amber-700'}>
+                                {user.vatNumber} ({getVATCountryName(user.vatNumber)})
+                              </p>
+                              {!user.isVatVerified && (
+                                <p className="text-amber-700 mt-1">
+                                  B2B reverse charge will not apply until VIES verifies this number. Check the value and click Validate again.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Business Name & Company Address Section */}
                       <div className="border-t pt-4 mt-2 space-y-4">

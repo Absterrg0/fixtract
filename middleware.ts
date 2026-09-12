@@ -79,6 +79,6 @@ export const config = {
     /*
      * Match all paths except static assets and Next internals.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|sw.js|manifest.webmanifest|offline.html|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|ico)$).*)",
   ],
 };
