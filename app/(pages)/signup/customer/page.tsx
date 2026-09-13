@@ -42,14 +42,7 @@ import {
 import AddressAutocomplete, {
   PlaceData,
 } from '@/components/professional/project-wizard/AddressAutocomplete';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { EU_COUNTRIES } from '@/lib/countries';
+import { PhoneCountryCodeSelect } from '@/components/PhoneCountryCodeSelect';
 import { isValidPhoneNumber } from 'libphonenumber-js';
 
 interface FormData {
@@ -764,26 +757,12 @@ function CustomerSignupForm() {
                 <div className='space-y-2'>
                   <Label htmlFor='phone'>Phone Number *</Label>
                   <div className='flex gap-2'>
-                    <Select
+                    <PhoneCountryCodeSelect
                       value={formData.countryCode}
                       onValueChange={(value) =>
                         handleInputChange('countryCode', value)
                       }
-                    >
-                      <SelectTrigger className='w-[140px]'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EU_COUNTRIES.map((country) => (
-                          <SelectItem
-                            key={country.code}
-                            value={country.dialCode}
-                          >
-                            {country.flag} {country.dialCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                     <div className='relative flex-1'>
                       <Phone className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                       <Input
