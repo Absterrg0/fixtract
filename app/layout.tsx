@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -20,6 +20,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
 import FCMLayoutWrapper from "@/components/notifications/FCMLayoutWrapper";
+import ServiceWorkerRegistrar from "@/components/pwa/ServiceWorkerRegistrar";
 import { getServiceCategories } from "@/lib/server/serviceCategories";
 
 const geistSans = Geist({
@@ -65,6 +66,15 @@ export const metadata: Metadata = {
   alternates: {
     canonical: siteUrl(),
   },
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4032f7",
 };
 
 async function SubNavbarWithCategories() {
@@ -82,6 +92,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <ServiceWorkerRegistrar />
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <AnalyticsProvider />
         <AuthProvider>

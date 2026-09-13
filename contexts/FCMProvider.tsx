@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { firebaseConfig, getFirebaseMessaging } from '@/lib/firebase';
 import { getAuthToken } from '@/lib/utils';
+import { registerAppServiceWorker, waitForActiveWorker } from '@/lib/pwa/serviceWorker';
 
 // ------------------------------------------------------------------
 // Context
@@ -41,7 +42,6 @@ export const useFCM = () => useContext(FCMContext);
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').replace(/\/+$/, '');
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '';
 const FETCH_TIMEOUT_MS = 15_000;
-const SW_ACTIVATION_TIMEOUT_MS = 10_000;
 
 async function saveTokenToServer(token: string): Promise<void> {
   const authToken = getAuthToken();
@@ -104,55 +104,6 @@ async function removeTokenFromServer(token: string): Promise<void> {
 function injectFirebaseConfigIntoSw(worker: ServiceWorker | null): void {
   if (!worker || !firebaseConfig.apiKey || !firebaseConfig.projectId) return;
   worker.postMessage({ type: 'FIREBASE_CONFIG', config: firebaseConfig });
-}
-
-async function waitForActiveWorker(
-  reg: ServiceWorkerRegistration,
-  timeoutMs = SW_ACTIVATION_TIMEOUT_MS,
-): Promise<ServiceWorker | null> {
-  if (reg.active) return reg.active;
-
-  const worker = reg.installing ?? reg.waiting;
-  if (!worker) return null;
-
-  return new Promise((resolve) => {
-    const onStateChange = () => {
-      if (worker.state === 'activated') {
-        cleanup();
-        resolve(reg.active);
-      } else if (worker.state === 'redundant') {
-        cleanup();
-        resolve(null);
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      cleanup();
-      resolve(reg.active);
-    }, timeoutMs);
-
-    const cleanup = () => {
-      clearTimeout(timeoutId);
-      worker.removeEventListener('statechange', onStateChange);
-    };
-
-    worker.addEventListener('statechange', onStateChange);
-  });
-}
-
-async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!('serviceWorker' in navigator)) return null;
-  try {
-    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-      scope: '/',
-    });
-    const active = await waitForActiveWorker(reg);
-    injectFirebaseConfigIntoSw(active);
-    return reg;
-  } catch (err) {
-    console.warn('[FCM] Service worker registration failed:', err);
-    return null;
-  }
 }
 
 function navigateToUrl(router: ReturnType<typeof useRouter>, url: string): void {
@@ -226,9 +177,13 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({
 
   const bootstrapFcm = useCallback(async (): Promise<boolean> => {
     const sessionEpoch = authSession.current;
-    const swReg = await registerServiceWorker();
+    const swReg = await registerAppServiceWorker();
     if (authSession.current !== sessionEpoch) return false;
     if (!swReg) return false;
+
+    const active = await waitForActiveWorker(swReg);
+    if (authSession.current !== sessionEpoch) return false;
+    injectFirebaseConfigIntoSw(active);
 
     const ready = await obtainToken(swReg, sessionEpoch);
     if (ready && authSession.current === sessionEpoch) setPermissionGranted(true);

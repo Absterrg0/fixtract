@@ -51,6 +51,8 @@ export interface VatValidationResult {
   };
   autoPopulateRecommended?: boolean;
   error?: string;
+  /** VIES was unreachable/throttled: `valid: false` is inconclusive, retry later. */
+  transient?: boolean;
 }
 
 export const isEUVatNumber = (vatNumber: string): boolean => {
@@ -135,7 +137,8 @@ export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidati
         companyAddress: data.data.companyAddress,
         parsedAddress: data.data.parsedAddress,
         autoPopulateRecommended: data.data.autoPopulateRecommended,
-        error: data.data.error
+        error: data.data.error,
+        transient: data.data.viesUnavailable === true
       };
     } else {
       return {
@@ -157,6 +160,9 @@ interface UpdateVATResponse {
   success: boolean;
   error?: string;
   user?: unknown;
+  /** Present after a VAT save: VIES was unreachable so the number is stored unverified. */
+  viesUnavailable?: boolean;
+  isVatVerified?: boolean;
 }
 
 interface ProfessionalBusinessInfoPayload {
@@ -211,6 +217,7 @@ export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: bo
         user: data.user,
         validationResult: {
           valid: data.data.isVatVerified,
+          transient: data.data.viesUnavailable === true,
           companyName: data.data.companyName,
           companyAddress: data.data.companyAddress,
           autoPopulateRecommended: data.data.autoPopulated
@@ -250,7 +257,9 @@ export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATRespons
     if (response.ok && data.success) {
       return {
         success: true,
-        user: data.user
+        user: data.user,
+        isVatVerified: data.user?.isVatVerified === true,
+        viesUnavailable: data.viesUnavailable === true
       };
     } else {
       return {

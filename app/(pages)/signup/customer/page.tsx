@@ -75,10 +75,13 @@ interface FormData {
   resolvedLocationKey?: string;
   // Referral
   referralCode: string;
+  // Marketing
+  marketingOptIn: boolean;
 }
 
 interface VatValidationState {
   valid?: boolean;
+  transient?: boolean;
   error?: string;
   companyName?: string;
   companyAddress?: string;
@@ -117,6 +120,7 @@ function CustomerSignupForm() {
     country: '',
     postalCode: '',
     referralCode: '',
+    marketingOptIn: false,
   });
   const [loading, setLoading] = useState(false);
   const [vatValidating, setVatValidating] = useState(false);
@@ -369,6 +373,7 @@ function CustomerSignupForm() {
       const result = await validateVATWithAPI(formatted);
       setVatValidation({
         valid: result.valid,
+        transient: result.transient === true,
         error: result.error,
         companyName: result.companyName,
         companyAddress: result.companyAddress,
@@ -591,6 +596,7 @@ function CustomerSignupForm() {
         ...(trimmedReferralCode && referralValid === true && {
           referralCode: trimmedReferralCode,
         }),
+        marketingOptIn: formData.marketingOptIn,
       };
 
       const success = await signup(submitData);
@@ -908,7 +914,9 @@ function CustomerSignupForm() {
                         className={`flex items-start gap-2 text-sm p-3 rounded-lg ${
                           vatValidation.valid
                             ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
+                            : vatValidation.transient
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
                         }`}
                       >
                         {vatValidation.valid ? (
@@ -921,6 +929,20 @@ function CustomerSignupForm() {
                               {vatValidation.companyName && (
                                 <p className='text-xs mt-1'>
                                   {vatValidation.companyName}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        ) : vatValidation.transient ? (
+                          <>
+                            <AlertCircle className='h-4 w-4 mt-0.5 shrink-0' />
+                            <div>
+                              <p className='font-medium'>
+                                VIES is temporarily unavailable
+                              </p>
+                              {vatValidation.error && (
+                                <p className='text-xs mt-1'>
+                                  {vatValidation.error}
                                 </p>
                               )}
                             </div>
@@ -1048,6 +1070,28 @@ function CustomerSignupForm() {
                   </p>
                 )}
               </div>
+
+              {/* Marketing opt-in (explicit, unchecked by default) */}
+              <label className='flex items-start gap-2.5 rounded-lg border border-gray-200 p-3 cursor-pointer'>
+                <input
+                  id='marketingOptIn'
+                  type='checkbox'
+                  disabled={loading || addressValidating}
+                  checked={formData.marketingOptIn}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      marketingOptIn: e.target.checked,
+                    }))
+                  }
+                  className='mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                />
+                <span className='text-xs text-gray-600 leading-relaxed'>
+                  Email me offers, platform news, and loyalty rewards. Marketing
+                  only — separate from booking and account emails, and you can
+                  unsubscribe at any time.
+                </span>
+              </label>
 
               {/* Submit Button */}
               <Button
