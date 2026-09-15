@@ -429,6 +429,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error('Please specify whether materials are included')
       return
     }
+    if (!form.serviceLocation?.country?.trim()) {
+      toast.error('Booking address country is required')
+      return
+    }
     const invalidVatLine = form.pricingLines.find((line, index) => {
       const hasContent = line.description.trim() || Number(line.price) > 0
       if (!hasContent) return false
@@ -580,8 +584,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Booking address — flowchart SSOT needs the service/property address
             to determine VAT country for Standard/Reduced tier resolution. */}
         <div>
-          <Label className="text-sm font-medium">Booking address (service location)</Label>
-              <p className="text-xs text-gray-500 mb-1">Country determines VAT via the flowchart. Select Standard or Reduced VAT below.</p>
+          <Label className="text-sm font-medium">Booking address (service location) *</Label>
+          <p className="text-xs text-gray-500 mb-1">Country is required — it determines VAT via the flowchart. Select Standard or Reduced VAT below.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
             <Input
               value={form.serviceLocation?.country || ''}
