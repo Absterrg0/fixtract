@@ -302,13 +302,17 @@ export default function Step2Subprojects({
 
   // Persist the real service unit on unit-priced subprojects so invoices can
   // print it (e.g. "50 m²"). Fixed/RFQ pricing must not carry a unit.
+  // The authoritative unit comes from the Step 1 selection; otherwise keep an
+  // already-persisted unit (edit flow, where Step 1 is not re-mounted) and only
+  // then fall back to the derived label.
   const withPricingUnit = (
     pricing: ISubproject['pricing'],
-    unit: string
-  ): ISubproject['pricing'] =>
-    pricing.type === 'unit'
-      ? { ...pricing, unit: unit || undefined }
-      : { ...pricing, unit: undefined };
+    fallbackUnit: string
+  ): ISubproject['pricing'] => {
+    if (pricing.type !== 'unit') return { ...pricing, unit: undefined };
+    const authoritativeUnit = data.selectedPricingOption?.unit;
+    return { ...pricing, unit: authoritativeUnit || pricing.unit || fallbackUnit };
+  };
 
   const normalizePreparationDuration = (subproject?: ISubproject) => {
     const value =
@@ -479,15 +483,21 @@ export default function Step2Subprojects({
   // pricing option in Step 1 (unit label may change).
   useEffect(() => {
     setSubprojects((prev) => {
-      const next = prev.map((sub) =>
-        sub.pricing.type === 'unit' && sub.pricing.unit !== unitLabel
-          ? { ...sub, pricing: withPricingUnit(sub.pricing, unitLabel) }
-          : sub
-      );
+      const next = prev.map((sub) => {
+        if (sub.pricing.type === 'unit') {
+          const resolvedUnit = data.selectedPricingOption?.unit || sub.pricing.unit || unitLabel;
+          return resolvedUnit === sub.pricing.unit
+            ? sub
+            : { ...sub, pricing: { ...sub.pricing, unit: resolvedUnit } };
+        }
+        return sub.pricing.unit === undefined
+          ? sub
+          : { ...sub, pricing: { ...sub.pricing, unit: undefined } };
+      });
       const changed = next.some((sub, index) => sub !== prev[index]);
       return changed ? next : prev;
     });
-  }, [unitLabel]);
+  }, [unitLabel, data.selectedPricingOption]);
 
   const validateForm = (
     requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
