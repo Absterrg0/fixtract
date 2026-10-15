@@ -49,6 +49,16 @@ const DEFAULT_E_INVOICING = {
   peppolEnabled: false,
   provider: 'manual',
   peppolParticipantId: '',
+  // null = the server's ODOO_COMPANY_ID default
+  odooCompanyId: null as number | null,
+}
+
+type OdooCompany = {
+  id: number
+  name: string
+  vat?: string
+  peppolCanSend?: boolean
+  peppolState?: string
 }
 
 type CompanyAddressState = typeof DEFAULT_COMPANY_ADDRESS
@@ -85,6 +95,7 @@ const hydrateSettingsResponse = (data: {
     peppolEnabled: Boolean(data.eInvoicing?.peppolEnabled),
     provider: data.eInvoicing?.provider === 'odoo' ? 'odoo' : DEFAULT_E_INVOICING.provider,
     peppolParticipantId: data.eInvoicing?.peppolParticipantId || '',
+    odooCompanyId: typeof data.eInvoicing?.odooCompanyId === 'number' ? data.eInvoicing.odooCompanyId : null,
   },
   lastModified: data.lastModified ?? null,
   version: data.version ?? 0,
@@ -119,6 +130,8 @@ export default function AdminSettingsPage() {
   const [companyVatNumber, setCompanyVatNumber] = useState('')
   const [companyAddress, setCompanyAddress] = useState({ ...DEFAULT_COMPANY_ADDRESS })
   const [eInvoicing, setEInvoicing] = useState({ ...DEFAULT_E_INVOICING })
+  const [odooCompanies, setOdooCompanies] = useState<OdooCompany[]>([])
+  const [odooCompaniesError, setOdooCompaniesError] = useState<string | null>(null)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [version, setVersion] = useState<number>(0)
 
@@ -162,6 +175,36 @@ export default function AdminSettingsPage() {
       fetchSettings()
     }
   }, [isAuthenticated, user, fetchSettings])
+
+  const isOdooProvider = eInvoicing.provider === 'odoo'
+  useEffect(() => {
+    if (!isOdooProvider || !isAuthenticated || user?.role !== 'admin') return
+    let cancelled = false
+    const loadOdooCompanies = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings/odoo-companies`,
+          adminRequestInit(),
+        )
+        const data = await response.json().catch(() => null)
+        if (cancelled) return
+        if (response.ok && Array.isArray(data?.data?.companies)) {
+          setOdooCompanies(data.data.companies)
+          setOdooCompaniesError(null)
+        } else {
+          setOdooCompaniesError(data?.msg || 'Could not load the Odoo companies')
+        }
+      } catch {
+        if (!cancelled) setOdooCompaniesError('Could not load the Odoo companies')
+      }
+    }
+    loadOdooCompanies()
+    return () => {
+      cancelled = true
+    }
+  }, [isOdooProvider, isAuthenticated, user])
+
+  const selectedOdooCompany = odooCompanies.find((company) => company.id === eInvoicing.odooCompanyId)
 
   const handleSave = async () => {
     if (commissionPercent < 0 || commissionPercent > 100) {
@@ -467,6 +510,40 @@ export default function AdminSettingsPage() {
                     />
                   </div>
                 </div>
+                {isOdooProvider && (
+                  <div className="space-y-2">
+                    <Label htmlFor="odoo-company">Odoo company</Label>
+                    <select
+                      id="odoo-company"
+                      value={eInvoicing.odooCompanyId ?? ''}
+                      onChange={(event) => setEInvoicing(prev => ({
+                        ...prev,
+                        odooCompanyId: event.target.value ? Number(event.target.value) : null,
+                      }))}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Server default (ODOO_COMPANY_ID)</option>
+                      {eInvoicing.odooCompanyId != null && !selectedOdooCompany && (
+                        <option value={eInvoicing.odooCompanyId}>Company #{eInvoicing.odooCompanyId}</option>
+                      )}
+                      {odooCompanies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name} (#{company.id}){company.peppolCanSend === false ? ' - not registered on Peppol' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500">
+                      Fixtract invoices and self-bills are booked in, and sent on Peppol from, this Odoo company.
+                    </p>
+                    {selectedOdooCompany?.peppolCanSend === false && (
+                      <p className="text-xs text-amber-700">
+                        {selectedOdooCompany.name} cannot send on Peppol yet. Invoices will fail until its Peppol
+                        registration is completed in Odoo (Accounting &gt; Settings &gt; Peppol).
+                      </p>
+                    )}
+                    {odooCompaniesError && <p className="text-xs text-red-600">{odooCompaniesError}</p>}
+                  </div>
+                )}
               </div>
 
               {/* Metadata */}
