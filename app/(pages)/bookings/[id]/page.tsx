@@ -31,6 +31,7 @@ import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
+import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
 import {
   calculateMilestoneGrossAmounts,
@@ -552,7 +553,7 @@ export default function BookingDetailPage() {
 
 function BookingDetailContent() {
   const { user, isAuthenticated, loading } = useAuth()
-  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded } = useCustomerPricing()
+  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount } = useCustomerPricing()
   const customerPricingReady = commissionPercent != null && loyaltyLoaded
   const router = useRouter()
   const params = useParams()
@@ -2351,11 +2352,16 @@ function BookingDetailContent() {
     booking?.status,
   ])
 
+  // Before the charge exists: the per-unit customer price less the loyalty
+  // discount the customer would get, as the server will compute it.
+  const customerExtraCostEstimate = withLoyaltyDiscount(
+    commissionedExtraCostTotal(booking?.extraCosts, booking?.extraCostTotal || 0, commissionPercent ?? 0),
+  )
   const extraCostAmounts = getExtraCostAmounts(
     extraCostCharge,
     booking?.payment,
     // Extra-cost loyalty is capped at the commission, preserving the supplier's net.
-    Math.max(booking?.extraCostTotal || 0, customerPrice(booking?.extraCostTotal || 0)),
+    Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate),
   )
 
   if (loading || isLoading) {
@@ -3884,7 +3890,7 @@ function BookingDetailContent() {
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">Extra Costs:</p>
                         {booking.extraCosts.map((cost, i) => {
-                          const displayAmount = customerPricingReady ? originalPrice(cost.amount) : null
+                          const displayAmount = customerPricingReady ? commissionedExtraCost(cost, commissionPercent ?? 0) : null
                           const isPositive = displayAmount == null ? cost.amount >= 0 : displayAmount >= 0
                           return (
                             <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
@@ -3907,7 +3913,8 @@ function BookingDetailContent() {
                         {customerPricingReady ? (() => {
                           const currency = booking.payment?.currency || 'EUR'
                           const rawTotal = booking.extraCostTotal || 0
-                          const subtotalInclCommission = extraCostCharge?.subtotalInclCommission ?? originalPrice(rawTotal)
+                          const subtotalInclCommission = extraCostCharge?.subtotalInclCommission
+                            ?? commissionedExtraCostTotal(booking.extraCosts, rawTotal, commissionPercent ?? 0)
                           const { vat: vatAmount, vatRate, net: netCharge, total: displayedTotal } = extraCostAmounts
                           const computedLoyalty = rawTotal > 0
                             ? Math.max(0, +(subtotalInclCommission - netCharge).toFixed(2))
