@@ -51,6 +51,7 @@ const DEFAULT_E_INVOICING = {
   peppolParticipantId: '',
   // null = the server's ODOO_COMPANY_ID default
   odooCompanyId: null as number | null,
+  odooRecordPayments: false,
 }
 
 type OdooCompany = {
@@ -96,6 +97,7 @@ const hydrateSettingsResponse = (data: {
     provider: data.eInvoicing?.provider === 'odoo' ? 'odoo' : DEFAULT_E_INVOICING.provider,
     peppolParticipantId: data.eInvoicing?.peppolParticipantId || '',
     odooCompanyId: typeof data.eInvoicing?.odooCompanyId === 'number' ? data.eInvoicing.odooCompanyId : null,
+    odooRecordPayments: data.eInvoicing?.odooRecordPayments === true,
   },
   lastModified: data.lastModified ?? null,
   version: data.version ?? 0,
@@ -542,6 +544,22 @@ export default function AdminSettingsPage() {
                       </p>
                     )}
                     {odooCompaniesError && <p className="text-xs text-red-600">{odooCompaniesError}</p>}
+                    <label className="flex items-start gap-2 pt-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={eInvoicing.odooRecordPayments}
+                        onChange={(event) => setEInvoicing(prev => ({ ...prev, odooRecordPayments: event.target.checked }))}
+                        className="mt-0.5 rounded border-gray-300"
+                      />
+                      <span>
+                        Book Stripe payments in Odoo
+                        <span className="block text-xs text-gray-500">
+                          Registers what customers paid and what professionals were paid out as payments in a
+                          &quot;Stripe (Fixtract)&quot; bank journal (created in the selected company if missing), so Odoo
+                          shows those invoices as paid. This changes the company&apos;s bookkeeping; agree it with the accountant first.
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 )}
               </div>
