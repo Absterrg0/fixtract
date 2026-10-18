@@ -4,11 +4,16 @@
  * = 492.90), so the total shown here is the one the server charges.
  */
 
-const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
-
 /** Half away from zero, like Odoo, so -2.5 x 16.43 is -41.08 everywhere. */
 const roundLineAmount = (value: number): number =>
   Math.sign(value) * Math.round(Math.abs(value) * 100 * (1 + 4 * Number.EPSILON)) / 100
+
+// Same rounding as the invoice lines, so the price shown here is the one the
+// server charges: a half-cent tie like 10.075 rounds to 10.08, not 10.07.
+const roundMoney = (value: number): number => {
+  const rounded = roundLineAmount(value)
+  return rounded === 0 ? 0 : rounded
+}
 
 const toFinite = (value: unknown): number | undefined => {
   if (value == null || value === '') return undefined

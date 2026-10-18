@@ -2360,8 +2360,12 @@ function BookingDetailContent() {
   const extraCostAmounts = getExtraCostAmounts(
     extraCostCharge,
     booking?.payment,
-    // Extra-cost loyalty is capped at the commission, preserving the supplier's net.
-    Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate),
+    // Extra-cost loyalty is capped at the commission, preserving the supplier's
+    // net; a refund of fewer units already includes the commission and has no
+    // discount to cap, so the floor applies to positive totals only.
+    (booking?.extraCostTotal || 0) > 0
+      ? Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate)
+      : customerExtraCostEstimate,
   )
 
   if (loading || isLoading) {

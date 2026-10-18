@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { commissionedAmount, commissionedExtraCost, commissionedExtraCostTotal } from '../lib/customerPricing.ts'
+import { commissionedAmount, commissionedExtraCost, commissionedExtraCostTotal, withCommission } from '../lib/customerPricing.ts'
 
 // Same cases as fixera-server src/tests/utils/customerPricing.test.ts, so the
 // price shown here is the one the server charges.
@@ -22,4 +22,10 @@ test('unit extra costs are priced per unit, the rest as a whole', () => {
   assert.equal(commissionedExtraCostTotal(costs, 125, commission), 136.91)
   assert.equal(commissionedExtraCost({ type: 'unit_adjustment', estimatedUnits: 30, actualUnits: 27.5, unitPrice: 15, amount: -37.5 }, commission), -41.08)
   assert.equal(commissionedExtraCostTotal(costs, 40, commission), 43.81)
+})
+
+test('rounds half-cent ties away from zero, like the invoice lines', () => {
+  assert.equal(withCommission(10.075, 0), 10.08)
+  assert.equal(withCommission(-10.075, 0), -10.08)
+  assert.equal(Object.is(withCommission(-0.001, 0), 0), true)
 })
