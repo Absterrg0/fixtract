@@ -121,6 +121,9 @@ interface Booking {
   currentQuoteVersion?: number;
   selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
   checkoutSnapshot?: {
+    pricingType?: string;
+    unitAmount?: number;
+    quantity?: number;
     baseSubtotal?: number;
     extraOptionsTotal?: number;
     totalAmount?: number;
@@ -1068,7 +1071,7 @@ export default function BookingPaymentPage() {
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
                       ? formatMoney(
-                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0),
+                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0, booking?.checkoutSnapshot),
                           booking?.quote?.currency?.toUpperCase() || 'EUR'
                         )
                       : '...'}
@@ -1119,8 +1122,8 @@ export default function BookingPaymentPage() {
                 )}
                 {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.quote?.amount != null && customerPricingReady && (() => {
                   const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
-                  const baseWithCommission = originalPrice(booking.quote.amount);
-                  const afterLoyalty = customerPrice(booking.quote.amount);
+                  const baseWithCommission = originalPrice(booking.quote.amount, booking.checkoutSnapshot);
+                  const afterLoyalty = customerPrice(booking.quote.amount, booking.checkoutSnapshot);
                   const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
                   return (
                     <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">

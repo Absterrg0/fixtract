@@ -2588,15 +2588,21 @@ export default function ProjectBookingForm({
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
+  // Unit packages are charged as units x the unit price shown, in cents.
+  const packageUnitPricing =
+    selectedPackage && shouldCollectUsage(selectedPackage.pricing.type)
+      ? { pricingType: 'unit', unitAmount: selectedPackage.pricing.amount, quantity: packageUnitCount }
+      : undefined;
+  const customerPackagePrice = (amount: number) => customerPrice(amount, packageUnitPricing);
   const packagePricing = computeCustomerPriceWithRepeatBuyerDiscount({
     amount: getEffectivePackagePrice(packageUnitCount),
-    customerPrice,
+    customerPrice: customerPackagePrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
   const totalPricing = computeCustomerPriceWithRepeatBuyerDiscount({
     amount: calculateTotal(packageUnitCount),
-    customerPrice,
+    customerPrice: customerPackagePrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getAuthToken } from '@/lib/utils'
 import { useCommissionRate } from './useCommissionRate'
 import { cachedClientRequest } from '@/lib/clientRequestCache'
+import type { UnitPricing } from '@/lib/customerPricing'
 
 interface LoyaltyDiscountInfo {
   level: string
@@ -32,8 +33,11 @@ export interface CustomerPricing {
   commissionError: Error | null
   loyalty: LoyaltyDiscountInfo | null
   loyaltyLoaded: boolean
-  customerPrice: (amount: number) => number
-  originalPrice: (amount: number) => number
+  /** Pass the checkout's unit pricing to price a unit package per unit, as the server charges it. */
+  customerPrice: (amount: number, unitPricing?: UnitPricing | null) => number
+  originalPrice: (amount: number, unitPricing?: UnitPricing | null) => number
+  /** The customer's loyalty discount applied to an amount that already includes the commission. */
+  withLoyaltyDiscount: (commissionInclusiveAmount: number) => number
   customerPriceWithRepeatBuyer: (amount: number, repeatBuyer?: { enabled?: boolean; percentage?: number; maxDiscountAmount?: number | null } | null, eligible?: boolean) => number
 }
 
@@ -113,7 +117,7 @@ export function useCustomerPricing(): CustomerPricing {
   )
 
   const customerPrice = useCallback(
-    (amount: number) => applyLoyaltyDiscount(baseCustomerPrice(amount)),
+    (amount: number, unitPricing?: UnitPricing | null) => applyLoyaltyDiscount(baseCustomerPrice(amount, unitPricing)),
     [applyLoyaltyDiscount, baseCustomerPrice]
   )
 
@@ -122,7 +126,10 @@ export function useCustomerPricing(): CustomerPricing {
    * Use this as the strike-through reference when displaying a discounted customerPrice.
    * NOTE: this is *not* the raw professional amount; it already includes the platform commission.
    */
-  const originalPrice = useCallback((amount: number) => baseCustomerPrice(amount), [baseCustomerPrice])
+  const originalPrice = useCallback(
+    (amount: number, unitPricing?: UnitPricing | null) => baseCustomerPrice(amount, unitPricing),
+    [baseCustomerPrice]
+  )
 
   const customerPriceWithRepeatBuyer = useCallback(
     (
@@ -150,8 +157,9 @@ export function useCustomerPricing(): CustomerPricing {
       loyaltyLoaded,
       customerPrice,
       originalPrice,
+      withLoyaltyDiscount: applyLoyaltyDiscount,
       customerPriceWithRepeatBuyer,
     }),
-    [commissionPercent, commissionLoaded, commissionError, loyalty, loyaltyLoaded, customerPrice, originalPrice, customerPriceWithRepeatBuyer]
+    [commissionPercent, commissionLoaded, commissionError, loyalty, loyaltyLoaded, customerPrice, originalPrice, applyLoyaltyDiscount, customerPriceWithRepeatBuyer]
   )
 }

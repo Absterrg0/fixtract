@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { cachedClientRequest } from '@/lib/clientRequestCache'
+import { commissionedAmount, type UnitPricing } from '@/lib/customerPricing'
 
 const COMMISSION_CACHE_KEY = 'commission-rate'
 
@@ -48,9 +49,9 @@ export function useCommissionRate() {
   }, [])
 
   const customerPrice = useCallback(
-    (amount: number) => {
+    (amount: number, unitPricing?: UnitPricing | null) => {
       if (commissionPercent == null || !amount) return amount
-      return +(amount * (1 + commissionPercent / 100)).toFixed(2)
+      return commissionedAmount(amount, commissionPercent, unitPricing)
     },
     [commissionPercent]
   )
