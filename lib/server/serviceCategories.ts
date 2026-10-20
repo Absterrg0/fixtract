@@ -1,5 +1,7 @@
 import "server-only";
 
+import { PUBLIC_CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
+
 export interface ServiceCategoryItem {
   name: string;
   slug: string;
@@ -57,7 +59,10 @@ export async function getServiceCategories(
     try {
       const response = await fetch(
         `${backendUrl}/api/service-categories/active?country=${encodeURIComponent(country)}`,
-        { next: { revalidate: 300 }, signal: controller.signal },
+        {
+          next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: [PUBLIC_CACHE_TAGS.serviceCategories] },
+          signal: controller.signal,
+        },
       );
       if (!response.ok) throw new Error(`Service categories request failed (${response.status})`);
       const categories: unknown = await response.json();

@@ -5,7 +5,7 @@ import CTASection from '@/components/CTASection'
 import ProfessionalsSection from '@/components/ProfessionalsSection'
 import { getPopularProjects, getPopularServices } from '@/lib/server/popular'
 
-export const revalidate = 60
+export const revalidate = 21600
 
 export default async function Home() {
   const [popularServices, popularProjects] = await Promise.all([

@@ -2,6 +2,15 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { PUBLIC_CACHE_TAGS, revalidatePublicTags } from "@/lib/publicCache"
+
+async function refreshPublicServiceCategories() {
+  try {
+    await revalidatePublicTags([PUBLIC_CACHE_TAGS.serviceCategories])
+  } catch (error) {
+    console.error("Service category cache revalidation failed:", error)
+  }
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -386,6 +395,7 @@ export default function ServiceConfigurationManagement() {
         const data = await response.json()
         console.log('Service created:', data)
         toast.success('Service created successfully!')
+        await refreshPublicServiceCategories()
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
         setOptionDrafts({})
@@ -433,6 +443,7 @@ export default function ServiceConfigurationManagement() {
         const data = await response.json()
         console.log('Service updated:', data)
         toast.success('Service updated successfully!')
+        await refreshPublicServiceCategories()
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
         setOptionDrafts({})
@@ -468,6 +479,7 @@ export default function ServiceConfigurationManagement() {
       if (response.ok) {
         console.log('✅ Service deleted')
         toast.success('Service deleted successfully')
+        await refreshPublicServiceCategories()
         setDeleteDialogOpen(false)
         setDeleteId(null)
         await fetchServices()

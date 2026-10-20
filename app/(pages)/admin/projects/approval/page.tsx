@@ -29,6 +29,18 @@ import {
 import Image from 'next/image'
 import { toast } from 'sonner'
 import ProjectDiffView from '@/components/admin/ProjectDiffView'
+import { PUBLIC_CACHE_TAGS, revalidatePublicTags } from '@/lib/publicCache'
+
+async function refreshPopularListings() {
+  try {
+    await revalidatePublicTags([
+      PUBLIC_CACHE_TAGS.popularServices,
+      PUBLIC_CACHE_TAGS.popularProjects,
+    ])
+  } catch (error) {
+    console.error('Popular listing cache revalidation failed:', error)
+  }
+}
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface QualityCheck {
@@ -454,6 +466,7 @@ export default function ProjectApprovalPage() {
 
       if (response.ok) {
         toast.success('Project approved successfully!')
+        await refreshPopularListings()
         setProjects(projects.filter(p => p._id !== projectId))
         setSelectedProject(null)
       } else {
@@ -514,6 +527,7 @@ export default function ProjectApprovalPage() {
       })
       if (res.ok) {
         toast.success('Project suspended and email sent')
+        await refreshPopularListings()
         setApprovedProjects(prev => prev.map(p => p._id === projectId ? { ...p, status: 'on_hold' } : p))
         if (selectedProject?._id === projectId) setSelectedProject({ ...selectedProject, status: 'on_hold' } as Project)
         setSuspendReason('')
@@ -537,6 +551,7 @@ export default function ProjectApprovalPage() {
       })
       if (res.ok) {
         toast.success('Project reactivated and email sent')
+        await refreshPopularListings()
         setApprovedProjects(prev => prev.map(p => p._id === projectId ? { ...p, status: 'published' } : p))
         if (selectedProject?._id === projectId) setSelectedProject({ ...selectedProject, status: 'published' } as Project)
       } else {
@@ -564,6 +579,7 @@ export default function ProjectApprovalPage() {
       })
       if (res.ok) {
         toast.success('Project deleted and email sent')
+        await refreshPopularListings()
         setApprovedProjects(prev => prev.filter(p => p._id !== projectId))
         if (selectedProject?._id === projectId) setSelectedProject(null)
         setDeleteReason('')

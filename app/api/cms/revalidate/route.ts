@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import type { CmsContentType } from "@/lib/cms";
+import { isPublicCacheTag } from "@/lib/publicCache";
 
 const CMS_TYPES = new Set<CmsContentType>(["blog", "news", "faq", "policy", "landing"]);
 
@@ -34,12 +35,20 @@ export async function POST(request: NextRequest) {
   const slugs: string[] = Array.isArray(body?.slugs)
     ? body.slugs.filter((slug: unknown): slug is string => typeof slug === "string" && slug.length > 0)
     : [];
+  const tags: string[] = Array.isArray(body?.tags)
+    ? body.tags.filter((tag: unknown): tag is string => typeof tag === "string" && isPublicCacheTag(tag))
+    : [];
 
-  revalidateTag("cms");
-  if (type && CMS_TYPES.has(type)) {
-    revalidateTag(`cms:${type}`);
-    slugs.forEach((slug) => revalidateTag(`cms:${type}:${slug}`));
+  const flushCms = tags.length === 0 || Boolean(type) || slugs.length > 0;
+  if (flushCms) {
+    revalidateTag("cms");
+    if (type && CMS_TYPES.has(type)) {
+      revalidateTag(`cms:${type}`);
+      slugs.forEach((slug) => revalidateTag(`cms:${type}:${slug}`));
+    }
   }
+
+  tags.forEach((tag) => revalidateTag(tag));
 
   return NextResponse.json({ success: true });
 }

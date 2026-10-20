@@ -1,4 +1,5 @@
 import { authFetch, getAuthToken } from "@/lib/utils";
+import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
 export type CmsContentStatus = "draft" | "published";
@@ -408,7 +409,7 @@ export interface PolicyLink {
 export async function publicListPolicyLinks(): Promise<PolicyLink[]> {
   try {
     const res = await fetch(`${API}/api/public/cms/policy-links`, {
-      next: { revalidate: 60 },
+      next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:policy"] },
       signal: AbortSignal.timeout(8000),
     });
     const data = await parseJsonRequired<{ items: PolicyLink[] }>(res);

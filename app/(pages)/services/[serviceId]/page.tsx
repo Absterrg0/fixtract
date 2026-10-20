@@ -25,7 +25,7 @@ import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
 import { getServiceCoverImage } from '@/lib/serviceCovers';
 
-export const revalidate = 60;
+export const revalidate = 21600;
 
 const fetchServiceLanding = cache(async (serviceId: string) => {
   return await publicGetCms("landing", serviceId);

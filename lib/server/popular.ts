@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import type { PopularProject } from "@/lib/popularProject";
+import { PUBLIC_CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 const POPULAR_TIMEOUT_MS = 4_000;
 
@@ -11,7 +12,7 @@ function backendUrl(): string | null {
 
 async function fetchJson(
   path: string,
-  cacheTag: string,
+  cacheTags: string[],
 ): Promise<unknown | null> {
   const base = backendUrl();
   if (!base) return null;
@@ -20,16 +21,16 @@ async function fetchJson(
   const timeoutId = setTimeout(() => controller.abort(), POPULAR_TIMEOUT_MS);
   try {
     const response = await fetch(`${base}${path}`, {
-      next: { revalidate: 60, tags: [cacheTag] },
+      next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: cacheTags },
       signal: controller.signal,
     });
     if (!response.ok) {
-      console.error("popular fetch returned non-ok", { path, cacheTag, status: response.status });
+      console.error("popular fetch returned non-ok", { path, cacheTags, status: response.status });
       return null;
     }
     return await response.json();
   } catch (error) {
-    console.error("popular fetch failed", { path, cacheTag, error });
+    console.error("popular fetch failed", { path, cacheTags, error });
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -83,7 +84,7 @@ export const getPopularServices = cache(async function getPopularServices(limit 
   const capped = Math.min(Math.max(limit, 1), 50);
   const data = await fetchJson(
     `/api/search/popular?limit=${capped}`,
-    "popular-services",
+    [PUBLIC_CACHE_TAGS.popularServices],
   );
   if (!data || typeof data !== "object") return [];
   const services = (data as { services?: unknown }).services;
@@ -105,10 +106,10 @@ const getPopularProjectsCached = cache(async function getPopularProjectsCached(
   const params = new URLSearchParams({ limit: String(limit) });
   if (service) params.set("service", service);
 
-  const data = await fetchJson(
-    `/api/search/popular-projects?${params.toString()}`,
-    service ? `popular-projects:${service}` : "popular-projects",
-  );
+  const data = await fetchJson(`/api/search/popular-projects?${params.toString()}`, [
+    PUBLIC_CACHE_TAGS.popularProjects,
+    ...(service ? [`${PUBLIC_CACHE_TAGS.popularProjects}:${service}`] : []),
+  ]);
   if (!data || typeof data !== "object") return [];
   const projects = (data as { projects?: unknown }).projects;
   if (!Array.isArray(projects)) return [];

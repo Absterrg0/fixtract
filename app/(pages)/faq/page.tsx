@@ -9,7 +9,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema, faqSchema } from "@/lib/seo/jsonLd";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
-export const revalidate = 60;
+export const revalidate = 21600;
 
 export const metadata: Metadata = buildMetadata({
   title: "Frequently Asked Questions",

@@ -10,7 +10,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
-export const revalidate = 60;
+export const revalidate = 21600;
 
 async function fetchAboutContent() {
   try {

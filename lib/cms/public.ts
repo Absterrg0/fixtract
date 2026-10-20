@@ -8,6 +8,7 @@ import type {
   FaqGroup,
 } from "@/lib/cms";
 import { getVisitorCountryCode, parseVisitorCountryCode } from "@/lib/cms/visitorCountry";
+import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
@@ -54,7 +55,7 @@ export async function publicListCms(
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
   const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
     headers: await cmsFetchHeaders(),
-    next: { revalidate: 60, tags: ["cms", `cms:${type}`] },
+    next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`] },
   });
   const data = await parseJsonRequired<CmsListResponse>(res);
   data.items = data.items.map((item) => ({ ...item, body: sanitizeRichText(item.body || "") }));
@@ -69,7 +70,7 @@ export async function publicGetCms(
     `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`,
     {
       headers: await cmsFetchHeaders(),
-      next: { revalidate: 60, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
+      next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
     },
   );
   if (res.status === 404) return null;
@@ -92,7 +93,7 @@ export async function fetchCmsPostWithError(
 export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
   const res = await fetch(`${API}/api/public/cms/faq`, {
     headers: await cmsFetchHeaders(),
-    next: { revalidate: 60, tags: ["cms", "cms:faq"] },
+    next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:faq"] },
   });
   const data = await parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);
   data.groups = data.groups.map((g) => ({

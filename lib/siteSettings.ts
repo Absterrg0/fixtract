@@ -1,4 +1,5 @@
 import { authFetch } from "@/lib/utils";
+import { PUBLIC_CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS, revalidatePublicTags } from "@/lib/publicCache";
 
 export interface SocialLinks {
   facebook?: string;
@@ -39,7 +40,7 @@ async function safeParseJson(res: Response): Promise<{ body: ApiEnvelope | null;
 export async function publicGetSiteSettings(): Promise<SiteSettings> {
   try {
     const res = await fetch(`${API}/api/public/site-settings`, {
-      next: { revalidate: 60 },
+      next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: [PUBLIC_CACHE_TAGS.siteSettings] },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return DEFAULT_SETTINGS;
@@ -77,6 +78,11 @@ export async function adminUpdateSiteSettings(payload: { socialLinks?: SocialLin
         (text && text.slice(0, 200)) ||
         `Request failed (${res.status})`
     );
+  }
+  try {
+    await revalidatePublicTags([PUBLIC_CACHE_TAGS.siteSettings]);
+  } catch (error) {
+    console.error("Site settings cache revalidation failed:", error);
   }
   return body.data as SiteSettings;
 }
