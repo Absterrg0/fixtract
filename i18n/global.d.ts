@@ -16,6 +16,7 @@ import bookings from "../messages/en/bookings.json";
 import checkout from "../messages/en/checkout.json";
 import quotation from "../messages/en/quotation.json";
 import dashboard from "../messages/en/dashboard.json";
+import dashboardWidgets from "../messages/en/dashboardWidgets.json";
 import projects from "../messages/en/projects.json";
 import proArea from "../messages/en/proArea.json";
 import proTools from "../messages/en/proTools.json";
@@ -48,6 +49,7 @@ declare module "next-intl" {
       checkout: typeof checkout;
       quotation: typeof quotation;
       dashboard: typeof dashboard;
+      dashboardWidgets: typeof dashboardWidgets;
       projects: typeof projects;
       proArea: typeof proArea;
       proTools: typeof proTools;
