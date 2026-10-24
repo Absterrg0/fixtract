@@ -18,6 +18,7 @@ import quotation from "../messages/en/quotation.json";
 import dashboard from "../messages/en/dashboard.json";
 import dashboardWidgets from "../messages/en/dashboardWidgets.json";
 import projects from "../messages/en/projects.json";
+import projectBooking from "../messages/en/projectBooking.json";
 import proArea from "../messages/en/proArea.json";
 import proTools from "../messages/en/proTools.json";
 import calendar from "../messages/en/calendar.json";
@@ -51,6 +52,7 @@ declare module "next-intl" {
       dashboard: typeof dashboard;
       dashboardWidgets: typeof dashboardWidgets;
       projects: typeof projects;
+      projectBooking: typeof projectBooking;
       proArea: typeof proArea;
       proTools: typeof proTools;
       calendar: typeof calendar;

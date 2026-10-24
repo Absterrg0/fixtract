@@ -32,6 +32,7 @@ export const NAMESPACES = [
   "dashboard",
   "dashboardWidgets",
   "projects",
+  "projectBooking",
   "proArea",
   "proTools",
   "calendar",
