@@ -372,5 +372,15 @@
     "searchLabel": "Rechercher un indicatif",
     "listLabel": "Indicatifs téléphoniques",
     "noResults": "Aucun pays trouvé"
+  },
+  "vatFormat": {
+    "required": "Le numéro de TVA est requis",
+    "tooShort": "Le numéro de TVA est trop court",
+    "tooLong": "Le numéro de TVA est trop long",
+    "countryPrefix": "Le numéro de TVA doit commencer par 2 lettres (code pays)",
+    "invalidCharacters": "Le numéro de TVA contient des caractères non valides",
+    "invalidCountry": "{country} n’est pas un code pays de l’UE valide",
+    "validationFailed": "Échec de la validation du numéro de TVA",
+    "network": "Erreur réseau lors de la validation du numéro de TVA"
   }
 }

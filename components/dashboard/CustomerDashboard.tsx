@@ -30,7 +30,7 @@ import {
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
 } from "@/lib/dashboardBookingHelpers"
-import { getCustomerActionItems, type ActionItem } from "@/lib/actionNeededHelpers"
+import { getCustomerActionItems, type ActionItem, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
 
@@ -139,6 +139,14 @@ const STATUS_KEYS = {
 } as const
 
 type StatusKeyValue = keyof typeof STATUS_KEYS
+
+const CUSTOMER_ACTION_ITEM_KEYS = {
+  acceptOrDeclineQuotation: "customerDashboard.actionNeeded.acceptOrDeclineQuotation",
+  paymentNeeded: "customerDashboard.actionNeeded.paymentNeeded",
+  acceptOrDeclineRescheduling: "customerDashboard.actionNeeded.acceptOrDeclineRescheduling",
+  reviewCompletion: "customerDashboard.actionNeeded.reviewCompletion",
+  reviewDispute: "customerDashboard.actionNeeded.reviewDispute",
+} as const satisfies Record<CustomerActionItemKey, string>
 
 const ACCENT_CLASSES = {
   indigo: {
@@ -317,7 +325,7 @@ export default function CustomerDashboard() {
       if (quoteServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== quoteServiceFilter) return false
       if (debouncedQuoteSearch) {
         const term = debouncedQuoteSearch.toLowerCase()
-        const title = getBookingTitle(b).toLowerCase()
+        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
         const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
         const addr = (b.location?.address || "").toLowerCase()
         const bNum = (b.bookingNumber || "").toLowerCase()
@@ -325,7 +333,7 @@ export default function CustomerDashboard() {
       }
       return true
     })
-  }, [quoteBookings, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch])
+  }, [quoteBookings, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch, t])
 
   // Filtered bookings
   const filteredActiveBookings = useMemo(() => {
@@ -340,7 +348,7 @@ export default function CustomerDashboard() {
       if (bookingServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== bookingServiceFilter) return false
       if (debouncedBookingSearch) {
         const term = debouncedBookingSearch.toLowerCase()
-        const title = getBookingTitle(b).toLowerCase()
+        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
         const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
         const bNum = (b.bookingNumber || "").toLowerCase()
         if (!title.includes(term) && !svc.includes(term) && !bNum.includes(term)) return false
@@ -353,7 +361,7 @@ export default function CustomerDashboard() {
       }
       return true
     })
-  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
+  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter, t])
 
   const toggleQuoteSelection = useCallback((bookingId: string) => {
     setSelectedQuoteIds(prev => {
@@ -428,7 +436,7 @@ export default function CustomerDashboard() {
   const renderBookingCard = (booking: Booking, colorAccent: string, opts?: { selectable?: boolean; selected?: boolean; onToggle?: () => void }) => {
     const accent = ACCENT_CLASSES[(colorAccent as AccentKey)] ?? ACCENT_CLASSES.indigo
     const isProject = isProjectBooking(booking)
-    const title = getBookingTitle(booking)
+    const title = getBookingTitle(booking, t("common.bookingFallback"))
     const { className: statusClasses } = getBookingStatusMeta(booking.status)
     const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
     const preferredStart = booking.rfqData?.preferredStartDate
@@ -580,9 +588,10 @@ export default function CustomerDashboard() {
     )
   }
 
-  const renderActionItem = (item: ActionItem) => {
+  const renderActionItem = (item: ActionItem<CustomerActionItemKey>) => {
     const booking = item.booking
-    const title = getBookingTitle(booking)
+    const title = getBookingTitle(booking, t("common.bookingFallback"))
+    const actionLabelKey = CUSTOMER_ACTION_ITEM_KEYS[item.labelKey]
     const { className: statusClasses } = getBookingStatusMeta(booking.status)
     const severityClasses = item.severity === "urgent"
       ? "border-red-200 bg-red-50/50"
@@ -615,7 +624,7 @@ export default function CustomerDashboard() {
                 variant="outline"
                 className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
               >
-                {item.label}
+                {t(actionLabelKey)}
               </Badge>
             </div>
           </div>

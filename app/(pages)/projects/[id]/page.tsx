@@ -276,7 +276,7 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
                 <Clock className='h-3 w-3' />
                 {t('providedBy.avgResponse')}
               </span>
-              <span className='font-medium'>{formatResponseTime(stats.avgResponseTimeMs)}</span>
+              <span className='font-medium'>{formatResponseTime(stats.avgResponseTimeMs, intl)}</span>
             </div>
           )}
 

@@ -16,12 +16,14 @@ import {
   proReplyTicket,
   SupportTicket,
   MeetingRequest,
+  isLocalFallbackError as isSupportLocalFallbackError,
 } from "@/lib/support";
 import {
   fetchConversations,
   fetchConversationMessages,
   sendConversationMessage,
   markConversationAsRead,
+  isLocalFallbackError as isChatLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ChatConversation, ChatMessage } from "@/types/chat";
 
@@ -171,7 +173,7 @@ function TicketsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error ? e.message : t("support.tickets.loadFailed"));
+          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.loadFailed"));
         }),
     [t]
   );
@@ -193,7 +195,7 @@ function TicketsTab() {
       toast.success(t("support.tickets.created"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("support.tickets.createFailed"));
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -210,7 +212,7 @@ function TicketsTab() {
       toast.success(t("support.tickets.replySent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("support.tickets.replyFailed"));
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.replyFailed"));
     } finally {
       setReplySending((s) => ({ ...s, [id]: false }));
     }
@@ -327,7 +329,7 @@ function MeetingsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error ? e.message : t("support.meeting.loadFailed"));
+          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.loadFailed"));
         }),
     [t]
   );
@@ -350,7 +352,7 @@ function MeetingsTab() {
       toast.success(t("support.meeting.sent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("support.meeting.submitFailed"));
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.submitFailed"));
     } finally {
       setSaving(false);
     }
@@ -512,7 +514,7 @@ function SupportChatTab() {
         markConversationAsRead(conv._id).catch(() => {});
       } catch (e) {
         if (!cancelled) {
-          toast.error(e instanceof Error ? e.message : t("support.chat.loadFailed"));
+          toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.loadFailed"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -569,7 +571,7 @@ function SupportChatTab() {
       setDraft("");
       await loadMessages(id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("support.chat.sendFailed"));
+      toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.sendFailed"));
     } finally {
       setSending(false);
     }

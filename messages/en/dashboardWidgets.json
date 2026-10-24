@@ -14,7 +14,8 @@
     "allStatuses": "All statuses",
     "allServices": "All services",
     "professional": "Professional",
-    "field": "Field"
+    "field": "Field",
+    "bookingFallback": "Booking"
   },
   "unit": {
     "hours": "hours",
@@ -157,7 +158,10 @@
       "submissionReceived": "Submission received! We'll verify your link shortly.",
       "network": "Network error — please try again",
       "linkNotFound": "Link not found on page"
-    }
+    },
+    "noLinkSummary": "No Fixtract link was found on this page",
+    "noLinkTitle": "No Fixtract link on page",
+    "noLinkHint": "The page must include a link to one of these domains:"
   },
   "refundRequests": {
     "title": "Refund requests ({count})",
@@ -365,6 +369,13 @@
     "warrantyAction": {
       "proposal": "Accept or decline warranty proposal",
       "resolved": "Accept or decline warranty resolution"
+    },
+    "actionNeeded": {
+      "acceptOrDeclineQuotation": "Accept or decline quotation",
+      "paymentNeeded": "Payment needed",
+      "acceptOrDeclineRescheduling": "Accept or decline rescheduling",
+      "reviewCompletion": "Review completion and confirm",
+      "reviewDispute": "Review dispute"
     }
   },
   "professionalManager": {

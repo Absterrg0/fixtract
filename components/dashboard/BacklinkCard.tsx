@@ -174,6 +174,7 @@ function notifyNewRejections(
   previous: BacklinkStats | null,
   next: BacklinkStats,
   fallbackReason: string,
+  noLinkSummary: string,
 ): void {
   if (!previous) return;
 
@@ -189,7 +190,7 @@ function notifyNewRejections(
       submission.rejectionReason ??
       submission.adminReviewReason ??
       fallbackReason;
-    const rejection = summarizeRejectionReason(rawRejection);
+    const rejection = summarizeRejectionReason(rawRejection, noLinkSummary);
 
     toast.error(rejection.summary, {
       description: rejection.expandable ? rejection.full : undefined,
@@ -268,6 +269,7 @@ function ResubmitCooldownHint({
 
 function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: string }) {
   const t = useTranslations('dashboardWidgets');
+  const { intl } = useFormatLocale();
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
   const inFlight = isInFlight(status);
@@ -295,7 +297,14 @@ function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: st
           sideOffset={6}
           className="max-w-xs border border-red-100 bg-white px-3 py-2.5 text-foreground shadow-lg [&>svg:last-child]:hidden"
         >
-          <RejectionTooltipBody reason={tooltip.trim()} />
+          <RejectionTooltipBody
+            reason={tooltip.trim()}
+            locale={intl}
+            labels={{
+              title: t('backlink.noLinkTitle'),
+              hint: t('backlink.noLinkHint'),
+            }}
+          />
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -473,6 +482,7 @@ interface BacklinkCardProps {
 
 export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProps) {
   const t = useTranslations('dashboardWidgets');
+  const { intl } = useFormatLocale();
   const [stats, setStats] = useState<BacklinkStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -515,7 +525,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (shouldRefreshPointsBalance(previous, data)) {
           onPointsBalanceChange?.();
         }
-        notifyNewRejections(previous, data, t('backlink.errors.linkNotFound'));
+        notifyNewRejections(previous, data, t('backlink.errors.linkNotFound'), t('backlink.noLinkSummary'));
         statsRef.current = data;
         setStats(data);
         return data;
@@ -614,7 +624,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (res.status === 429 && json.cooldownExpiresAt) {
           setCooldownExpiresAt(new Date(json.cooldownExpiresAt));
         }
-        toast.error(formatIsoDatesInMessage(json.msg ?? t('backlink.errors.submissionFailed')));
+        toast.error(formatIsoDatesInMessage(json.msg ?? t('backlink.errors.submissionFailed'), intl));
         return;
       }
 

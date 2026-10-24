@@ -262,6 +262,16 @@
       "submitted": "Profiel ingediend ter verificatie",
       "completeSteps": "Rond de vereiste stappen af voordat je indient",
       "submitFailed": "Indienen ter verificatie mislukt"
+    },
+    "vatFormat": {
+      "required": "Btw-nummer is vereist",
+      "tooShort": "Btw-nummer is te kort",
+      "tooLong": "Btw-nummer is te lang",
+      "countryPrefix": "Btw-nummer moet beginnen met 2 letters (landcode)",
+      "invalidCharacters": "Btw-nummer bevat ongeldige tekens",
+      "invalidCountry": "{country} is geen geldige EU-landcode",
+      "validationFailed": "Btw-nummer valideren mislukt",
+      "network": "Netwerkfout bij het valideren van het btw-nummer"
     }
   },
   "support": {

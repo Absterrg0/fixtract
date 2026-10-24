@@ -75,6 +75,61 @@ const LEVEL_KEYS = {
   'Level 2': 'levels.level2',
 } as const;
 
+const FALLBACK_PROFESSIONAL_TITLE_KEYS = {
+  'prof-1': 'fallbackProfessionals.titles.prof-1',
+  'prof-2': 'fallbackProfessionals.titles.prof-2',
+  'prof-3': 'fallbackProfessionals.titles.prof-3',
+  'prof-4': 'fallbackProfessionals.titles.prof-4',
+  'prof-5': 'fallbackProfessionals.titles.prof-5',
+  'prof-6': 'fallbackProfessionals.titles.prof-6',
+} as const;
+
+const NAV_SERVICE_NAME_KEYS = {
+  'full-renovation': 'names.navServices.full-renovation.name',
+  'kitchen-remodeling': 'names.navServices.kitchen-remodeling.name',
+  'bathroom-remodeling': 'names.navServices.bathroom-remodeling.name',
+  'basement-finishing': 'names.navServices.basement-finishing.name',
+  'roofing-services': 'names.navServices.roofing-services.name',
+  'flooring-installation': 'names.navServices.flooring-installation.name',
+  'demolition-services': 'names.navServices.demolition-services.name',
+  'architectural-design': 'names.navServices.architectural-design.name',
+  'landscape-design': 'names.navServices.landscape-design.name',
+  'lighting-design': 'names.navServices.lighting-design.name',
+  'permit-drawing': 'names.navServices.permit-drawing.name',
+  'structural-engineering': 'names.navServices.structural-engineering.name',
+  'space-planning': 'names.navServices.space-planning.name',
+  'emergency-plumbing': 'names.navServices.emergency-plumbing.name',
+  'pipe-installation': 'names.navServices.pipe-installation.name',
+  'electrical-wiring': 'names.navServices.electrical-wiring.name',
+  'fixture-installation': 'names.navServices.fixture-installation.name',
+  'boiler-maintenance': 'names.navServices.boiler-maintenance.name',
+  'solar-panel-installation': 'names.navServices.solar-panel-installation.name',
+  'charging-station': 'names.navServices.charging-station.name',
+  'interior-painting': 'names.navServices.interior-painting.name',
+  'exterior-painting': 'names.navServices.exterior-painting.name',
+  'wallpaper-installation': 'names.navServices.wallpaper-installation.name',
+  'plastering-drywall': 'names.navServices.plastering-drywall.name',
+  'tiling-services': 'names.navServices.tiling-services.name',
+  'finish-carpentry': 'names.navServices.finish-carpentry.name',
+  'cabinet-refinishing': 'names.navServices.cabinet-refinishing.name',
+  'deck-staining': 'names.navServices.deck-staining.name',
+  'garden-maintenance': 'names.navServices.garden-maintenance.name',
+  'deck-patio-construction': 'names.navServices.deck-patio-construction.name',
+  'driveway-paving': 'names.navServices.driveway-paving.name',
+  'pool-installation': 'names.navServices.pool-installation.name',
+  'tree-surgery': 'names.navServices.tree-surgery.name',
+  'outdoor-lighting': 'names.navServices.outdoor-lighting.name',
+  'irrigation-systems': 'names.navServices.irrigation-systems.name',
+  'deep-house-cleaning': 'names.navServices.deep-house-cleaning.name',
+  'window-cleaning': 'names.navServices.window-cleaning.name',
+  'gutter-cleaning': 'names.navServices.gutter-cleaning.name',
+  'pest-control': 'names.navServices.pest-control.name',
+  'pressure-washing': 'names.navServices.pressure-washing.name',
+  'handyman-services': 'names.navServices.handyman-services.name',
+  'furniture-assembly': 'names.navServices.furniture-assembly.name',
+  'appliance-repair': 'names.navServices.appliance-repair.name',
+} as const;
+
 function isTranslatedServiceId(
   id: string
 ): id is (typeof TRANSLATED_SERVICE_IDS)[number] {
@@ -109,6 +164,8 @@ type ServiceMeta = {
   description?: string;
   category?: string;
   categorySlug?: string;
+  /** Static `subNavbarCategories` entry: name/description are English fallback copy. */
+  source?: 'catalog' | 'nav';
 };
 
 function findServiceMeta(serviceId: string): ServiceMeta | null {
@@ -128,8 +185,13 @@ function findServiceMeta(serviceId: string): ServiceMeta | null {
     }
   }
   const navSvc = subNavbarCategories.flatMap((c) => c.services).find((s) => matchesServiceId(s.id, s.name, serviceId));
-  if (navSvc) return { id: navSvc.id, name: navSvc.name };
+  if (navSvc) return { id: navSvc.id, name: navSvc.name, source: 'nav' };
   return null;
+}
+
+function navServiceNameKey(meta: ServiceMeta): (typeof NAV_SERVICE_NAME_KEYS)[keyof typeof NAV_SERVICE_NAME_KEYS] | undefined {
+  if (meta.source !== 'nav') return undefined;
+  return NAV_SERVICE_NAME_KEYS[meta.id as keyof typeof NAV_SERVICE_NAME_KEYS];
 }
 
 function relatedCatalogName(landing: CmsContent | null): string | undefined {
@@ -209,11 +271,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const ProfessionalCard = ({
   professional,
+  title,
   priceLabel,
   levelLabel,
   startingAtLabel,
 }: {
   professional: (typeof professionalsForService)[0];
+  title: string;
   priceLabel: string;
   levelLabel: string;
   startingAtLabel: string;
@@ -223,7 +287,7 @@ const ProfessionalCard = ({
       <div className="relative aspect-[4/3] w-full">
         <Image
           src={professional.image}
-          alt={professional.title}
+          alt={title}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -244,7 +308,7 @@ const ProfessionalCard = ({
           </div>
         </div>
         <p className="text-base text-gray-800 group-hover:text-blue-600 transition-colors flex-grow">
-          {professional.title}
+          {title}
         </p>
         <div className="flex items-center gap-1 mt-3">
           <Star className="w-4 h-4 text-yellow-400 fill-current" />
@@ -298,10 +362,13 @@ export default async function Page({ params }: Props) {
   const meta = findServiceMeta(serviceId);
   const startingAtLabel = t('startingAt');
 
+  const navNameKey = meta ? navServiceNameKey(meta) : undefined;
   const metaDisplayName = meta
     ? isTranslatedServiceId(meta.id)
       ? t(`names.services.${meta.id}.name`)
-      : meta.name
+      : navNameKey
+        ? t(navNameKey)
+        : meta.name
     : undefined;
   const metaCategoryName = meta?.categorySlug && isTranslatedCategorySlug(meta.categorySlug)
     ? t(`names.categories.${meta.categorySlug}.name`)
@@ -507,10 +574,12 @@ export default async function Page({ params }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {professionalsForService.map(professional => {
             const levelKey = LEVEL_KEYS[professional.level as keyof typeof LEVEL_KEYS]
+            const titleKey = FALLBACK_PROFESSIONAL_TITLE_KEYS[professional.id as keyof typeof FALLBACK_PROFESSIONAL_TITLE_KEYS]
             return (
               <ProfessionalCard
                 key={professional.id}
                 professional={professional}
+                title={titleKey ? t(titleKey) : professional.title}
                 levelLabel={levelKey ? t(levelKey) : professional.level}
                 startingAtLabel={startingAtLabel}
                 priceLabel={formatPrice(professional.startingPrice, {

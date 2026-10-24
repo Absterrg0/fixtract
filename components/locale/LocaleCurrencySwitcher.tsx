@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, ChevronDown } from "lucide-react";
@@ -8,7 +8,11 @@ import { Check, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { LOCALE_COOKIE, LOCALES, type Locale, isLocale } from "@/i18n/config";
-import { GEO_LOCALE_COOKIE } from "@/lib/marketing/siteAnnouncements/constants";
+import { removeLangParam } from "@/i18n/localeResolution";
+import {
+  GEO_COUNTRY_COOKIE,
+  GEO_LOCALE_COOKIE,
+} from "@/lib/marketing/siteAnnouncements/constants";
 import {
   GEO_CURRENCY_COOKIE,
   SUPPORTED_CURRENCIES,
@@ -51,12 +55,30 @@ function dedupeLocales(values: Array<string | null | undefined>): Locale[] {
   return out;
 }
 
-function Flag({ locale, className }: { locale: Locale; className?: string }) {
+/**
+ * nl/fr visitors in Belgium get the Belgian flag; the emoji stays decorative
+ * and the native language name is always shown next to it.
+ */
+function Flag({
+  locale,
+  belgian = false,
+  className,
+}: {
+  locale: Locale;
+  belgian?: boolean;
+  className?: string;
+}) {
   return (
     <span aria-hidden className={cn("text-lg leading-none", className)}>
-      {LOCALE_FLAGS[locale]}
+      {belgian && (locale === "nl" || locale === "fr") ? "🇧🇪" : LOCALE_FLAGS[locale]}
     </span>
   );
+}
+
+interface GeoPreferences {
+  locale: string | null;
+  country: string | null;
+  currency: string | null;
 }
 
 function ChoiceTile({
@@ -108,19 +130,33 @@ export default function LocaleCurrencySwitcher({
   const [languageOpen, setLanguageOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
 
-  // Read inside handlers/memo: cookies are not available during SSR.
+  // Cookies are unavailable during SSR. Read them after mount so server markup
+  // never disagrees with the first client paint (hydration-safe suggestions).
+  const [geo, setGeo] = useState<GeoPreferences>({
+    locale: null,
+    country: null,
+    currency: null,
+  });
+  useEffect(() => {
+    setGeo({
+      locale: readClientCookie(GEO_LOCALE_COOKIE),
+      country: readClientCookie(GEO_COUNTRY_COOKIE)?.toUpperCase() ?? null,
+      currency: readClientCookie(GEO_CURRENCY_COOKIE),
+    });
+  }, []);
+
   const suggestedLocales = useMemo(
-    () => dedupeLocales([readClientCookie(GEO_LOCALE_COOKIE), locale]),
-    [locale]
+    () => dedupeLocales([geo.locale, locale]),
+    [geo.locale, locale]
   );
   const suggestedCurrencies = useMemo(
     () =>
       dedupeCurrencies([
-        readClientCookie(GEO_CURRENCY_COOKIE),
+        geo.currency,
         currency,
         ...SUGGESTED_CURRENCIES,
       ]),
-    [currency]
+    [geo.currency, currency]
   );
   const allCurrencies = useMemo(
     () =>
@@ -133,13 +169,30 @@ export default function LocaleCurrencySwitcher({
   );
 
   const chooseLanguage = (next: Locale) => {
-    if (next === locale) {
-      setLanguageOpen(false);
-      return;
-    }
+    // Always persist the manual choice, even when it equals the locale that
+    // was auto-detected (geo / Accept-Language). Otherwise a later browser
+    // restart would silently fall back to the detected language.
     setClientCookie(LOCALE_COOKIE, next);
     setLanguageOpen(false);
-    startTransition(() => router.refresh());
+
+    // `?lang=` wins over cookies in middleware. Drop it before navigating so
+    // the manual cookie actually takes effect, while keeping other params/hash.
+    if (typeof window !== "undefined") {
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const cleaned = removeLangParam(current);
+      if (cleaned !== current) {
+        // A client-side replace keeps the old shared root layout (and its
+        // `<html lang>`/messages), while the middleware only re-resolves the
+        // locale on a real request. Reload the cleaned URL so SSR renders in
+        // the newly selected language instead of mixing two locales.
+        window.location.replace(cleaned);
+        return;
+      }
+    }
+
+    if (next !== locale) {
+      startTransition(() => router.refresh());
+    }
   };
 
   const chooseCurrency = (next: CurrencyCode) => {
@@ -148,10 +201,12 @@ export default function LocaleCurrencySwitcher({
     startTransition(() => router.refresh());
   };
 
+  const belgian = geo.country === "BE";
+
   const languageTile = (code: Locale) => (
     <ChoiceTile key={code} selected={code === locale} onSelect={() => chooseLanguage(code)}>
       <span className="flex items-center gap-2.5">
-        <Flag locale={code} />
+        <Flag locale={code} belgian={belgian} />
         <span className="text-sm font-medium">{LOCALE_NATIVE_NAMES[code]}</span>
       </span>
     </ChoiceTile>
@@ -195,7 +250,7 @@ export default function LocaleCurrencySwitcher({
           >
             <span>{t("language")}</span>
             <span className="flex items-center gap-1.5 text-gray-600">
-              <Flag locale={locale} />
+              <Flag locale={locale} belgian={belgian} />
               {LOCALE_NATIVE_NAMES[locale]}
               <ChevronDown className="h-4 w-4" aria-hidden />
             </span>
@@ -218,7 +273,7 @@ export default function LocaleCurrencySwitcher({
             aria-label={t("openLanguage")}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-base transition-colors hover:bg-gray-100"
           >
-            <Flag locale={locale} />
+            <Flag locale={locale} belgian={belgian} />
           </button>
         </>
       )}

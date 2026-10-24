@@ -105,7 +105,7 @@ export default function FavoritesWidget() {
                 strokeLinejoin="round"
               />
             </svg>
-            Favorites
+            {t("favoritesWidget.title")}
           </span>
           {stats.newSinceLastSeen > 0 && (
             <button

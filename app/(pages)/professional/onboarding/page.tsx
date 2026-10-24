@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useTranslations } from 'next-intl'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -182,6 +183,17 @@ const resolveMissingRequirements = (
   }
 }
 
+const VAT_ERROR_KEYS = {
+  required: 'onboarding.vatFormat.required',
+  tooShort: 'onboarding.vatFormat.tooShort',
+  tooLong: 'onboarding.vatFormat.tooLong',
+  countryPrefix: 'onboarding.vatFormat.countryPrefix',
+  invalidCharacters: 'onboarding.vatFormat.invalidCharacters',
+  invalidCountry: 'onboarding.vatFormat.invalidCountry',
+  validationFailed: 'onboarding.vatFormat.validationFailed',
+  network: 'onboarding.vatFormat.network',
+} as const
+
 const toCountryCode = (value?: string) => {
   if (!value) return 'BE'
   const trimmed = value.trim()
@@ -343,6 +355,14 @@ function IdVerificationStep({
   idInfoSaving: boolean
 }) {
   const t = useTranslations('proArea')
+  const { intl } = useFormatLocale()
+  const regionNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([intl], { type: 'region' })
+    } catch {
+      return null
+    }
+  }, [intl])
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -388,7 +408,7 @@ function IdVerificationStep({
               <SelectContent>
                 {EU_COUNTRIES.map((country) => (
                   <SelectItem key={country.code} value={country.code}>
-                    {country.flag} {country.name}
+                    {country.flag} {regionNames?.of(country.code) ?? country.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -466,6 +486,7 @@ function BusinessDetailsStep({
   businessSaving: boolean
 }) {
   const t = useTranslations('proArea')
+  const { intl } = useFormatLocale()
   const companyNameConflict = t('onboarding.business.usernameCompanyConflict')
   const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
@@ -635,7 +656,7 @@ function BusinessDetailsStep({
           <Label className="text-sm font-medium text-gray-700">
             {t('onboarding.business.vatNumber')} *
             {vatNumber && vatValidation.valid && (
-              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber)}</span>
+              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber, intl)}</span>
             )}
           </Label>
           <div className="flex gap-2">
@@ -1353,6 +1374,12 @@ export default function ProfessionalOnboardingPage() {
 
 function ProfessionalOnboardingContent() {
   const t = useTranslations('proArea')
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
+  }
   const { user, loading, isAuthenticated, checkAuth } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1625,7 +1652,7 @@ function ProfessionalOnboardingContent() {
     const formatted = formatVATNumber(vatNumber)
     const formatValidation = validateVATFormat(formatted)
     if (!formatValidation.valid) {
-      setVatValidation({ valid: false, error: formatValidation.error })
+      setVatValidation({ valid: false, error: vatErrorMessage(formatValidation) })
       return
     }
 
@@ -1639,7 +1666,7 @@ function ProfessionalOnboardingContent() {
       const result = await validateVATWithAPI(formatted)
       setVatValidation({
         valid: result.valid,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         parsedAddress: result.parsedAddress,
       })
@@ -1784,7 +1811,7 @@ function ProfessionalOnboardingContent() {
     }
     const vatFormat = validateVATFormat(formatVATNumber(vatNumber))
     if (!vatFormat.valid) {
-      toast.error(vatFormat.error || t('onboarding.toasts.invalidVat'))
+      toast.error(vatErrorMessage(vatFormat) || t('onboarding.toasts.invalidVat'))
       return
     }
     if (!businessInfo.address.trim() || !businessInfo.city.trim() || !businessInfo.country.trim() || !businessInfo.postalCode.trim()) {
@@ -1808,7 +1835,7 @@ function ProfessionalOnboardingContent() {
         serviceCategories: selectedServices,
       })
       if (!result.success) {
-        toast.error(result.error || t('onboarding.toasts.businessSaveFailed'))
+        toast.error(result.errorCode ? t('onboarding.toasts.businessSaveFailed') : result.error)
         return
       }
       toast.success(t('onboarding.toasts.businessSaved'))
@@ -1951,7 +1978,7 @@ function ProfessionalOnboardingContent() {
           toast.error(t('onboarding.toasts.completeSteps'))
           setCurrentStep(resolution.step)
         } else {
-          toast.error(result.error || t('onboarding.toasts.submitFailed'))
+          toast.error(result.errorCode ? t('onboarding.toasts.submitFailed') : result.error)
         }
       }
     } finally {

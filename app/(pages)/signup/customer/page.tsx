@@ -95,6 +95,17 @@ export default function CustomerSignupPage() {
   );
 }
 
+const VAT_ERROR_KEYS = {
+  required: 'vatFormat.required',
+  tooShort: 'vatFormat.tooShort',
+  tooLong: 'vatFormat.tooLong',
+  countryPrefix: 'vatFormat.countryPrefix',
+  invalidCharacters: 'vatFormat.invalidCharacters',
+  invalidCountry: 'vatFormat.invalidCountry',
+  validationFailed: 'vatFormat.validationFailed',
+  network: 'vatFormat.network',
+} as const;
+
 function CustomerSignupForm() {
   const t = useTranslations('auth');
   const { intl } = useFormatLocale();
@@ -109,6 +120,12 @@ function CustomerSignupForm() {
     const code = vatNumber.slice(0, 2).toUpperCase();
     if (code.length !== 2) return '';
     return regionNames?.of(code) ?? code;
+  };
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined;
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error;
   };
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>(
     'form'
@@ -362,7 +379,7 @@ function CustomerSignupForm() {
     if (!formatValidation.valid) {
       setVatValidation({
         valid: false,
-        error: formatValidation.error,
+        error: vatErrorMessage(formatValidation),
       });
       return;
     }
@@ -382,7 +399,7 @@ function CustomerSignupForm() {
       setVatValidation({
         valid: result.valid,
         transient: result.transient === true,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         companyAddress: result.companyAddress,
         parsedAddress: result.parsedAddress,
@@ -519,7 +536,7 @@ function CustomerSignupForm() {
       }
       const vatFormatValidation = validateVATFormat(formatVATNumber(formData.vatNumber));
       if (!vatFormatValidation.valid) {
-        toast.error(vatFormatValidation.error || t('validation.vatInvalid'));
+        toast.error(vatErrorMessage(vatFormatValidation) || t('validation.vatInvalid'));
         return false;
       }
     }

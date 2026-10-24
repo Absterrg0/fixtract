@@ -14,7 +14,8 @@
     "allStatuses": "Tous les statuts",
     "allServices": "Tous les services",
     "professional": "Professionnel",
-    "field": "Champ"
+    "field": "Champ",
+    "bookingFallback": "Réservation"
   },
   "unit": {
     "hours": "heures",
@@ -157,7 +158,10 @@
       "submissionReceived": "Soumission reçue ! Nous vérifierons votre lien sous peu.",
       "network": "Erreur réseau — veuillez réessayer",
       "linkNotFound": "Lien introuvable sur la page"
-    }
+    },
+    "noLinkSummary": "Aucun lien Fixtract n’a été trouvé sur cette page",
+    "noLinkTitle": "Aucun lien Fixtract sur la page",
+    "noLinkHint": "La page doit contenir un lien vers l’un de ces domaines :"
   },
   "refundRequests": {
     "title": "Demandes de remboursement ({count})",
@@ -365,6 +369,13 @@
     "warrantyAction": {
       "proposal": "Accepter ou refuser la proposition de garantie",
       "resolved": "Accepter ou refuser la solution de garantie"
+    },
+    "actionNeeded": {
+      "acceptOrDeclineQuotation": "Accepter ou refuser le devis",
+      "paymentNeeded": "Paiement requis",
+      "acceptOrDeclineRescheduling": "Accepter ou refuser la nouvelle planification",
+      "reviewCompletion": "Vérifier la fin des travaux et confirmer",
+      "reviewDispute": "Examiner le litige"
     }
   },
   "professionalManager": {

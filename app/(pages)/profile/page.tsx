@@ -47,6 +47,17 @@ function normalizeCountryCode(raw: string): string {
   return EU_COUNTRIES.find((c) => c.name.toLowerCase() === raw.toLowerCase())?.code || raw
 }
 
+const VAT_ERROR_KEYS = {
+  required: 'vatFormat.required',
+  tooShort: 'vatFormat.tooShort',
+  tooLong: 'vatFormat.tooLong',
+  countryPrefix: 'vatFormat.countryPrefix',
+  invalidCharacters: 'vatFormat.invalidCharacters',
+  invalidCountry: 'vatFormat.invalidCountry',
+  validationFailed: 'vatFormat.validationFailed',
+  network: 'vatFormat.network',
+} as const
+
 function toEventDate(value: string, isEnd = false): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split('-').map(Number)
@@ -94,6 +105,12 @@ function ProfileContent() {
     const code = vatNumber.slice(0, 2).toUpperCase()
     if (code.length !== 2) return ''
     return regionNames?.of(code) ?? code
+  }
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
   }
   const weekdayLabel = useMemo(() => {
     const formatter = new Intl.DateTimeFormat(intl, { weekday: 'short' })
@@ -744,7 +761,7 @@ function ProfileContent() {
     if (!formatValidation.valid) {
       setVatValidation({
         valid: false,
-        error: formatValidation.error
+        error: vatErrorMessage(formatValidation)
       })
       return
     }
@@ -764,7 +781,7 @@ function ProfileContent() {
       setVatValidation({
         valid: result.valid,
         transient: result.transient === true,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         companyAddress: result.companyAddress,
         parsedAddress: result.parsedAddress,
@@ -844,7 +861,7 @@ function ProfileContent() {
         await checkAuth()
         setVatValidation({})
       } else {
-        toast.error(result.error || t('toasts.vatUpdateFailed'))
+        toast.error(result.errorCode ? t('toasts.vatUpdateFailed') : result.error)
       }
     } catch {
       toast.error(t('toasts.vatUpdateFailed'))
@@ -864,7 +881,7 @@ function ProfileContent() {
         toast.success(t('toasts.vatRemoved'))
         await checkAuth()
       } else {
-        toast.error(result.error || t('toasts.vatRemoveFailed'))
+        toast.error(result.errorCode ? t('toasts.vatRemoveFailed') : result.error)
       }
     } catch {
       toast.error(t('toasts.vatRemoveFailed'))
@@ -1313,7 +1330,7 @@ function ProfileContent() {
         toast.success(t('toasts.autoPopulated'))
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.error || t('toasts.autoPopulateFailed'))
+        toast.error(result.errorCode ? t('toasts.autoPopulateFailed') : result.error)
       }
     } catch {
       toast.error(t('toasts.autoPopulateFailed'))
@@ -1384,7 +1401,7 @@ function ProfileContent() {
             }
           )
         } else {
-          toast.error(result.error || t('toasts.submitFailed'))
+          toast.error(result.errorCode ? t('toasts.submitFailed') : result.error)
         }
       }
     } catch {
@@ -1696,7 +1713,7 @@ function ProfileContent() {
 
         {isProfessional ? (
           <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="w-full justify-start overflow-x-auto scrollbar-thin sm:grid sm:grid-cols-9">
               <TabsTrigger value="profile">{t('tabs.profile')}</TabsTrigger>
               <TabsTrigger value="business">{t('tabs.business')}</TabsTrigger>
               <TabsTrigger value="documents">{t('tabs.documents')}</TabsTrigger>

@@ -639,7 +639,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                       <Briefcase className="h-4 w-4 text-indigo-500 shrink-0" />
                     )}
                     <h3 className="font-semibold text-sm text-gray-900 truncate">
-                      {getBookingTitle(booking)}
+                      {getBookingTitle(booking, t("common.bookingFallback"))}
                     </h3>
                   </div>
                   <div className="text-xs text-gray-600 flex flex-wrap gap-3">

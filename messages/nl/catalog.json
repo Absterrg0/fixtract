@@ -155,6 +155,147 @@
         "name": "Omheiningen",
         "description": "Plaatsing en herstelling van alle soorten omheiningen."
       }
+    },
+    "navServices": {
+      "full-renovation": {
+        "name": "Volledige woningrenovatie"
+      },
+      "kitchen-remodeling": {
+        "name": "Keukenrenovatie"
+      },
+      "bathroom-remodeling": {
+        "name": "Badkamerrenovatie"
+      },
+      "basement-finishing": {
+        "name": "Kelderafwerking"
+      },
+      "roofing-services": {
+        "name": "Dakbedekking en goten"
+      },
+      "flooring-installation": {
+        "name": "Vloerinstallatie"
+      },
+      "demolition-services": {
+        "name": "Sloopwerkzaamheden"
+      },
+      "architectural-design": {
+        "name": "Architecturaal ontwerp"
+      },
+      "landscape-design": {
+        "name": "Landschapsontwerp"
+      },
+      "lighting-design": {
+        "name": "Verlichtingsontwerp"
+      },
+      "permit-drawing": {
+        "name": "Vergunningstekeningen en planning"
+      },
+      "structural-engineering": {
+        "name": "Structurele engineering"
+      },
+      "space-planning": {
+        "name": "Ruimteplanning"
+      },
+      "emergency-plumbing": {
+        "name": "Dringende loodgieterij"
+      },
+      "pipe-installation": {
+        "name": "Leidinginstallatie en -reparatie"
+      },
+      "electrical-wiring": {
+        "name": "Elektrische bedrading en herbedrading"
+      },
+      "fixture-installation": {
+        "name": "Installatie van armaturen en apparaten"
+      },
+      "boiler-maintenance": {
+        "name": "Onderhoud en reparatie van boilers"
+      },
+      "solar-panel-installation": {
+        "name": "Installatie van zonnepanelen"
+      },
+      "charging-station": {
+        "name": "Installatie van laadstations voor EV"
+      },
+      "interior-painting": {
+        "name": "Binnenschilderwerk"
+      },
+      "exterior-painting": {
+        "name": "Buitenschilderwerk"
+      },
+      "wallpaper-installation": {
+        "name": "Behanginstallatie"
+      },
+      "plastering-drywall": {
+        "name": "Pleisterwerk en gipsplaten"
+      },
+      "tiling-services": {
+        "name": "Tegelwerk"
+      },
+      "finish-carpentry": {
+        "name": "Afwerking en schrijnwerk"
+      },
+      "cabinet-refinishing": {
+        "name": "Opknappen van kasten"
+      },
+      "deck-staining": {
+        "name": "Beitsen van terrassen"
+      },
+      "garden-maintenance": {
+        "name": "Tuinonderhoud en grasmaaien"
+      },
+      "deck-patio-construction": {
+        "name": "Aanleg van terrassen en patio’s"
+      },
+      "driveway-paving": {
+        "name": "Aanleg en dichting van opritten"
+      },
+      "pool-installation": {
+        "name": "Installatie en onderhoud van zwembaden"
+      },
+      "tree-surgery": {
+        "name": "Boomverzorging en -verwijdering"
+      },
+      "outdoor-lighting": {
+        "name": "Buitenverlichting"
+      },
+      "irrigation-systems": {
+        "name": "Irrigatiesystemen"
+      },
+      "deep-house-cleaning": {
+        "name": "Grondige huisschoonmaak"
+      },
+      "window-cleaning": {
+        "name": "Ramen wassen"
+      },
+      "gutter-cleaning": {
+        "name": "Goten reinigen"
+      },
+      "pest-control": {
+        "name": "Ongediertebestrijding"
+      },
+      "pressure-washing": {
+        "name": "Hogedrukreiniging"
+      },
+      "handyman-services": {
+        "name": "Algemene klusjesdiensten"
+      },
+      "furniture-assembly": {
+        "name": "Meubelmontage"
+      },
+      "appliance-repair": {
+        "name": "Reparatie van apparaten"
+      }
+    }
+  },
+  "fallbackProfessionals": {
+    "titles": {
+      "prof-1": "Modern interieurontwerper met toprating",
+      "prof-2": "Minimalistische en Scandinavische ruimteplanner",
+      "prof-3": "Bohemien en eclectische homestylist",
+      "prof-4": "Ontwerper voor commerciële en kantoorruimtes",
+      "prof-5": "Ontwerper voor luxe en high-end residentiële projecten",
+      "prof-6": "Expert in duurzaam en milieuvriendelijk design"
     }
   }
 }

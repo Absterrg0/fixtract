@@ -13,7 +13,7 @@ import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
-import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
+import { getProfessionalActionItems, type ProfessionalActionItemKey } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
@@ -182,14 +182,13 @@ export default function DashboardPage() {
     }
   }
 
-  const actionItemLabel = (label: string) => {
-    switch (label) {
-      case "Accept or decline RFQ": return t("actionNeeded.acceptOrDeclineRfq")
-      case "Confirm start": return t("actionNeeded.confirmStart")
-      case "Awaiting customer reschedule decision": return t("actionNeeded.rescheduleDecision")
-      case "Confirm completion or extend": return t("actionNeeded.confirmCompletion")
-      case "Accept, negotiate or reject": return t("actionNeeded.disputeResponse")
-      default: return label
+  const actionItemLabel = (key: ProfessionalActionItemKey) => {
+    switch (key) {
+      case "acceptOrDeclineRfq": return t("actionNeeded.acceptOrDeclineRfq")
+      case "confirmStart": return t("actionNeeded.confirmStart")
+      case "rescheduleDecision": return t("actionNeeded.rescheduleDecision")
+      case "confirmCompletion": return t("actionNeeded.confirmCompletion")
+      case "disputeResponse": return t("actionNeeded.disputeResponse")
     }
   }
 
@@ -1905,8 +1904,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {actionItems.map((item) => {
                     const isProject = isProjectBooking(item.booking)
-                    const rawTitle = getBookingTitle(item.booking)
-                    const title = rawTitle === "Booking" ? t("common.bookingFallback") : rawTitle
+                    const title = getBookingTitle(item.booking, t("common.bookingFallback"))
                     const { className: statusClasses } = getBookingStatusMeta(item.booking.status)
                     const statusLabel = bookingStatusLabel(item.booking.status)
                     const severityClasses = item.severity === "urgent"
@@ -1945,7 +1943,7 @@ export default function DashboardPage() {
                                 variant="outline"
                                 className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
                               >
-                                {actionItemLabel(item.label)}
+                                {actionItemLabel(item.labelKey)}
                               </Badge>
                             </div>
                           </div>

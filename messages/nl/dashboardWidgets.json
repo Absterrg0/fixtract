@@ -14,7 +14,8 @@
     "allStatuses": "Alle statussen",
     "allServices": "Alle diensten",
     "professional": "Vakman",
-    "field": "Veld"
+    "field": "Veld",
+    "bookingFallback": "Boeking"
   },
   "unit": {
     "hours": "uur",
@@ -157,7 +158,10 @@
       "submissionReceived": "Inzending ontvangen! We controleren je link binnenkort.",
       "network": "Netwerkfout — probeer het opnieuw",
       "linkNotFound": "Link niet gevonden op de pagina"
-    }
+    },
+    "noLinkSummary": "Er is geen Fixtract-link op deze pagina gevonden",
+    "noLinkTitle": "Geen Fixtract-link op deze pagina",
+    "noLinkHint": "De pagina moet een link naar een van deze domeinen bevatten:"
   },
   "refundRequests": {
     "title": "Terugbetalingsverzoeken ({count})",
@@ -365,6 +369,13 @@
     "warrantyAction": {
       "proposal": "Garantievoorstel accepteren of weigeren",
       "resolved": "Garantieoplossing accepteren of weigeren"
+    },
+    "actionNeeded": {
+      "acceptOrDeclineQuotation": "Offerte accepteren of weigeren",
+      "paymentNeeded": "Betaling nodig",
+      "acceptOrDeclineRescheduling": "Nieuwe planning accepteren of weigeren",
+      "reviewCompletion": "Voltooiing beoordelen en bevestigen",
+      "reviewDispute": "Geschil bekijken"
     }
   },
   "professionalManager": {

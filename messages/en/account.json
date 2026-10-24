@@ -372,5 +372,15 @@
     "searchLabel": "Search country code",
     "listLabel": "Phone country codes",
     "noResults": "No countries found"
+  },
+  "vatFormat": {
+    "required": "VAT number is required",
+    "tooShort": "VAT number is too short",
+    "tooLong": "VAT number is too long",
+    "countryPrefix": "VAT number must start with 2 letters (country code)",
+    "invalidCharacters": "VAT number contains invalid characters",
+    "invalidCountry": "{country} is not a valid EU country code",
+    "validationFailed": "Failed to validate VAT number",
+    "network": "Network error occurred while validating VAT number"
   }
 }
