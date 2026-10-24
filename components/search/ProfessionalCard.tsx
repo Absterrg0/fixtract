@@ -2,12 +2,14 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Euro, ArrowRight, Calendar, Star } from 'lucide-react';
 import StartChatButton from '@/components/chat/StartChatButton';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface ProfessionalCardProps {
   professional: {
@@ -32,6 +34,8 @@ interface ProfessionalCardProps {
 }
 
 const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }: ProfessionalCardProps) => {
+  const t = useTranslations('search');
+  const { formatPrice } = useCurrency();
   const displayName = professional.username || professional.name;
   const location = [professional.businessInfo?.city, professional.businessInfo?.country]
     .filter(Boolean)
@@ -55,7 +59,7 @@ const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }:
         {professional.availability && (
           <Badge className="absolute top-3 left-3 bg-green-500 text-white">
             <Calendar className="w-3 h-3 mr-1" />
-            Available
+            {t('professionalCard.available')}
           </Badge>
         )}
         <div className="absolute top-3 right-3">
@@ -137,7 +141,7 @@ const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }:
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <Euro className="w-4 h-4 text-gray-400" />
               <span>
-                {professional.currency || '€'}{professional.hourlyRate}/hr
+                {t('professionalCard.perHour', { price: formatPrice(professional.hourlyRate) })}
               </span>
             </div>
           )}
@@ -147,12 +151,12 @@ const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }:
         <div className="mt-4 grid grid-cols-1 gap-2">
           <Button asChild className="w-full" variant="default">
             <Link href={`/professional/${professional._id}`}>
-              View Profile <ArrowRight className="w-4 h-4 ml-2" />
+              {t('professionalCard.viewProfile')} <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
           </Button>
           <StartChatButton
             professionalId={professional._id}
-            label="Start Chat"
+            label={t('professionalCard.startChat')}
             className="w-full"
           />
         </div>
