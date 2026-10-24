@@ -1,1 +1,160 @@
-{}
+{
+  "breadcrumbs": {
+    "home": "Home",
+    "services": "Diensten",
+    "categories": "Categorieën"
+  },
+  "tryAgain": "Opnieuw proberen",
+  "startingAt": "Vanaf",
+  "browseAllServices": "Alle diensten bekijken",
+  "categoriesLayout": {
+    "metaTitle": "Dienstcategorieën",
+    "metaDescription": "Ontdek de dienstcategorieën van Fixtract — interieur, exterieur, structuur en meer."
+  },
+  "categoryLayout": {
+    "fallbackDescription": "Bekijk geverifieerde vakmensen voor {category} op Fixtract."
+  },
+  "categoryPage": {
+    "description": "Vind geverifieerde vakmensen voor {category}",
+    "coverAlt": "Vakmensen voor {category}",
+    "verifiedProfessional": "Geverifieerde vakman",
+    "newBadge": "(Nieuw)",
+    "perHour": "{price}/uur",
+    "startChat": "Start een gesprek",
+    "locationNotSpecified": "Locatie niet opgegeven",
+    "errorTitle": "Kan vakmensen niet laden",
+    "errorMessage": "Kan vakmensen niet laden. Probeer het later opnieuw.",
+    "toastError": "Laden van vakmensen mislukt",
+    "emptyTitle": "Geen vakmensen gevonden",
+    "emptyDescription": "We hebben momenteel geen vakmensen in deze categorie. Kom snel terug of bekijk andere categorieën."
+  },
+  "servicesLayout": {
+    "metaTitle": "Diensten",
+    "metaDescription": "Bekijk de volledige catalogus van diensten op Fixtract — interieur, exterieur, structuur en meer. Vind geverifieerde vakmensen in je buurt."
+  },
+  "servicesPage": {
+    "title": "Alle diensten",
+    "description": "Ontdek het volledige aanbod aan professionele diensten op Fixtract. Vind precies wat je nodig hebt voor je volgende project.",
+    "servicesLabel": "Diensten",
+    "verifiedService": "Geverifieerde dienst",
+    "viewDetails": "Bekijk details",
+    "empty": "Geen diensten beschikbaar in deze categorie.",
+    "errorTitle": "Kan diensten niet laden",
+    "errorMessage": "Kan diensten niet laden. Probeer het later opnieuw.",
+    "toastError": "Laden van diensten mislukt"
+  },
+  "servicePage": {
+    "fallbackMetaDescription": "Vind geverifieerde vakmensen voor {service} op Fixtract.",
+    "missingMetaDescription": "De informatie over {service} op Fixtract wordt voorbereid. Bekijk ondertussen onze andere diensten.",
+    "popularProjectsHeading": "Populaire projecten: {service}",
+    "relatedArticles": "Gerelateerde artikelen",
+    "moreReading": "Meer lezen over {service}.",
+    "coverAlt": "Impressie van {service}",
+    "comingSoon": "Binnenkort beschikbaar",
+    "comingSoonDescription": "We werken nog aan deze pagina. Bekijk ondertussen de andere diensten op Fixtract of neem contact op, dan helpen we je de juiste vakman te vinden.",
+    "contactUs": "Contacteer ons",
+    "backHome": "← Terug naar de homepage"
+  },
+  "levels": {
+    "topRated": "Top beoordeeld",
+    "level1": "Niveau 1",
+    "level2": "Niveau 2"
+  },
+  "landingSearch": {
+    "serviceLabel": "Dienst zoeken",
+    "servicePlaceholder": "Welke dienst heb je nodig?",
+    "locationLabel": "Locatie",
+    "locationPlaceholder": "Stad, land",
+    "submit": "Zoeken"
+  },
+  "tableOfContents": {
+    "onThisPage": "Op deze pagina",
+    "sections": "{count, plural, one {# sectie} other {# secties}}"
+  },
+  "names": {
+    "categories": {
+      "interior-services": {
+        "name": "Interieurdiensten",
+        "description": "Transformeer het interieur van je woning met onze deskundige interieurdiensten."
+      },
+      "exterior-structural": {
+        "name": "Exterieur en structuur",
+        "description": "Verbeter de uitstraling en de structurele integriteit van je woning."
+      },
+      "outdoor-garden": {
+        "name": "Buiten en tuin",
+        "description": "Creëer en onderhoud je perfecte buitenruimte."
+      }
+    },
+    "services": {
+      "interior-design": {
+        "name": "Interieurdesign",
+        "description": "Bedenk en plan je perfecte ruimte."
+      },
+      "3d-modeling": {
+        "name": "3D-modellering",
+        "description": "Visualiseer je project voordat het begint."
+      },
+      "plumbing-services": {
+        "name": "Loodgieterswerk",
+        "description": "Lekkende kranen, nieuwe installaties en meer."
+      },
+      "electrical-work": {
+        "name": "Elektriciteitswerken",
+        "description": "Veilige en gecertificeerde elektrische diensten."
+      },
+      "hvac-services": {
+        "name": "HVAC",
+        "description": "Verwarming, ventilatie en airconditioning."
+      },
+      "painting-services": {
+        "name": "Schilderwerk",
+        "description": "Professioneel binnen- en buitenschilderwerk."
+      },
+      "flooring-tiling": {
+        "name": "Vloeren en tegelwerk",
+        "description": "Plaatsing van parket, tegels en tapijt."
+      },
+      "carpentry": {
+        "name": "Schrijnwerk",
+        "description": "Maatwerk planken, meubels en afwerking."
+      },
+      "home-renovation": {
+        "name": "Volledige renovatie",
+        "description": "Grootschalige renovatieprojecten."
+      },
+      "roofing": {
+        "name": "Dakwerken",
+        "description": "Herstellingen, vervanging en nieuwe installaties."
+      },
+      "masonry-brickwork": {
+        "name": "Metselwerk",
+        "description": "Muren, terrassen en structurele herstellingen."
+      },
+      "window-door-installation": {
+        "name": "Ramen en deuren",
+        "description": "Plaatsing en vervanging."
+      },
+      "siding-cladding": {
+        "name": "Gevelbekleding",
+        "description": "Bescherm en verfraai de buitenkant van je woning."
+      },
+      "garden-landscaping": {
+        "name": "Tuinaanleg",
+        "description": "Volledige tuin- en landschapsplanning."
+      },
+      "lawn-care": {
+        "name": "Gazononderhoud",
+        "description": "Maaiwerk, bemesting en onderhoud."
+      },
+      "deck-patio-building": {
+        "name": "Terrassen en vlonders",
+        "description": "Bouw je ideale buitenleefruimte."
+      },
+      "fence-installation": {
+        "name": "Omheiningen",
+        "description": "Plaatsing en herstelling van alle soorten omheiningen."
+      }
+    }
+  }
+}

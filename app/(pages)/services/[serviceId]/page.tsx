@@ -2,6 +2,7 @@ import React, { cache, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from '@/components/ui/separator';
@@ -24,6 +25,10 @@ import ServiceTableOfContents from '@/components/services/ServiceTableOfContents
 import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
 import { getServiceCoverImage } from '@/lib/serviceCovers';
+import { intlLocale } from '@/lib/i18n/format';
+import { getActiveCurrency } from '@/lib/currency/server';
+import { getExchangeRates } from '@/lib/currency/rates';
+import { formatPrice } from '@/lib/currency/convert';
 
 export const revalidate = 21600;
 
@@ -36,6 +41,51 @@ type Props = {
     serviceId: string;
   }>;
 };
+
+/** Catalog entries (hardcoded in `data/content`) with translated copy. */
+const TRANSLATED_SERVICE_IDS = [
+  'interior-design',
+  '3d-modeling',
+  'plumbing-services',
+  'electrical-work',
+  'hvac-services',
+  'painting-services',
+  'flooring-tiling',
+  'carpentry',
+  'home-renovation',
+  'roofing',
+  'masonry-brickwork',
+  'window-door-installation',
+  'siding-cladding',
+  'garden-landscaping',
+  'lawn-care',
+  'deck-patio-building',
+  'fence-installation',
+] as const;
+
+const TRANSLATED_CATEGORY_SLUGS = [
+  'interior-services',
+  'exterior-structural',
+  'outdoor-garden',
+] as const;
+
+const LEVEL_KEYS = {
+  'Top Rated': 'levels.topRated',
+  'Level 1': 'levels.level1',
+  'Level 2': 'levels.level2',
+} as const;
+
+function isTranslatedServiceId(
+  id: string
+): id is (typeof TRANSLATED_SERVICE_IDS)[number] {
+  return (TRANSLATED_SERVICE_IDS as readonly string[]).includes(id);
+}
+
+function isTranslatedCategorySlug(
+  slug: string
+): slug is (typeof TRANSLATED_CATEGORY_SLUGS)[number] {
+  return (TRANSLATED_CATEGORY_SLUGS as readonly string[]).includes(slug);
+}
 
 function serviceKey(value: string): string {
   return value
@@ -52,18 +102,33 @@ function matchesServiceId(id: string, name: string, serviceId: string): boolean 
   return id === serviceId || serviceKey(id) === needle || serviceKey(name) === needle;
 }
 
-function findServiceMeta(serviceId: string) {
+type ServiceMeta = {
+  /** Canonical catalog id/slug (English), also used for API filters. */
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  categorySlug?: string;
+};
+
+function findServiceMeta(serviceId: string): ServiceMeta | null {
   for (const cat of serviceCategories) {
     for (const sub of cat.subCategories || []) {
       for (const svc of sub.services || []) {
         if (matchesServiceId(svc.id, svc.name, serviceId)) {
-          return { name: svc.name, description: svc.description, category: cat.name, categorySlug: cat.slug };
+          return {
+            id: svc.id,
+            name: svc.name,
+            description: svc.description,
+            category: cat.name,
+            categorySlug: cat.slug,
+          };
         }
       }
     }
   }
   const navSvc = subNavbarCategories.flatMap((c) => c.services).find((s) => matchesServiceId(s.id, s.name, serviceId));
-  if (navSvc) return { name: navSvc.name, description: undefined as string | undefined, category: undefined as string | undefined, categorySlug: undefined as string | undefined };
+  if (navSvc) return { id: navSvc.id, name: navSvc.name };
   return null;
 }
 
@@ -108,6 +173,7 @@ function hasMeaningfulBody(html: string | undefined | null): boolean {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { serviceId } = await params;
+  const t = await getTranslations('catalog');
   const landing = await fetchServiceLanding(serviceId);
   if (landing && hasMeaningfulBody(landing.body)) {
     return buildMetadata({
@@ -120,9 +186,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const meta = findServiceMeta(serviceId);
   if (meta) {
-    const description = meta.description || `Find verified professionals for ${meta.name.toLowerCase()} on Fixtract.`;
+    const name = isTranslatedServiceId(meta.id)
+      ? t(`names.services.${meta.id}.name`)
+      : meta.name;
+    const description = isTranslatedServiceId(meta.id)
+      ? t(`names.services.${meta.id}.description`)
+      : meta.description || t('servicePage.fallbackMetaDescription', { service: name.toLowerCase() });
     return buildMetadata({
-      title: meta.name,
+      title: name,
       description,
       path: `/services/${encodeURIComponent(serviceId)}`,
     });
@@ -130,13 +201,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const fallbackTitle = landing?.title || humanizeCmsSlug(serviceId);
   return buildMetadata({
     title: fallbackTitle,
-    description: `Information for ${fallbackTitle} on Fixtract is being prepared. Browse our other services in the meantime.`,
+    description: t('servicePage.missingMetaDescription', { service: fallbackTitle }),
     path: `/services/${encodeURIComponent(serviceId)}`,
     noindex: true,
   });
 }
 
-const ProfessionalCard = ({ professional }: { professional: (typeof professionalsForService)[0] }) => {
+const ProfessionalCard = ({
+  professional,
+  priceLabel,
+  levelLabel,
+  startingAtLabel,
+}: {
+  professional: (typeof professionalsForService)[0];
+  priceLabel: string;
+  levelLabel: string;
+  startingAtLabel: string;
+}) => {
   return (
     <Card className="group overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col w-full">
       <div className="relative aspect-[4/3] w-full">
@@ -159,7 +240,7 @@ const ProfessionalCard = ({ professional }: { professional: (typeof professional
           </Avatar>
           <div>
             <p className="font-semibold text-base leading-tight">{professional.name}</p>
-            <p className="text-xs text-blue-600 font-medium flex items-center gap-1"><Award className="w-3 h-3" />{professional.level}</p>
+            <p className="text-xs text-blue-600 font-medium flex items-center gap-1"><Award className="w-3 h-3" />{levelLabel}</p>
           </div>
         </div>
         <p className="text-base text-gray-800 group-hover:text-blue-600 transition-colors flex-grow">
@@ -172,35 +253,35 @@ const ProfessionalCard = ({ professional }: { professional: (typeof professional
         </div>
       </CardContent>
       <div className="p-4 border-t flex items-center justify-between">
-        <span className="text-xs text-gray-500 font-semibold tracking-wider">STARTING AT</span>
-        <p className="text-xl font-bold text-gray-900">€{professional.startingPrice}</p>
+        <span className="text-xs text-gray-500 font-semibold tracking-wider">{startingAtLabel}</span>
+        <p className="text-xl font-bold text-gray-900">{priceLabel}</p>
       </div>
     </Card>
   );
 };
 
 async function ServicePopularProjects({
-  headingName,
+  heading,
   queryName,
 }: {
-  headingName: string
+  heading: string
   queryName: string
 }) {
   const projects = await getPopularProjects({ service: queryName, limit: 10 });
-  return <PopularProjectsCarousel projects={projects} heading={`Popular ${headingName} projects`} />;
+  return <PopularProjectsCarousel projects={projects} heading={heading} />;
 }
 
 function PopularProjectsSection({
-  headingName,
+  heading,
   queryName,
 }: {
-  headingName: string
+  heading: string
   queryName: string
 }) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
-      <Suspense fallback={<PopularProjectsCarouselSkeleton heading={`Popular ${headingName} projects`} />}>
-        <ServicePopularProjects headingName={headingName} queryName={queryName} />
+      <Suspense fallback={<PopularProjectsCarouselSkeleton heading={heading} />}>
+        <ServicePopularProjects heading={heading} queryName={queryName} />
       </Suspense>
     </section>
   );
@@ -209,13 +290,26 @@ function PopularProjectsSection({
 export default async function Page({ params }: Props) {
 
   const { serviceId } = await params;
+  const t = await getTranslations('catalog');
+  const locale = await getLocale();
+  const priceLocale = intlLocale(locale);
 
   const landing = await fetchServiceLanding(serviceId);
   const meta = findServiceMeta(serviceId);
+  const startingAtLabel = t('startingAt');
+
+  const metaDisplayName = meta
+    ? isTranslatedServiceId(meta.id)
+      ? t(`names.services.${meta.id}.name`)
+      : meta.name
+    : undefined;
+  const metaCategoryName = meta?.categorySlug && isTranslatedCategorySlug(meta.categorySlug)
+    ? t(`names.categories.${meta.categorySlug}.name`)
+    : meta?.category;
 
   if (landing && hasMeaningfulBody(landing.body)) {
     const safePath = `/services/${encodeURIComponent(serviceId)}`;
-    const serviceName = landing.title || meta?.name || humanizeCmsSlug(serviceId);
+    const serviceName = landing.title || metaDisplayName || humanizeCmsSlug(serviceId);
     const queryName = meta?.name || relatedCatalogName(landing) || serviceId;
     const coverSrc = landing.coverImage || getServiceCoverImage(serviceId, meta?.categorySlug);
     const { html: bodyHtml, toc } = extractTocAndAddIds(landing.body);
@@ -226,8 +320,8 @@ export default async function Page({ params }: Props) {
         <ServiceViewTracker serviceId={serviceId} />
         <JsonLd
           data={breadcrumbSchema([
-            { name: 'Home', path: '/' },
-            { name: 'Services', path: '/services' },
+            { name: t('breadcrumbs.home'), path: '/' },
+            { name: t('breadcrumbs.services'), path: '/services' },
             { name: landing.title, path: safePath },
           ])}
         />
@@ -244,9 +338,9 @@ export default async function Page({ params }: Props) {
           <div className="absolute inset-0 flex flex-col justify-end">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-10 md:pb-14">
               <div className="flex items-center text-sm text-white mb-2">
-                <Link href="/" className="hover:underline">Home</Link>
+                <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
                 <ChevronRight className="w-4 h-4 mx-1" />
-                <Link href="/services" className="hover:underline">Services</Link>
+                <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
               </div>
               <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight mb-6">{landing.title}</h1>
               <ServiceLandingSearch serviceName={serviceName} />
@@ -254,7 +348,10 @@ export default async function Page({ params }: Props) {
           </div>
         </div>
 
-        <PopularProjectsSection headingName={serviceName} queryName={queryName} />
+        <PopularProjectsSection
+          heading={t('servicePage.popularProjectsHeading', { service: serviceName })}
+          queryName={queryName}
+        />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
           <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-10">
@@ -264,8 +361,10 @@ export default async function Page({ params }: Props) {
 
               {(blogs.length > 0 || news.length > 0) && (
                 <section className="mt-16 pt-12 border-t border-gray-200">
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Related articles</h2>
-                  <p className="text-sm text-gray-600 mb-8">More reading on {serviceName.toLowerCase()}.</p>
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{t('servicePage.relatedArticles')}</h2>
+                  <p className="text-sm text-gray-600 mb-8">
+                    {t('servicePage.moreReading', { service: serviceName.toLowerCase() })}
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {blogs.map((b) => (
                       <BlogCard key={b._id} item={b} basePath="blog" />
@@ -289,9 +388,9 @@ export default async function Page({ params }: Props) {
       <div className="bg-gradient-to-b from-rose-50 via-white to-white min-h-screen">
         <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
           <div className="flex items-center text-sm text-gray-500 mb-6">
-            <Link href="/" className="hover:underline">Home</Link>
+            <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
             <ChevronRight className="w-4 h-4 mx-1" />
-            <Link href="/services" className="hover:underline">Services</Link>
+            <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
             <ChevronRight className="w-4 h-4 mx-1" />
             <span className="text-gray-700">{serviceName}</span>
           </div>
@@ -312,26 +411,26 @@ export default async function Page({ params }: Props) {
               </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-rose-50 border border-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 mb-4">
                 <Sparkles className="w-3.5 h-3.5" />
-                Coming soon
+                {t('servicePage.comingSoon')}
               </div>
               <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-gray-900">
                 {serviceName}
               </h1>
               <p className="mt-4 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-                We&apos;re putting the finishing touches on this page. In the meantime, explore the other services available on Fixtract or get in touch and we&apos;ll help you find the right professional.
+                {t('servicePage.comingSoonDescription')}
               </p>
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
                 <Button asChild size="lg" className="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white">
                   <Link href="/services">
-                    Browse all services
+                    {t('browseAllServices')}
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg" className="border-rose-200 text-rose-700 hover:bg-rose-50">
                   <Link href="/contact">
                     <Mail className="w-4 h-4 mr-2" />
-                    Contact us
+                    {t('servicePage.contactUs')}
                   </Link>
                 </Button>
               </div>
@@ -340,7 +439,7 @@ export default async function Page({ params }: Props) {
 
           <div className="mt-10 text-center">
             <Link href="/" className="text-sm text-gray-500 hover:text-rose-700 hover:underline">
-              ← Back to homepage
+              {t('servicePage.backHome')}
             </Link>
           </div>
         </main>
@@ -348,8 +447,10 @@ export default async function Page({ params }: Props) {
     );
   }
 
-  const serviceName = meta.name;
+  const serviceName = metaDisplayName || meta.name;
   const safePath = `/services/${encodeURIComponent(serviceId)}`;
+  const currency = await getActiveCurrency();
+  const rates = (await getExchangeRates())?.rates ?? null;
 
   return (
     <div className="bg-white">
@@ -358,13 +459,15 @@ export default async function Page({ params }: Props) {
         data={[
           serviceSchema({
             name: serviceName,
-            description: meta.description,
+            description: isTranslatedServiceId(meta.id)
+              ? t(`names.services.${meta.id}.description`)
+              : meta.description,
             path: safePath,
-            category: meta.category,
+            category: metaCategoryName,
           }),
           breadcrumbSchema([
-            { name: 'Home', path: '/' },
-            { name: 'Services', path: '/services' },
+            { name: t('breadcrumbs.home'), path: '/' },
+            { name: t('breadcrumbs.services'), path: '/services' },
             { name: serviceName, path: safePath },
           ]),
         ]}
@@ -372,7 +475,7 @@ export default async function Page({ params }: Props) {
       <div className="relative h-[28rem] md:h-[32rem] w-full">
         <Image
           src={getServiceCoverImage(serviceId, meta.categorySlug)}
-          alt={`Showcase for ${serviceName}`}
+          alt={t('servicePage.coverAlt', { service: serviceName })}
           fill
           className="object-cover"
           priority
@@ -381,9 +484,9 @@ export default async function Page({ params }: Props) {
         <div className="absolute inset-0 flex flex-col justify-end">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-10 md:pb-14">
             <div className="flex items-center text-sm text-white mb-2">
-              <Link href="/" className="hover:underline">Home</Link>
+              <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
               <ChevronRight className="w-4 h-4 mx-1" />
-              <Link href="/services" className="hover:underline">Services</Link>
+              <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight mb-6">
               {serviceName}
@@ -393,15 +496,31 @@ export default async function Page({ params }: Props) {
         </div>
       </div>
 
-      <PopularProjectsSection headingName={serviceName} queryName={serviceName} />
+      <PopularProjectsSection
+        heading={t('servicePage.popularProjectsHeading', { service: serviceName })}
+        queryName={meta.name}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
         <ProfessionalFilters resultsCount={professionalsForService.length} />
         <Separator className="mb-8" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {professionalsForService.map(professional => (
-            <ProfessionalCard key={professional.id} professional={professional} />
-          ))}
+          {professionalsForService.map(professional => {
+            const levelKey = LEVEL_KEYS[professional.level as keyof typeof LEVEL_KEYS]
+            return (
+              <ProfessionalCard
+                key={professional.id}
+                professional={professional}
+                levelLabel={levelKey ? t(levelKey) : professional.level}
+                startingAtLabel={startingAtLabel}
+                priceLabel={formatPrice(professional.startingPrice, {
+                  locale: priceLocale,
+                  currency,
+                  rates,
+                })}
+              />
+            )
+          })}
         </div>
       </main>
     </div>

@@ -1,1 +1,160 @@
-{}
+{
+  "breadcrumbs": {
+    "home": "Home",
+    "services": "Services",
+    "categories": "Categories"
+  },
+  "tryAgain": "Try again",
+  "startingAt": "Starting at",
+  "browseAllServices": "Browse all services",
+  "categoriesLayout": {
+    "metaTitle": "Service Categories",
+    "metaDescription": "Explore Fixtract service categories — interior, exterior, structural, and more."
+  },
+  "categoryLayout": {
+    "fallbackDescription": "Browse verified professionals offering {category} services on Fixtract."
+  },
+  "categoryPage": {
+    "description": "Find verified professionals for all your {category} needs",
+    "coverAlt": "{category} professionals",
+    "verifiedProfessional": "Verified Professional",
+    "newBadge": "(New)",
+    "perHour": "{price}/hr",
+    "startChat": "Start Chat",
+    "locationNotSpecified": "Location not specified",
+    "errorTitle": "Unable to Load Professionals",
+    "errorMessage": "Unable to load professionals. Please try again later.",
+    "toastError": "Failed to load professionals",
+    "emptyTitle": "No Professionals Found",
+    "emptyDescription": "We currently don't have any professionals in this category. Check back soon or explore other categories."
+  },
+  "servicesLayout": {
+    "metaTitle": "Services",
+    "metaDescription": "Browse the full catalog of services offered on Fixtract — interior, exterior, structural, and more. Find verified professionals near you."
+  },
+  "servicesPage": {
+    "title": "All Services",
+    "description": "Explore the full range of professional services available on Fixtract. Find exactly what you need for your next project.",
+    "servicesLabel": "Services",
+    "verifiedService": "Verified Service",
+    "viewDetails": "View Details",
+    "empty": "No services available in this category.",
+    "errorTitle": "Unable to Load Services",
+    "errorMessage": "Unable to load services. Please try again later.",
+    "toastError": "Failed to load services"
+  },
+  "servicePage": {
+    "fallbackMetaDescription": "Find verified professionals for {service} on Fixtract.",
+    "missingMetaDescription": "Information for {service} on Fixtract is being prepared. Browse our other services in the meantime.",
+    "popularProjectsHeading": "Popular {service} projects",
+    "relatedArticles": "Related articles",
+    "moreReading": "More reading on {service}.",
+    "coverAlt": "Showcase for {service}",
+    "comingSoon": "Coming soon",
+    "comingSoonDescription": "We're putting the finishing touches on this page. In the meantime, explore the other services available on Fixtract or get in touch and we'll help you find the right professional.",
+    "contactUs": "Contact us",
+    "backHome": "← Back to homepage"
+  },
+  "levels": {
+    "topRated": "Top Rated",
+    "level1": "Level 1",
+    "level2": "Level 2"
+  },
+  "landingSearch": {
+    "serviceLabel": "Service search",
+    "servicePlaceholder": "What service do you need?",
+    "locationLabel": "Location",
+    "locationPlaceholder": "City, Country",
+    "submit": "Search"
+  },
+  "tableOfContents": {
+    "onThisPage": "On this page",
+    "sections": "{count, plural, one {# section} other {# sections}}"
+  },
+  "names": {
+    "categories": {
+      "interior-services": {
+        "name": "Interior Services",
+        "description": "Transform the inside of your home with our expert interior services."
+      },
+      "exterior-structural": {
+        "name": "Exterior & Structural",
+        "description": "Enhance your home’s curb appeal and structural integrity."
+      },
+      "outdoor-garden": {
+        "name": "Outdoor & Garden",
+        "description": "Create and maintain your perfect outdoor oasis."
+      }
+    },
+    "services": {
+      "interior-design": {
+        "name": "Interior Design",
+        "description": "Conceptualize and plan your perfect space."
+      },
+      "3d-modeling": {
+        "name": "3D Modeling",
+        "description": "Visualize your project before it begins."
+      },
+      "plumbing-services": {
+        "name": "Plumbing",
+        "description": "Leaky faucets, new installations, and more."
+      },
+      "electrical-work": {
+        "name": "Electrical Work",
+        "description": "Safe and certified electrical services."
+      },
+      "hvac-services": {
+        "name": "HVAC",
+        "description": "Heating, ventilation, and air conditioning."
+      },
+      "painting-services": {
+        "name": "Painting",
+        "description": "Professional interior and exterior painting."
+      },
+      "flooring-tiling": {
+        "name": "Flooring & Tiling",
+        "description": "Hardwood, tile, and carpet installation."
+      },
+      "carpentry": {
+        "name": "Carpentry",
+        "description": "Custom shelves, furniture, and trim work."
+      },
+      "home-renovation": {
+        "name": "Full Renovation",
+        "description": "Large-scale renovation projects."
+      },
+      "roofing": {
+        "name": "Roofing",
+        "description": "Repairs, replacement, and new installations."
+      },
+      "masonry-brickwork": {
+        "name": "Masonry & Brickwork",
+        "description": "Walls, patios, and structural repairs."
+      },
+      "window-door-installation": {
+        "name": "Windows & Doors",
+        "description": "Installation and replacement."
+      },
+      "siding-cladding": {
+        "name": "Siding & Cladding",
+        "description": "Protect and beautify your home’s exterior."
+      },
+      "garden-landscaping": {
+        "name": "Landscaping Design",
+        "description": "Full garden and landscape planning."
+      },
+      "lawn-care": {
+        "name": "Lawn Care",
+        "description": "Mowing, fertilization, and maintenance."
+      },
+      "deck-patio-building": {
+        "name": "Decks & Patios",
+        "description": "Build your ideal outdoor living space."
+      },
+      "fence-installation": {
+        "name": "Fencing",
+        "description": "Installation and repair of all fence types."
+      }
+    }
+  }
+}
