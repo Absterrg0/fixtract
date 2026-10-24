@@ -406,9 +406,12 @@ export interface PolicyLink {
   path: string;
 }
 
-export async function publicListPolicyLinks(): Promise<PolicyLink[]> {
+export async function publicListPolicyLinks(
+  params: { locale?: string } = {}
+): Promise<PolicyLink[]> {
   try {
-    const res = await fetch(`${API}/api/public/cms/policy-links`, {
+    const qs = params.locale ? `?locale=${encodeURIComponent(params.locale)}` : '';
+    const res = await fetch(`${API}/api/public/cms/policy-links${qs}`, {
       next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:policy"] },
       signal: AbortSignal.timeout(8000),
     });

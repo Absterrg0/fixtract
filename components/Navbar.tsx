@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -10,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useAdminUnreadCount } from "@/hooks/useAdminUnreadCount";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import LocaleCurrencySwitcher from "@/components/locale/LocaleCurrencySwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,14 +25,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 const otherLinks = [
-  { name: "For Professionals", href: "/professionals" },
-  { name: "Services", href: "/services" },
-  { name: "About", href: "/about" },
-];
+  { key: "forProfessionals", href: "/professionals" },
+  { key: "services", href: "/services" },
+  { key: "about", href: "/about" },
+] as const;
 
 const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
+  const t = useTranslations("nav");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  // Portals need a client-only mount to keep SSR and hydration identical.
+  const [portalReady, setPortalReady] = useState(false);
   const { user, isAuthenticated, logout, loading } = useAuth();
   const { unreadCount, enabled: showChatIcon } = useUnreadCount();
   const { unreadCount: adminUnreadCount, enabled: showAdminChatIcon } = useAdminUnreadCount();
@@ -60,6 +66,10 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
   }, []);
 
   useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
     document.body.style.overflow = isMenuOpen ? "hidden" : "auto";
     return () => {
       document.body.style.overflow = "auto";
@@ -85,7 +95,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center shrink-0" aria-label="Fixtract home">
+            <Link href="/" className="flex items-center shrink-0" aria-label={t("homeLabel")}>
               <Image
                 src="/fixtract-logo.png"
                 alt="Fixtract — Find. Hire. Build."
@@ -100,16 +110,18 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
             <nav className="hidden lg:flex items-center space-x-8">
               {otherLinks.map((link) => (
                 <Link
-                  key={link.name}
+                  key={link.key}
                   href={link.href}
                   className="text-gray-700 hover:text-blue-600 transition-colors font-medium text-base"
                 >
-                  {link.name}
+                  {t(link.key)}
                 </Link>
               ))}
             </nav>
 
             <div className="hidden lg:flex items-center space-x-2">
+              <LocaleCurrencySwitcher />
+              <div className="h-5 w-px bg-gray-200" aria-hidden />
               {loading ? (
                 <div className="flex items-center space-x-2" aria-hidden>
                   <div className="h-9 w-16 rounded-md bg-gray-100 animate-pulse" />
@@ -123,7 +135,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                         <Link
                           href="/dashboard/favorites"
                           className="relative inline-flex items-center justify-center h-8 w-8 rounded-full text-gray-600 hover:text-pink-600 hover:bg-gray-100 transition-colors"
-                          aria-label="Favorites"
+                          aria-label={t("favorites")}
                         >
                           <Heart className="h-5 w-5" />
                         </Link>
@@ -132,7 +144,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                         <Link
                           href="/chat"
                           className="relative inline-flex items-center justify-center h-8 w-8 rounded-full text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition-colors"
-                          aria-label="Messages"
+                          aria-label={t("messages")}
                         >
                           <MessageSquare className="h-5 w-5" />
                           {unreadCount > 0 && (
@@ -146,7 +158,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                         <Link
                           href="/admin/chat"
                           className="relative inline-flex items-center justify-center h-8 w-8 rounded-full text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition-colors"
-                          aria-label="Support chat"
+                          aria-label={t("supportChat")}
                         >
                           <MessageSquare className="h-5 w-5" />
                           {adminUnreadCount > 0 && (
@@ -187,20 +199,20 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                           <DropdownMenuItem asChild>
                             <Link href="/dashboard">
                               <User className="mr-2 h-4 w-4" />
-                              <span>Dashboard</span>
+                              <span>{t("dashboard")}</span>
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link href="/profile">
                               <User className="mr-2 h-4 w-4" />
-                              <span>Profile</span>
+                              <span>{t("profile")}</span>
                             </Link>
                           </DropdownMenuItem>
                           {(user?.role === "customer" || user?.role === "professional") && (
                             <DropdownMenuItem asChild>
                               <Link href="/dashboard/benefits">
                                 <User className="mr-2 h-4 w-4" />
-                                <span>Benefits Program</span>
+                                <span>{t("benefitsProgram")}</span>
                               </Link>
                             </DropdownMenuItem>
                           )}
@@ -208,14 +220,14 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                             <DropdownMenuItem asChild>
                               <Link href="/professional/support">
                                 <LifeBuoy className="mr-2 h-4 w-4" />
-                                <span>Professional Support</span>
+                                <span>{t("professionalSupport")}</span>
                               </Link>
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={logout}>
                             <LogOut className="mr-2 h-4 w-4" />
-                            <span>Log out</span>
+                            <span>{t("logOut")}</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -223,10 +235,10 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                   ) : (
                     <>
                       <Button asChild variant="ghost">
-                        <Link href="/login">Sign In</Link>
+                        <Link href="/login">{t("signIn")}</Link>
                       </Button>
                       <Button asChild>
-                        <Link href="/join">Join</Link>
+                        <Link href="/join">{t("join")}</Link>
                       </Button>
                     </>
                   )}
@@ -238,7 +250,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
             <button
               className="lg:hidden p-2"
               onClick={() => setIsMenuOpen(true)}
-              aria-label="Open menu"
+              aria-label={t("openMenu")}
             >
               <Menu className="w-6 h-6" />
             </button>
@@ -247,36 +259,42 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
       </header>
 
       {/* --- Mobile Sidebar --- */}
+      {/* Portalled to <body>: the header is a fixed z-50 stacking context, so an
+          inline drawer can never get above the cookie banner (z-100). */}
+      {portalReady &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <div
+              className={cn(
+                "fixed inset-0 bg-black/50 z-[101] lg:hidden",
+                isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible",
+              )}
+              onClick={() => setIsMenuOpen(false)}
+            />
       <div
         className={cn(
-          "fixed inset-0 bg-black/50 z-[51] lg:hidden",
-          isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible",
-        )}
-        onClick={() => setIsMenuOpen(false)}
-      />
-      <div
-        className={cn(
-          "fixed top-0 right-0 h-full w-full max-w-sm bg-white z-[52] lg:hidden transition-transform duration-300 ease-in-out flex flex-col",
+          "fixed top-0 right-0 h-full w-full max-w-sm bg-white z-[102] lg:hidden transition-transform duration-300 ease-in-out flex flex-col",
           isMenuOpen ? "transform-none" : "translate-x-full",
         )}
         role="dialog"
         aria-modal="true"
       >
         <div className="flex items-center justify-between p-4 border-b">
-          <span className="font-bold text-lg">Menu</span>
-          <button onClick={() => setIsMenuOpen(false)} aria-label="Close menu">
+          <span className="font-bold text-lg">{t("menu")}</span>
+          <button onClick={() => setIsMenuOpen(false)} aria-label={t("closeMenu")}>
             <X className="w-6 h-6" />
           </button>
         </div>
         <nav className="flex-grow p-4 space-y-2 overflow-y-auto">
           {otherLinks.map((link) => (
             <Link
-              key={link.name}
+              key={link.key}
               href={link.href}
               className="block p-2 text-lg font-medium text-gray-800 hover:text-blue-600 rounded-lg hover:bg-gray-50 transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
-              {link.name}
+              {t(link.key)}
             </Link>
           ))}
           {isAuthenticated && user?.role === "customer" && (
@@ -288,7 +306,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                 onClick={() => setIsMenuOpen(false)}
               >
                 <Heart className="h-5 w-5" />
-                Favorites
+                {t("favorites")}
               </Link>
             </>
           )}
@@ -302,7 +320,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
               >
                 <span className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
-                  Messages
+                  {t("messages")}
                 </span>
                 {unreadCount > 0 && (
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
@@ -322,7 +340,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
               >
                 <span className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
-                  Support chat
+                  {t("supportChat")}
                 </span>
                 {adminUnreadCount > 0 && (
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
@@ -335,6 +353,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
           <hr className="my-2" />
         </nav>
         <div className="p-4 border-t space-y-3 bg-gray-50">
+          <LocaleCurrencySwitcher variant="mobile" />
           {!loading && (
             <>
               {isAuthenticated ? (
@@ -358,33 +377,33 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                     </div>
                 </div>
                   <Button asChild variant="outline" className="w-full">
-                    <Link href="/dashboard">Dashboard</Link>
+                    <Link href="/dashboard">{t("dashboard")}</Link>
                   </Button>
                   <Button asChild variant="outline" className="w-full">
-                    <Link href="/profile">Profile</Link>
+                    <Link href="/profile">{t("profile")}</Link>
                   </Button>
                   {(user?.role === "customer" || user?.role === "professional") && (
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/dashboard/benefits">Benefits Program</Link>
+                      <Link href="/dashboard/benefits">{t("benefitsProgram")}</Link>
                     </Button>
                   )}
                   {user?.role === "professional" && (
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/professional/support">Professional Support</Link>
+                      <Link href="/professional/support">{t("professionalSupport")}</Link>
                     </Button>
                   )}
                   <Button onClick={logout} variant="outline" className="w-full">
                     <LogOut className="mr-2 h-4 w-4" />
-                    Log out
+                    {t("logOut")}
                   </Button>
                 </>
               ) : (
                 <>
                   <Button asChild variant="outline" className="w-full">
-                    <Link href="/login">Sign In</Link>
+                    <Link href="/login">{t("signIn")}</Link>
                   </Button>
                   <Button asChild className="w-full">
-                    <Link href="/join">Join</Link>
+                    <Link href="/join">{t("join")}</Link>
                   </Button>
                 </>
               )}
@@ -392,6 +411,9 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
           )}
         </div>
       </div>
+          </>,
+          document.body
+        )}
     </>
   );
 };

@@ -1,0 +1,14 @@
+{
+  "openLanguage": "Changer de langue",
+  "openCurrency": "Changer de devise",
+  "chooseLanguageTitle": "Choisissez votre langue",
+  "chooseLanguageDescription": "Choisissez la langue dans laquelle vous souhaitez naviguer. Vous pouvez la modifier à tout moment.",
+  "selectCurrencyTitle": "Sélectionnez votre devise",
+  "selectCurrencyDescription": "Les prix sont uniquement convertis pour l'affichage — aucun paiement n'est effectué dans votre devise.",
+  "suggestedForYou": "Suggestions pour vous",
+  "allLanguages": "Toutes les langues",
+  "allCurrencies": "Toutes les devises",
+  "currencyNote": "Les prix sont affichés dans votre devise pour plus de confort. Il s'agit d'un simple affichage : vos paiements sont toujours encaissés en euros (EUR).",
+  "language": "Langue",
+  "currency": "Devise"
+}

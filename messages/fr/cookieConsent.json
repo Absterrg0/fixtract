@@ -1,0 +1,19 @@
+{
+  "regionLabel": "Consentement aux cookies",
+  "title": "Nous utilisons des cookies",
+  "intro": "Les cookies essentiels permettent au site de fonctionner. Avec votre accord, nous utilisons également des cookies analytiques et marketing pour améliorer notre service. Vous pouvez modifier votre choix à tout moment.",
+  "privacyPolicy": "Politique de confidentialité",
+  "customize": "Personnaliser",
+  "rejectAll": "Tout refuser",
+  "acceptAll": "Tout accepter",
+  "preferencesTitle": "Préférences de cookies",
+  "preferencesDescription": "Choisissez les catégories de cookies que vous autorisez. Vous pourrez les modifier plus tard depuis la page consacrée à la politique de confidentialité.",
+  "necessary": "Essentiels",
+  "necessaryDescription": "Nécessaires au fonctionnement du site (connexion, sécurité, traitement des paiements). Toujours activés.",
+  "analytics": "Analytiques",
+  "analyticsDescription": "Nous aident à comprendre comment le site est utilisé afin de l'améliorer. Aucune donnée personnelle n'est vendue.",
+  "marketing": "Marketing",
+  "marketingDescription": "Utilisés pour afficher du contenu pertinent et mesurer la performance des campagnes.",
+  "cancel": "Annuler",
+  "savePreferences": "Enregistrer les préférences"
+}

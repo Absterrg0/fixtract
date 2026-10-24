@@ -1,0 +1,14 @@
+{
+  "openLanguage": "Taal wijzigen",
+  "openCurrency": "Valuta wijzigen",
+  "chooseLanguageTitle": "Kies je taal",
+  "chooseLanguageDescription": "Kies de taal waarin je wilt surfen. Je kunt dit op elk moment aanpassen.",
+  "selectCurrencyTitle": "Selecteer je valuta",
+  "selectCurrencyDescription": "Prijzen worden alleen voor de weergave omgerekend — er wordt nooit in je eigen valuta afgerekend.",
+  "suggestedForYou": "Voorgesteld voor jou",
+  "allLanguages": "Alle talen",
+  "allCurrencies": "Alle valuta’s",
+  "currencyNote": "Prijzen worden voor je gemak omgerekend naar je gekozen valuta. Dat is alleen ter info: je betaalt altijd in euro’s (EUR).",
+  "language": "Taal",
+  "currency": "Valuta"
+}

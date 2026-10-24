@@ -1,7 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
+import { LOCALES, OG_LOCALES } from "@/i18n/config";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import { getActiveCurrency } from "@/lib/currency/server";
+import { getExchangeRates } from "@/lib/currency/rates";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SubNavbar, { SubNavbarFallback } from "@/components/SubNavbar";
@@ -33,45 +39,55 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl()),
-  title: {
-    default: SITE_NAME,
-    template: `%s | ${SITE_NAME}`,
-  },
-  description: SITE_DESCRIPTION,
-  applicationName: SITE_NAME,
-  icons: {
-    icon: [
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-  },
-  openGraph: {
-    type: "website",
-    siteName: SITE_NAME,
-    title: SITE_NAME,
+export async function generateMetadata(): Promise<Metadata> {
+  // Locale comes from the resolved next-intl request config (cookie/geo, no
+  // URL segment), so OpenGraph metadata always matches the rendered language.
+  const locale = await getLocale();
+  const alternateLocale = LOCALES.filter((candidate) => candidate !== locale).map(
+    (candidate) => OG_LOCALES[candidate]
+  );
+
+  return {
+    metadataBase: new URL(siteUrl()),
+    title: {
+      default: SITE_NAME,
+      template: `%s | ${SITE_NAME}`,
+    },
     description: SITE_DESCRIPTION,
-    url: siteUrl(),
-    locale: "en_US",
-    images: [{ url: absoluteUrl(OG_DEFAULT_IMAGE), width: 1200, height: 630, alt: SITE_NAME }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: SITE_NAME,
-    description: SITE_DESCRIPTION,
-    images: [absoluteUrl(OG_DEFAULT_IMAGE)],
-  },
-  alternates: {
-    canonical: siteUrl(),
-  },
-  appleWebApp: {
-    capable: true,
-    title: SITE_NAME,
-    statusBarStyle: "default",
-  },
-};
+    applicationName: SITE_NAME,
+    icons: {
+      icon: [
+        { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+        { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      url: siteUrl(),
+      locale: OG_LOCALES[locale],
+      alternateLocale,
+      images: [{ url: absoluteUrl(OG_DEFAULT_IMAGE), width: 1200, height: 630, alt: SITE_NAME }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      images: [absoluteUrl(OG_DEFAULT_IMAGE)],
+    },
+    alternates: {
+      canonical: siteUrl(),
+    },
+    appleWebApp: {
+      capable: true,
+      title: SITE_NAME,
+      statusBarStyle: "default",
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#4032f7",
@@ -82,40 +98,56 @@ async function SubNavbarWithCategories() {
   return <SubNavbar categories={serviceCategories} />;
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [locale, messages, currency, exchangeRates] = await Promise.all([
+    getLocale(),
+    getMessages(),
+    getActiveCurrency(),
+    // One cached fetch (1h) seeds the client provider so prices don't flash
+    // from EUR to the selected currency after hydration.
+    getExchangeRates().catch(() => null),
+  ]);
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ServiceWorkerRegistrar />
-        <JsonLd data={[organizationSchema(), websiteSchema()]} />
-        <AnalyticsProvider />
-        <AuthProvider>
-          <FCMLayoutWrapper>
-            <SiteAnnouncementsProvider>
-              <SiteHeaderStack>
-                <Navbar stacked />
-              </SiteHeaderStack>
-              <SiteHeaderSpacer />
-              <Suspense fallback={<SubNavbarFallback />}>
-                <SubNavbarWithCategories />
-              </Suspense>
-              <main className="flex flex-col min-h-screen">
-                <Toaster></Toaster>
-                {children}
-              </main>
-              <Footer />
-              <CookieConsent />
-              <SiteAnnouncementOverlays />
-              <SiteAnnouncementPreviewOverlays />
-            </SiteAnnouncementsProvider>
-          </FCMLayoutWrapper>
-        </AuthProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <CurrencyProvider
+            initialCurrency={currency}
+            initialRates={exchangeRates?.rates ?? null}
+          >
+            <ServiceWorkerRegistrar />
+            <JsonLd data={[organizationSchema(), websiteSchema()]} />
+            <AnalyticsProvider />
+            <AuthProvider>
+              <FCMLayoutWrapper>
+                <SiteAnnouncementsProvider>
+                  <SiteHeaderStack>
+                    <Navbar stacked />
+                  </SiteHeaderStack>
+                  <SiteHeaderSpacer />
+                  <Suspense fallback={<SubNavbarFallback />}>
+                    <SubNavbarWithCategories />
+                  </Suspense>
+                  <main className="flex flex-col min-h-screen">
+                    <Toaster></Toaster>
+                    {children}
+                  </main>
+                  <Footer />
+                  <CookieConsent />
+                  <SiteAnnouncementOverlays />
+                  <SiteAnnouncementPreviewOverlays />
+                </SiteAnnouncementsProvider>
+              </FCMLayoutWrapper>
+            </AuthProvider>
+          </CurrencyProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

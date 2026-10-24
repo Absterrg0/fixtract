@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
@@ -51,6 +52,7 @@ export function SubNavbarFallback() {
 }
 
 const SubNavbar = ({ categories }: { categories: Category[] }) => {
+  const t = useTranslations("nav");
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -107,7 +109,12 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
 
   return (
     <>
-      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40" style={{ top: stickyTop }}>
+      <div
+        role="navigation"
+        aria-label={t("serviceCategories")}
+        className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40"
+        style={{ top: stickyTop }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto scrollbar-hide">
           <div className="flex justify-between items-center h-12 min-w-full">
             {categories.map((category) => {
