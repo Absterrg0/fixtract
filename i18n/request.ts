@@ -35,11 +35,11 @@ async function loadNamespace(
 
   // The variable path is intentional: webpack creates one context module for
   // messages/<locale>/<namespace>.json, so all locale bundles are available.
-  const module = (await import(`../messages/${locale}/${namespace}.json`)) as {
+  const loaded = (await import(`../messages/${locale}/${namespace}.json`)) as {
     default: MessageTree;
   };
-  messageCache.set(cacheKey, module.default);
-  return module.default;
+  messageCache.set(cacheKey, loaded.default);
+  return loaded.default;
 }
 
 async function loadMessages(locale: Locale): Promise<Record<string, MessageTree>> {

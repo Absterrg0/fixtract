@@ -8,6 +8,7 @@ import {
   CURRENCY_COOKIE,
   CURRENCY_REQUEST_HEADER,
   DEFAULT_LOCALE,
+  DOCUMENT_LOCALE_REQUEST_HEADER,
   LOCALE_COOKIE,
   LOCALE_REQUEST_HEADER,
   PREFERENCE_COOKIE_MAX_AGE,
@@ -102,6 +103,12 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(LOCALE_REQUEST_HEADER, locale);
   requestHeaders.set(CURRENCY_REQUEST_HEADER, currency);
+  // Admin UI is English-only; `lang` on <html> must say so for accessibility
+  // and spellcheck. The locale cookie/preference itself is not changed.
+  const isAdminPath =
+    request.nextUrl.pathname === "/admin" ||
+    request.nextUrl.pathname.startsWith("/admin/");
+  requestHeaders.set(DOCUMENT_LOCALE_REQUEST_HEADER, isAdminPath ? "en" : locale);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 

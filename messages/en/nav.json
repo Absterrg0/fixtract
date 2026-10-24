@@ -16,5 +16,13 @@
   "professionalSupport": "Professional Support",
   "logOut": "Log out",
   "homeLabel": "Fixtract home",
-  "serviceCategories": "Service categories"
+  "serviceCategories": "Service categories",
+  "fallbackCategories": {
+    "smallTasks": "Small tasks",
+    "interior": "Interior",
+    "exterior": "Exterior",
+    "outdoorWork": "Outdoor work",
+    "renovation": "Renovation",
+    "inspections": "Inspections"
+  }
 }

@@ -47,6 +47,21 @@ function formatAmount(amount: number, currency: string, locale: string): string 
 const LEGACY_SYMBOLS: Record<string, string> = { "€": "EUR", "$": "USD", "£": "GBP" };
 
 /**
+ * Resolve the currency stored on a transactional record. Pass the charged
+ * currency first, then fallbacks (e.g. payment, quote, budget); the first
+ * non-empty value wins and `formatMoney` formats it without conversion.
+ */
+export function resolveRecordCurrency(
+  ...candidates: Array<string | null | undefined>
+): string {
+  for (const candidate of candidates) {
+    const value = typeof candidate === "string" ? candidate.trim() : "";
+    if (value) return value;
+  }
+  return BASE_CURRENCY;
+}
+
+/**
  * Format an amount in its own currency (no conversion), e.g. a booking quote
  * stored as GBP. Unknown/invalid codes fall back to "CODE 1,234.00".
  */

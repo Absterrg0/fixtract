@@ -16,5 +16,13 @@
   "professionalSupport": "Ondersteuning voor professionals",
   "logOut": "Uitloggen",
   "homeLabel": "Fixtract home",
-  "serviceCategories": "Diensten"
+  "serviceCategories": "Diensten",
+  "fallbackCategories": {
+    "smallTasks": "Kleine klussen",
+    "interior": "Interieur",
+    "exterior": "Exterieur",
+    "outdoorWork": "Buitenwerk",
+    "renovation": "Renovatie",
+    "inspections": "Inspecties"
+  }
 }

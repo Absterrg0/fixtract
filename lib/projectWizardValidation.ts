@@ -37,6 +37,23 @@ export type WizardStepError = {
   messages: string[]
 }
 
+/**
+ * Quick-add detection. New projects store canonical English item names, while
+ * drafts created before the canonical-name fix may still contain the translated
+ * label; both must disable the chip instead of adding a duplicate.
+ */
+export function isQuickAddItemIncluded(
+  includedNames: ReadonlyArray<string | null | undefined>,
+  canonicalName: string,
+  translatedLabel?: string
+): boolean {
+  return includedNames.some(
+    (name) =>
+      name === canonicalName ||
+      (translatedLabel != null && name === translatedLabel)
+  )
+}
+
 type SubprojectSnapshot = {
   name?: string
   description?: string

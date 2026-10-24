@@ -7,7 +7,10 @@ cookies, geo headers and `Accept-Language`.
 Languages: `en` (default), `nl` (informal je/jij), `fr` (vous).
 Country/currency audience: Belgium, Netherlands, France (+ any visitor, via geo).
 Admin panel (`app/(pages)/admin/**`, `components/admin/**`) **stays English** —
-never add translations there.
+never add translations there. Admin routes render `<html lang="en">` (set via
+the middleware document-locale header and kept in sync on client navigation)
+without changing `NEXT_LOCALE`, so returning to a public page restores the
+visitor's chosen language.
 
 ## How the values are resolved
 
@@ -26,6 +29,19 @@ Locale order:
 5. `en`
 
 Currency order: `NEXT_CURRENCY` → geo country (`lib/currency/countries.ts`) → `EUR`.
+
+`Accept-Language` parsing (`i18n/localeResolution.ts`) ignores `q=0` entries,
+clamps numeric out-of-range weights into `0…1`, ignores malformed qvalues and
+keeps header order for equal weights.
+
+The header picker always writes `NEXT_LOCALE` for a manual choice — even when
+it equals the currently auto-detected locale. If the current URL has `?lang=`,
+selecting a language first removes that parameter (preserving every other
+query param and the hash) and reloads the cleaned URL, otherwise the stale URL
+value would keep overriding the cookie (and a soft update could keep the old
+root layout's language). When the geo country is Belgium, the picker shows the
+Belgian flag for Dutch and French; geo cookies are read after mount so SSR and
+hydration markup cannot disagree.
 
 Middleware also keeps the legacy geo cookies for their existing consumers:
 `fixera_geo_country`, `fixera_geo_locale` (always `en|nl|fr`) and `geo_currency`.
@@ -84,6 +100,22 @@ work. Use `t("key", { count })` for ICU plurals; never concatenate translated
 sentences. Keep brand names ("Fixtract"), external brand names and admin-only UI
 untranslated.
 
+Shared UI defaults translate through the `common` namespace on public pages:
+the close button of `DialogContent`, the multi-select placeholder/search/count/
+empty-result labels and the site-wide fallback description
+(`common.meta.siteDescription`). Explicit labels passed by a caller always win;
+admin routes continue to render English defaults even when the visitor's
+cookie is nl/fr. Admin can also pass `closeLabel` to `DialogContent`.
+
+## Metadata
+
+`buildMetadata()` and the root layout derive OpenGraph `locale`/`alternateLocale`
+and the fallback description from the active request locale (`en_US`,
+`nl_BE`, `fr_BE`). Canonical URLs stay locale-free because language is a
+preference, not a route segment. `buildMetadata()` is async and is called from
+`generateMetadata()` functions; `noindexMetadata()` stays synchronous so admin
+and other static `metadata` exports keep working.
+
 ## Prices
 
 All DB prices are EUR. Conversion is **display only**; payments, checkout,
@@ -129,6 +161,15 @@ Rates come from `GET <backend>/api/public/exchange-rates` (ECB reference rates,
 cached for an hour server-side and refreshed in the background client-side).
 Missing rates never produce a wrong number: the EUR amount is formatted instead.
 
+## Self-check
+
+`node scripts/check-i18n-currency.mjs` runs focused assertions against the real
+TypeScript helpers (Node's built-in type stripping; run it with the repo's Node
+24 toolchain): Accept-Language q-value handling, Belgian locale resolution,
+language-picker URL cleanup, and the currency formatters' EUR fallbacks /
+no-conversion rules for charged amounts. It is a small guard, not a test
+framework.
+
 ## CMS content
 
 `lib/cms/public.ts` passes the active locale to the public CMS endpoints
@@ -136,3 +177,22 @@ Missing rates never produce a wrong number: the EUR amount is formatted instead.
 missing. The locale is part of the fetch URL, i.e. part of Next's cache key.
 Revalidation tags stay locale-agnostic so a single admin save flushes all
 locales (`app/api/cms/revalidate`).
+
+The admin CMS stays English and supports exactly `en`, `nl`, `fr`. Saving an
+original returns `{ success, data, translations }`; `lib/cms.ts` parses the
+whole envelope (`adminCreateCmsWithTranslations` /
+`adminUpdateCmsWithTranslations`) while the older `adminCreateCms` /
+`adminUpdateCms` still return just the saved document. Translation results are
+typed per locale: `created`, `updated`, `synced`, `skipped_manual`, `failed`,
+`disabled` (Azure key missing). The editor keeps content-save success separate
+from translation failures and never reloads the form after a retry, so unsaved
+edits survive.
+
+`POST /api/admin/cms/:id/translate` with `{ force: boolean }` returns
+`{ success, translations }` (no `data`). Normal retries use `force: false` and
+keep manual translations; overwriting manual text requires `force: true` and an
+explicit confirmation dialog. Retries revalidate the public CMS cache. The list
+shows the locale and auto-translated/manual badge, filters by language, and
+scopes reserved policy/landing slots to their English source documents. "View
+live" appends `?lang=<document locale>` so the preview always opens in that
+document's language.

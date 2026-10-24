@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import enProjectWizard from '@/messages/en/projectWizard.json';
 import {
   Card,
   CardContent,
@@ -36,7 +37,10 @@ import {
 import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { collectSubprojectErrors } from '@/lib/projectWizardValidation';
+import {
+  collectSubprojectErrors,
+  isQuickAddItemIncluded,
+} from '@/lib/projectWizardValidation';
 
 interface IIncludedItem {
   name: string;
@@ -47,6 +51,8 @@ interface IIncludedItem {
   // NEW: mark included items that originate from professional input fields
   isDynamicField?: boolean;
   fieldName?: string;
+  /** Client-only: item came from the app's predefined fallback quick-add list. */
+  predefined?: boolean;
 }
 
 interface IProfessionalInput {
@@ -143,8 +149,18 @@ interface IServiceConfigurationIncludedItem {
   };
 }
 
-// Predefined included items by service category (message keys under
-// `step2.predefinedItems`; translated when the professional adds them).
+// Predefined included items by service category. The English label is the
+// canonical value saved with the project; the chips and saved list render the
+// active-locale label from `step2.predefinedItems`.
+const PREDEFINED_ITEM_ENGLISH_NAMES = enProjectWizard.step2.predefinedItems;
+type PredefinedItemKey = keyof typeof PREDEFINED_ITEM_ENGLISH_NAMES;
+
+const PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME = new Map<string, PredefinedItemKey>(
+  (Object.keys(PREDEFINED_ITEM_ENGLISH_NAMES) as PredefinedItemKey[]).map(
+    (key) => [PREDEFINED_ITEM_ENGLISH_NAMES[key], key]
+  )
+);
+
 const PREDEFINED_INCLUDED_ITEMS = {
   plumber: [
     'siteInspection',
@@ -676,19 +692,36 @@ export default function Step2Subprojects({
 
   // Note: Dynamic fields are shown only when 'Service Details' is included
 
-  const getQuickAddItems = (): { name: string; fieldName?: string }[] => {
-    // Prefer admin-configured included items
+  const getQuickAddItems = (): {
+    name: string;
+    /** Translated chip label; absent for admin-configured data. */
+    label?: string;
+    fieldName?: string;
+    predefined?: boolean;
+  }[] => {
+    // Prefer admin-configured included items (their names are data, not app copy)
     if (configIncludedItems.length > 0) {
       // Show only static included items here to avoid duplicating parameters
       return configIncludedItems.filter((i) => !i?.isDynamic && !i?.fieldName);
     }
-    // Fallback to predefined constants (translated names)
+    // Fallback to the app's predefined items: render the active locale, save the
+    // canonical English label so projects stay language-independent.
     const service: PredefinedService =
       data.service && data.service in PREDEFINED_INCLUDED_ITEMS
         ? (data.service as PredefinedService)
         : 'default';
     const names = PREDEFINED_INCLUDED_ITEMS[service];
-    return names.map((name) => ({ name: t(`step2.predefinedItems.${name}`) }));
+    return names.map((key) => ({
+      name: PREDEFINED_ITEM_ENGLISH_NAMES[key],
+      label: t(`step2.predefinedItems.${key}`),
+      predefined: true,
+    }));
+  };
+
+  const getIncludedItemLabel = (item: IIncludedItem) => {
+    if (!item.predefined) return item.name;
+    const key = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
+    return key ? t(`step2.predefinedItems.${key}`) : item.name;
   };
 
   const addMaterial = (subprojectId: string, material: IMaterial) => {
@@ -1514,19 +1547,26 @@ export default function Step2Subprojects({
                                   fieldName: item.fieldName,
                                 }
                               )
-                              : addIncludedItem(subproject.id, item.name)
+                              : addIncludedItem(
+                                subproject.id,
+                                item.name,
+                                false,
+                                item.predefined ? { predefined: true } : undefined
+                              )
                           }
                           disabled={
                             item.fieldName
                               ? subproject.included.some(
                                 (inc) => inc.fieldName === item.fieldName
                               )
-                              : subproject.included.some(
-                                (inc) => inc.name === item.name
+                              : isQuickAddItemIncluded(
+                                subproject.included.map((inc) => inc.name),
+                                item.name,
+                                item.label
                               )
                           }
                         >
-                          {item.name}
+                          {item.label ?? item.name}
                         </Button>
                       ))}
                     </div>
@@ -1597,7 +1637,7 @@ export default function Step2Subprojects({
                           >
                             <div className='flex items-center justify-between mb-2'>
                               <span className='text-sm font-medium'>
-                                {item.name}
+                                {getIncludedItemLabel(item)}
                                 {dynamicField?.isRequired && (
                                   <span className='text-red-500 ml-1'>*</span>
                                 )}

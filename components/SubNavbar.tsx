@@ -19,7 +19,26 @@ interface Category {
   name: string;
   slug: string;
   icon?: string;
+  /** Static outage fallback from lib/server/serviceCategories. */
+  isFallback?: boolean;
   services: Service[];
+}
+
+const FALLBACK_CATEGORY_NAME_KEYS = {
+  "small-tasks": "fallbackCategories.smallTasks",
+  interior: "fallbackCategories.interior",
+  exterior: "fallbackCategories.exterior",
+  "outdoor-work": "fallbackCategories.outdoorWork",
+  renovation: "fallbackCategories.renovation",
+  inspections: "fallbackCategories.inspections",
+} as const;
+
+type FallbackCategorySlug = keyof typeof FALLBACK_CATEGORY_NAME_KEYS;
+
+function fallbackCategoryNameKey(
+  slug: string
+): (typeof FALLBACK_CATEGORY_NAME_KEYS)[FallbackCategorySlug] | undefined {
+  return FALLBACK_CATEGORY_NAME_KEYS[slug as FallbackCategorySlug];
 }
 
 // Shared constant for dropdown width — used in both the portal style and
@@ -119,6 +138,12 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
           <div className="flex justify-between items-center h-12 min-w-full">
             {categories.map((category) => {
               const CategoryIcon = getCategoryIcon(category.slug, category.name);
+              const fallbackKey = category.isFallback
+                ? fallbackCategoryNameKey(category.slug)
+                : undefined;
+              const categoryLabel = fallbackKey
+                ? t(fallbackKey)
+                : category.name;
               return (
                 <div
                   key={category.slug}
@@ -142,7 +167,7 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
                       }`}
                   >
                     <CategoryIcon className={`w-4 h-4 ${hoveredCategory === category.slug ? 'text-blue-600' : 'text-gray-400'} transition-colors duration-200`} />
-                    {category.name}
+                    {categoryLabel}
                   </Link>
                 </div>
               );

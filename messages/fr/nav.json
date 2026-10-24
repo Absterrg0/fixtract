@@ -16,5 +16,13 @@
   "professionalSupport": "Assistance professionnelle",
   "logOut": "Déconnexion",
   "homeLabel": "Accueil Fixtract",
-  "serviceCategories": "Catégories de services"
+  "serviceCategories": "Catégories de services",
+  "fallbackCategories": {
+    "smallTasks": "Petits travaux",
+    "interior": "Intérieur",
+    "exterior": "Extérieur",
+    "outdoorWork": "Travaux extérieurs",
+    "renovation": "Rénovation",
+    "inspections": "Inspections"
+  }
 }

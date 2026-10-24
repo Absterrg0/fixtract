@@ -35,6 +35,7 @@ import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelp
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
+import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { createOrGetConversation } from "@/lib/chatApi"
 import {
   calculateMilestoneGrossAmounts,
@@ -2471,6 +2472,12 @@ function BookingDetailContent() {
     .map((item, originalIndex) => ({ item, originalIndex }))
     .filter(({ item }) => !item.type || item.type === 'condition')
   const projectOptions = booking?.project?.extraOptions || []
+  // The completion charge is created in the booking payment's currency; the
+  // quote currency is only a fallback for records without a payment yet.
+  const completionCurrency = resolveRecordCurrency(
+    booking?.payment?.currency,
+    booking?.quote?.currency
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -5193,8 +5200,7 @@ function BookingDetailContent() {
                           <SelectContent>
                             {projectConditions.map(({ item: condition, originalIndex }) => {
                               const cost = Number(condition.additionalCost) || 0
-                              const currency = booking?.quote?.currency || booking?.payment?.currency || 'EUR'
-                              const label = cost > 0 ? t("extraCosts.conditionCost", { amount: formatMoney(cost, currency) }) : t("extraCosts.noExtraCost")
+                              const label = cost > 0 ? t("extraCosts.conditionCost", { amount: formatMoney(cost, completionCurrency) }) : t("extraCosts.noExtraCost")
                               return (
                                 <SelectItem key={`condition-${originalIndex}`} value={String(originalIndex)}>
                                   {(condition.name || t("extraCosts.conditionFallback", { number: originalIndex + 1 }))} {label}
@@ -5220,7 +5226,7 @@ function BookingDetailContent() {
                             {projectOptions.map((option, optionIndex) => (
                               <SelectItem key={`option-${optionIndex}`} value={String(optionIndex)}>
                                 {(option.name || t("extraCosts.optionFallback", { number: optionIndex + 1 }))}
-                                {typeof option.price === 'number' ? ` ${t("extraCosts.conditionCost", { amount: formatMoney(option.price) })}` : ''}
+                                {typeof option.price === 'number' ? ` ${t("extraCosts.conditionCost", { amount: formatMoney(option.price, completionCurrency) })}` : ''}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -5248,7 +5254,7 @@ function BookingDetailContent() {
 
                     {(cost.type === 'unit_adjustment' || cost.type === 'condition' || cost.type === 'option') && (
                       <p className="text-xs text-gray-600">
-                        {t("extraCosts.calculated", { amount: `${cost.amount >= 0 ? '+' : ''}${formatMoney(cost.amount)}` })}
+                        {t("extraCosts.calculated", { amount: `${cost.amount >= 0 ? '+' : ''}${formatMoney(cost.amount, completionCurrency)}` })}
                       </p>
                     )}
                   </div>
@@ -5258,7 +5264,7 @@ function BookingDetailContent() {
                   <div className="flex justify-between items-center pt-2 border-t">
                     <span className="text-sm font-semibold">{t("extraCosts.totalLabel")}</span>
                     <span className={`text-sm font-bold ${completionExtraCosts.reduce((s, c) => s + c.amount, 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatMoney(completionExtraCosts.reduce((s, c) => s + c.amount, 0))}
+                      {formatMoney(completionExtraCosts.reduce((s, c) => s + c.amount, 0), completionCurrency)}
                     </span>
                   </div>
                 )}
