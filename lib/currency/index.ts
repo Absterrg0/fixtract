@@ -10,6 +10,7 @@ export {
 export { countryToCurrency } from "@/lib/currency/countries";
 export {
   convertFromEur,
+  formatMoney,
   formatPrice,
   type ExchangeRateData,
   type PriceOptions,

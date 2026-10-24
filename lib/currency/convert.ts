@@ -44,6 +44,23 @@ function formatAmount(amount: number, currency: string, locale: string): string 
   }).format(amount);
 }
 
+const LEGACY_SYMBOLS: Record<string, string> = { "€": "EUR", "$": "USD", "£": "GBP" };
+
+/**
+ * Format an amount in its own currency (no conversion), e.g. a booking quote
+ * stored as GBP. Unknown/invalid codes fall back to "CODE 1,234.00".
+ */
+export function formatMoney(amount: number, currency: string | null | undefined, locale: string): string {
+  const raw = (currency || BASE_CURRENCY).trim();
+  // Legacy records store a symbol instead of an ISO code (e.g. RFQ budgets use "€").
+  const code = LEGACY_SYMBOLS[raw] ?? raw.toUpperCase();
+  try {
+    return formatAmount(amount, code, locale);
+  } catch {
+    return `${code} ${new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+  }
+}
+
 /**
  * Format a EUR amount for display in the given currency. When the target
  * currency has no available rate (or `charge` is set), the EUR amount is

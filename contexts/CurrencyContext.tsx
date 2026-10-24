@@ -19,6 +19,7 @@ import {
 } from "@/lib/currency/currencies";
 import {
   convertFromEur as convertFromEurWithRates,
+  formatMoney as formatMoneyInLocale,
   formatPrice as formatPriceWithRates,
   type PriceOptions,
 } from "@/lib/currency/convert";
@@ -39,6 +40,12 @@ export interface CurrencyContextValue {
    * `{ charge: true }` always formats the charged (EUR) amount.
    */
   formatPrice: (eurAmount: number, options?: { charge?: boolean }) => string;
+  /**
+   * Formats an amount in its OWN currency (no conversion) using the active
+   * locale — for transactional records that store a currency (booking quotes,
+   * payments). Defaults to EUR.
+   */
+  formatMoney: (amount: number, currencyCode?: string | null) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
@@ -128,14 +135,20 @@ export function CurrencyProvider({
     [currency, rates, locale]
   );
 
+  const formatMoney = useCallback(
+    (amount: number, currencyCode?: string | null) =>
+      formatMoneyInLocale(amount, currencyCode, INTL_FORMAT_LOCALES[locale] ?? locale),
+    [locale]
+  );
+
   const convert = useCallback(
     (amount: number) => convertFromEurWithRates(amount, currency, rates),
     [currency, rates]
   );
 
   const value = useMemo<CurrencyContextValue>(
-    () => ({ currency, setCurrency, rates, convertFromEur: convert, formatPrice }),
-    [currency, setCurrency, rates, convert, formatPrice]
+    () => ({ currency, setCurrency, rates, convertFromEur: convert, formatPrice, formatMoney }),
+    [currency, setCurrency, rates, convert, formatPrice, formatMoney]
   );
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
