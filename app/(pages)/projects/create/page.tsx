@@ -23,6 +23,7 @@ import {
   collectStepErrors,
   getStep1DataSignature,
   parseProjectSaveError,
+  WIZARD_STEP_TITLES,
   type Step1ValidationContext,
   type WizardStepError,
 } from '@/lib/projectWizardValidation'
@@ -36,17 +37,6 @@ const PRICE_MODEL_KEYS = {
   meter: 'priceModels.meter',
   m2: 'priceModels.m2',
   room: 'priceModels.room',
-} as const
-
-const STEP_TITLE_KEYS = {
-  1: 'create.stepTitles.1',
-  2: 'create.stepTitles.2',
-  3: 'create.stepTitles.3',
-  4: 'create.stepTitles.4',
-  5: 'create.stepTitles.5',
-  6: 'create.stepTitles.6',
-  7: 'create.stepTitles.7',
-  8: 'create.stepTitles.8',
 } as const
 
 interface IIncludedItem {
@@ -237,6 +227,7 @@ function ProjectCreateContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const t = useTranslations('projects')
+  const tWizard = useTranslations('projectWizard')
   const { formatMoney } = useCurrency()
   const { user, isAuthenticated, loading } = useAuth()
   const projectId = searchParams.get('id')
@@ -490,7 +481,7 @@ function ProjectCreateContent() {
       } else {
         const errorData = await response.json().catch(() => ({}))
         console.error('Save failed:', errorData)
-        const parsed = parseProjectSaveError(errorData)
+        const parsed = parseProjectSaveError(errorData, tWizard)
         setStepErrors(parsed.messages)
         if (parsed.step != null && parsed.step !== currentStep) {
           const nextStep = parsed.step
@@ -522,7 +513,7 @@ function ProjectCreateContent() {
   }
 
   const handleNext = () => {
-    const errors = collectStepErrors(currentStep, projectData)
+    const errors = collectStepErrors(currentStep, projectData, tWizard)
     if (errors.length > 0) {
       setStepErrors(errors)
       if (currentStep === 1) {
@@ -585,17 +576,17 @@ function ProjectCreateContent() {
     if (!step1ValidationContext.serviceConfigLoaded) {
       return [t('create.serviceConfigUnavailable')]
     }
-    return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid)
-  }, [projectData, step1ValidationContext, t])
+    return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid, tWizard)
+  }, [projectData, step1ValidationContext, t, tWizard])
 
   // One shared blocking-list builder so every entry point reports the same
   // steps in the same order (step 1 first, then steps 2-6).
   const buildBlockingWizardStepErrors = useCallback((): WizardStepError[] => {
-    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
+    const blocking = collectBlockingWizardErrors(projectData, tWizard).filter((entry) => entry.step !== 1)
     const step1Errors = getStep1SubmitErrors()
-    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: t('create.stepTitles.1'), messages: step1Errors })
+    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: WIZARD_STEP_TITLES[1], messages: step1Errors })
     return blocking
-  }, [projectData, getStep1SubmitErrors, t])
+  }, [projectData, getStep1SubmitErrors, tWizard])
 
   // Step 8 is review-only. Required earlier steps must still be valid before submit.
   useEffect(() => {
@@ -618,9 +609,7 @@ function ProjectCreateContent() {
       t('create.fixSteps', {
         count: blocking.length,
         step: first.step,
-        stepTitle: STEP_TITLE_KEYS[first.step as keyof typeof STEP_TITLE_KEYS]
-          ? t(STEP_TITLE_KEYS[first.step as keyof typeof STEP_TITLE_KEYS])
-          : first.stepTitle,
+        stepTitle: tWizard(first.stepTitle),
       })
     )
   }
@@ -735,7 +724,7 @@ function ProjectCreateContent() {
       } else {
         const error = await response.json().catch(() => ({}))
         console.error('Submission failed:', error)
-        const parsed = parseProjectSaveError(error)
+        const parsed = parseProjectSaveError(error, tWizard)
         setStepErrors(parsed.messages)
         if (parsed.step != null && parsed.step !== currentStep) {
           const nextStep = parsed.step
@@ -763,7 +752,7 @@ function ProjectCreateContent() {
       }
     }
 
-    const errors = collectStepErrors(currentStep, projectData)
+    const errors = collectStepErrors(currentStep, projectData, tWizard)
     setStepErrors(errors)
     if (currentStep === 1) {
       step1Ref.current?.showValidationErrors()
