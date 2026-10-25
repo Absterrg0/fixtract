@@ -1,4 +1,5 @@
 import { authFetch, getAuthToken } from "@/lib/utils";
+import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
@@ -330,16 +331,17 @@ async function parseCmsEnvelope<T>(res: Response): Promise<ParsedCmsEnvelope<T>>
   if (res.status === 204) return { data: undefined, translations: [] };
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${res.status}): ${text.slice(0, 200)}`
-        : `Request failed (${res.status})`
-    );
+    await res.text().catch(() => "");
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const payload = (await res.json()) as CmsApiEnvelope<T> | null;
   if (!res.ok || payload?.success === false) {
-    throw new Error(payload?.msg || `Request failed (${res.status})`);
+    throw apiErrorFromBody(payload, "The request could not be completed. Please try again.", {
+      status: res.status,
+    });
   }
   return {
     data: payload?.data,
@@ -354,7 +356,10 @@ async function parseJson<T>(res: Response): Promise<T | undefined> {
 async function parseJsonRequired<T>(res: Response): Promise<T> {
   const data = await parseJson<T>(res);
   if (data === undefined) {
-    throw new Error(`Request returned no body (${res.status}) but a response was expected`);
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   return data;
 }
@@ -362,7 +367,10 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
 async function parseCmsSaveEnvelope<T>(res: Response): Promise<ParsedCmsEnvelope<T> & { data: T }> {
   const envelope = await parseCmsEnvelope<T>(res);
   if (envelope.data === undefined) {
-    throw new Error(`Request returned no body (${res.status}) but a response was expected`);
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   return { ...envelope, data: envelope.data };
 }

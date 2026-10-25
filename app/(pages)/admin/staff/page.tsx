@@ -37,7 +37,7 @@ import {
   resolveAdminAvailabilityTimeZone,
 } from '@/lib/admin/availabilityCalendar';
 import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
-import { messageFromApiBody, readJsonResponse } from '@/lib/apiErrors';
+import { getErrorMessage, messageFromApiBody, readJsonResponse, safeUserMessage } from '@/lib/apiErrors';
 
 type StaffMember = {
   _id: string;
@@ -136,7 +136,7 @@ function StaffPageInner() {
       }
       setStaff(json.data || []);
     } catch (err: unknown) {
-      if (!silent) toast.error(err instanceof Error ? err.message : 'Failed to load staff');
+      if (!silent) toast.error(getErrorMessage(err, 'Failed to load staff'));
       throw err;
     } finally {
       if (!silent) setLoading(false);
@@ -155,7 +155,7 @@ function StaffPageInner() {
         if (!res.ok || !json.success) throw new Error(messageFromApiBody(json, 'Failed to load role access'));
         setRoleAccess(json.data?.roles || {});
       })
-      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to load role access'));
+      .catch((err: unknown) => toast.error(getErrorMessage(err, 'Failed to load role access')));
   }, [user?.adminRole]);
 
   const applyInviteResponse = (
@@ -177,9 +177,13 @@ function StaffPageInner() {
           : `Invite email sent to ${json.data?.email}`
       );
     } else {
-      toast.warning(json.msg || `Invite ready for ${json.data?.email} — email was not sent`);
+      toast.warning(messageFromApiBody(json, `Invite ready for ${json.data?.email} — email was not sent`));
       if (json.emailError) {
-        toast.message(json.emailError, { duration: 8000 });
+        toast.message(
+          safeUserMessage(json.emailError) ??
+            'The invite email could not be sent. Share the invite link manually.',
+          { duration: 8000 },
+        );
       }
     }
   };
@@ -224,7 +228,7 @@ function StaffPageInner() {
         await load({ silent: true });
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Invite failed');
+      toast.error(getErrorMessage(err, 'Invite failed'));
     } finally {
       setSubmitting(false);
     }
@@ -255,7 +259,7 @@ function StaffPageInner() {
       toast.success('Role updated');
     } catch (err: unknown) {
       setStaff((prev) => prev.map((m) => (m._id === staffId ? previous : m)));
-      toast.error(err instanceof Error ? err.message : 'Update failed');
+      toast.error(getErrorMessage(err, 'Update failed'));
     } finally {
       setRowBusy(staffId, false);
     }
@@ -284,7 +288,7 @@ function StaffPageInner() {
         setStaff((prev) => prev.map((m) => (m._id === member._id ? { ...m, ...json.data } : m)));
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Resend failed');
+      toast.error(getErrorMessage(err, 'Resend failed'));
     } finally {
       setRowBusy(member._id, false);
     }
@@ -327,7 +331,7 @@ function StaffPageInner() {
           m._id === member._id ? { ...m, accountStatus: previousStatus } : m
         )
       );
-      toast.error(err instanceof Error ? err.message : 'Update failed');
+      toast.error(getErrorMessage(err, 'Update failed'));
     } finally {
       setRowBusy(member._id, false);
     }
@@ -349,7 +353,7 @@ function StaffPageInner() {
       toast.success('Role permissions updated');
     } catch (err: unknown) {
       setRoleAccess(previousRoleAccess);
-      toast.error(err instanceof Error ? err.message : 'Failed to save role access');
+      toast.error(getErrorMessage(err, 'Failed to save role access'));
     } finally {
       setSavingRoleAccess(false);
     }

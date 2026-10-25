@@ -4,6 +4,7 @@ import type {
   SiteAnnouncement as LiveSiteAnnouncement,
 } from "@/lib/marketing/siteAnnouncements/types";
 import { authFetch } from "@/lib/utils";
+import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 import { EU_COUNTRIES } from "@/lib/countries";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
@@ -311,7 +312,10 @@ export async function fetchSiteAnnouncements(
   try {
     json = await res.json();
   } catch {
-    throw new Error("Failed to load announcements");
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   if (
     !res.ok ||
@@ -320,14 +324,7 @@ export async function fetchSiteAnnouncements(
     !("success" in json) ||
     !(json as { success: unknown }).success
   ) {
-    const msg =
-      typeof json === "object" &&
-      json !== null &&
-      "msg" in json &&
-      typeof (json as { msg: unknown }).msg === "string"
-        ? (json as { msg: string }).msg
-        : "Failed to load announcements";
-    throw new Error(msg);
+    throw apiErrorFromBody(json, "Failed to load announcements", { status: res.status });
   }
   const data = (json as {
     data?: { announcements?: unknown; total?: unknown; page?: unknown; limit?: unknown };
@@ -359,11 +356,14 @@ export async function saveSiteAnnouncement(
   try {
     json = await res.json();
   } catch {
-    throw new Error("Save failed");
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const j = json as { success?: unknown; msg?: string } | null;
   if (!res.ok || !j?.success) {
-    throw new Error(j?.msg || "Save failed");
+    throw apiErrorFromBody(j, "Save failed", { status: res.status });
   }
 }
 
@@ -377,10 +377,13 @@ export async function setSiteAnnouncementActive(id: string, isActive: boolean) {
   try {
     json = await res.json();
   } catch {
-    throw new Error("Update failed");
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const j = json as { success?: unknown; msg?: string } | null;
   if (!res.ok || !j?.success) {
-    throw new Error(j?.msg || "Update failed");
+    throw apiErrorFromBody(j, "Update failed", { status: res.status });
   }
 }

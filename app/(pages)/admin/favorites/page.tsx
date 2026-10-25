@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { messageFromApiBody } from "@/lib/apiErrors";
+
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -123,7 +126,7 @@ export default function AdminFavoritesPage() {
       if (res.ok && json?.success) {
         setOverview(json.data);
       } else {
-        toast.error(json?.msg || "Failed to load overview");
+        toast.error(messageFromApiBody(json, "Failed to load overview"));
       }
     } catch {
       toast.error("Failed to load overview");
@@ -151,7 +154,7 @@ export default function AdminFavoritesPage() {
           setTotal(json.data.total || 0);
           setPage(nextPage);
         } else {
-          toast.error(json?.msg || "Failed to load favorites");
+          toast.error(messageFromApiBody(json, "Failed to load favorites"));
         }
       } catch {
         toast.error("Failed to load favorites");
@@ -185,7 +188,7 @@ export default function AdminFavoritesPage() {
           setTotal((t) => Math.max(0, t - 1));
           loadOverview();
         } else {
-          toast.error(json?.msg || "Failed to remove favorite");
+          toast.error(messageFromApiBody(json, "Failed to remove favorite"));
         }
       } catch {
         toast.error("Failed to remove favorite");

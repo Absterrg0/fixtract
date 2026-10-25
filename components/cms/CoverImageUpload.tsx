@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
 
 import { useId, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
@@ -49,7 +51,7 @@ export default function CoverImageUpload({
       onChange(url);
       toast.success("Cover image uploaded");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(getErrorMessage(err, "Upload failed"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

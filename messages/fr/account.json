@@ -305,6 +305,7 @@
     "phoneUpdateFailed": "Impossible de mettre à jour le numéro de téléphone",
     "submitSuccess": "Merci pour votre envoi. Votre profil sera vérifié dans les 48 heures.",
     "completeRequirements": "Veuillez compléter : {items}",
+    "completeRequirementsGeneric": "Complétez les éléments manquants de votre profil avant de soumettre votre demande de vérification.",
     "submitFailed": "Impossible d'envoyer pour vérification",
     "customerProfileUpdated": "Profil mis à jour",
     "customerProfileUpdateFailed": "Impossible de mettre à jour le profil",

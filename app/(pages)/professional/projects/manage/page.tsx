@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -161,6 +162,7 @@ export default function ManageProjectsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const t = useTranslations("proProjects")
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -374,7 +376,7 @@ export default function ManageProjectsPage() {
           status: projectsResponse.status,
           errorData
         })
-        setError(errorData.message || t('manage.errors.fetchFailed'))
+        setError(getErrorText(errorData, t('manage.errors.fetchFailed')))
         setProjects([])
         setTotalPages(1)
         setTotalProjects(0)
@@ -382,7 +384,7 @@ export default function ManageProjectsPage() {
       }
     } catch (error) {
       console.error('[ManageProjects] Exception while fetching projects', error)
-      setError(t('manage.errors.fetchFailedConnection'))
+      setError(getErrorText(error, t('manage.errors.fetchFailedConnection')))
       setProjects([])
       setTotalPages(1)
       setTotalProjects(0)
@@ -390,7 +392,7 @@ export default function ManageProjectsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage, t])
+  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage, getErrorText, t])
 
   // Single effect to fetch projects — fetchProjects changes when filters/page change
   useEffect(() => {
@@ -447,11 +449,11 @@ export default function ManageProjectsPage() {
         fetchProjects()
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('errors.submitProject'))
+        toast.error(getErrorText(errorData, t('errors.submitProject')))
       }
     } catch (error) {
       console.error('Failed to submit project:', error)
-      toast.error(t('errors.submitProject'))
+      toast.error(getErrorText(error, t('errors.submitProject')))
     }
   }
 
@@ -472,11 +474,11 @@ export default function ManageProjectsPage() {
         router.push(`/projects/create?id=${duplicatedProject._id}`)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.duplicateFailed'))
+        toast.error(getErrorText(errorData, t('manage.errors.duplicateFailed')))
       }
     } catch (error) {
       console.error('Failed to duplicate project:', error)
-      toast.error(t('manage.errors.duplicateFailed'))
+      toast.error(getErrorText(error, t('manage.errors.duplicateFailed')))
     }
   }
 
@@ -494,11 +496,11 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.deleteFailed'))
+        toast.error(getErrorText(errorData, t('manage.errors.deleteFailed')))
       }
     } catch (error) {
       console.error('Failed to delete project:', error)
-      toast.error(t('manage.errors.deleteFailed'))
+      toast.error(getErrorText(error, t('manage.errors.deleteFailed')))
     }
   }
 
@@ -522,11 +524,11 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.statusUpdateFailed'))
+        toast.error(getErrorText(errorData, t('manage.errors.statusUpdateFailed')))
       }
     } catch (error) {
       console.error('Failed to update project status:', error)
-      toast.error(t('manage.errors.statusUpdateFailed'))
+      toast.error(getErrorText(error, t('manage.errors.statusUpdateFailed')))
     }
   }
 

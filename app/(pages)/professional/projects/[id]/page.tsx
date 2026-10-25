@@ -13,6 +13,7 @@ import WeeklyAvailabilityCalendar, { type CalendarEvent } from "@/components/cal
 import { getAuthToken } from "@/lib/utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import {
   ArrowLeft,
   Calendar,
@@ -225,6 +226,7 @@ export default function ProjectDetailPage() {
   const router = useRouter()
   const params = useParams()
   const t = useTranslations("proProjects")
+  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
   const [project, setProject] = useState<Project | null>(null)
@@ -483,11 +485,11 @@ export default function ProjectDetailPage() {
         router.refresh(); // Optional: refresh the manage page data
       } else {
         const errorData = await response.json();
-        toast.error(errorData.error || t('errors.submitProject'));
+        toast.error(getErrorText(errorData, t('errors.submitProject')));
       }
     } catch (error) {
       console.error('Failed to submit project', error);
-      toast.error(t('errors.submitProject'));
+      toast.error(getErrorText(error, t('errors.submitProject')));
     } finally {
       setIsSubmitting(false);
     }

@@ -31,12 +31,12 @@ import {
   addConversationLabel,
   removeConversationLabel,
   searchChatMessages,
-  isLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ProfessionalOption } from "@/lib/chatApi";
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatFilter } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
@@ -58,13 +58,11 @@ export default function ChatPage() {
 
 function ChatContent() {
   const t = useTranslations("chat");
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated, loading } = useAuth();
-
-  const chatErrorMessage = (error: unknown, fallback: string) =>
-    error instanceof Error && !isLocalFallbackError(error) ? error.message : fallback;
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -154,7 +152,7 @@ function ChatContent() {
         setShowQuotationDialog(false);
         router.push(`/bookings/${data.data.bookingId}?action=quote`);
       } else {
-        toast.error(data?.error?.message || t("toasts.createQuotationFailed"));
+        toast.error(getErrorText(data, t("toasts.createQuotationFailed")));
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err);
@@ -249,12 +247,12 @@ function ChatContent() {
 
         setError(null);
       } catch (listError) {
-        setError(chatErrorMessage(listError, t("toasts.loadConversationsFailed")));
+        setError(getErrorText(listError, t("toasts.loadConversationsFailed")));
       } finally {
         if (showBusy) setLoadingConversations(false);
       }
     },
-    [conversationIdFromQuery, isAuthenticated, userRole, chatFilter, t]
+    [conversationIdFromQuery, isAuthenticated, userRole, chatFilter, getErrorText, t]
   );
 
   const loadMessages = useCallback(async (conversationId: string, showBusy: boolean) => {
@@ -265,11 +263,11 @@ function ChatContent() {
       const data = await fetchConversationMessages(conversationId, { limit: 100 });
       setMessages(data.messages || []);
     } catch (messageError) {
-      toast.error(chatErrorMessage(messageError, t("toasts.loadMessagesFailed")));
+      toast.error(getErrorText(messageError, t("toasts.loadMessagesFailed")));
     } finally {
       if (showBusy) setLoadingMessages(false);
     }
-  }, [t]);
+  }, [getErrorText, t]);
 
   const loadProfessionalOptions = useCallback(async () => {
     if (userRole !== "customer") return;
@@ -278,11 +276,11 @@ function ChatContent() {
       const data = await fetchProfessionals();
       setProfessionalOptions(data);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.loadProfessionalsFailed")));
+      toast.error(getErrorText(err, t("toasts.loadProfessionalsFailed")));
     } finally {
       setLoadingProfessionals(false);
     }
-  }, [userRole, t]);
+  }, [userRole, getErrorText, t]);
 
   const startNewChat = useCallback(
     async (professionalId: string) => {
@@ -293,12 +291,12 @@ function ChatContent() {
         setSelectedConversationId(conversation._id);
         setShowNewChat(false);
       } catch (err) {
-        toast.error(chatErrorMessage(err, t("toasts.startChatFailed")));
+        toast.error(getErrorText(err, t("toasts.startChatFailed")));
       } finally {
         setCreatingConversation(false);
       }
     },
-    [loadConversationList, t]
+    [loadConversationList, getErrorText, t]
   );
 
   // Load absence info when conversation changes (with stale guard)
@@ -355,11 +353,11 @@ function ChatContent() {
         router.replace(`/chat?conversationId=${conversation._id}`);
         await loadConversationList(false);
       } catch (queryError) {
-        toast.error(chatErrorMessage(queryError, t("toasts.startChatFailed")));
+        toast.error(getErrorText(queryError, t("toasts.startChatFailed")));
       }
     };
     void createFromQuery();
-  }, [isAuthenticated, loadConversationList, professionalIdFromQuery, router, userRole, t]);
+  }, [isAuthenticated, loadConversationList, getErrorText, professionalIdFromQuery, router, userRole, t]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -439,9 +437,9 @@ function ChatContent() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (sendError) {
-      const message = chatErrorMessage(sendError, t("toasts.sendMessageFailed"));
+      const message = getErrorText(sendError, t("toasts.sendMessageFailed"));
       toast.error(message);
-      throw sendError instanceof Error && !isLocalFallbackError(sendError) ? sendError : new Error(message);
+      throw new Error(message);
     } finally {
       setSending(false);
     }
@@ -460,7 +458,7 @@ function ChatContent() {
       await toggleConversationStar(conversationId);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.toggleStarFailed")));
+      toast.error(getErrorText(err, t("toasts.toggleStarFailed")));
     }
   };
 
@@ -469,7 +467,7 @@ function ChatContent() {
       await toggleConversationArchive(conversationId);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.toggleArchiveFailed")));
+      toast.error(getErrorText(err, t("toasts.toggleArchiveFailed")));
     }
   };
 
@@ -478,7 +476,7 @@ function ChatContent() {
       await addConversationLabel(conversationId, label);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.addLabelFailed")));
+      toast.error(getErrorText(err, t("toasts.addLabelFailed")));
     }
   };
 
@@ -487,7 +485,7 @@ function ChatContent() {
       await removeConversationLabel(conversationId, label);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.removeLabelFailed")));
+      toast.error(getErrorText(err, t("toasts.removeLabelFailed")));
     }
   };
 
@@ -503,7 +501,7 @@ function ChatContent() {
       setChatSearchResults(data.results);
       setChatSearchIndex(0);
     } catch (err) {
-      toast.error(chatErrorMessage(err, t("toasts.searchFailed")));
+      toast.error(getErrorText(err, t("toasts.searchFailed")));
     } finally {
       setSearchingChat(false);
     }
@@ -603,7 +601,7 @@ function ChatContent() {
         </div>
 
         {error && (
-          <div className="px-3 py-2 bg-rose-50 text-xs text-rose-700 border-b border-rose-200">{error}</div>
+          <div role="alert" className="px-3 py-2 bg-rose-50 text-xs text-rose-700 border-b border-rose-200">{error}</div>
         )}
 
         {showNewChat && userRole === "customer" ? (

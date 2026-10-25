@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,7 @@ import { toast } from "sonner"
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("auth")
+  const getErrorText = useErrorMessage()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
@@ -38,11 +40,11 @@ export default function ForgotPasswordPage() {
         setEmailSent(true)
         toast.success(t('forgotPassword.sentToast'))
       } else {
-        toast.error(data.msg || t('forgotPassword.failed'))
+        toast.error(getErrorText(data, t('forgotPassword.failed')))
       }
     } catch (error) {
       console.error('Forgot password error:', error)
-      toast.error(t('forgotPassword.genericError'))
+      toast.error(getErrorText(error, t('forgotPassword.genericError')))
     } finally {
       setIsLoading(false)
     }

@@ -305,6 +305,7 @@
     "phoneUpdateFailed": "Telefoonnummer bijwerken mislukt",
     "submitSuccess": "Bedankt voor het indienen. Je profiel wordt binnen 48 uur gecontroleerd.",
     "completeRequirements": "Vul nog aan: {items}",
+    "completeRequirementsGeneric": "Vul de ontbrekende profielgegevens aan voordat je ter verificatie indient.",
     "submitFailed": "Indienen voor controle mislukt",
     "customerProfileUpdated": "Profiel bijgewerkt",
     "customerProfileUpdateFailed": "Profiel bijwerken mislukt",

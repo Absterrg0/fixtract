@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { getErrorMessage, messageFromApiBody } from "@/lib/apiErrors";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -168,11 +171,11 @@ export default function AdminDiscountCodesPage() {
       const res = await authFetch(`${API_BASE}/api/admin/discount-codes?${params.toString()}`);
       const json = await res.json();
       if (!isCurrent()) return;
-      if (!res.ok || !json.success) throw new Error(json.msg || "Failed to load codes");
+      if (!res.ok || !json.success) throw new Error(messageFromApiBody(json, "Failed to load codes"));
       setCodes(json.data.codes || []);
     } catch (err) {
       if (!isCurrent()) return;
-      toast.error(err instanceof Error ? err.message : "Could not load discount codes");
+      toast.error(getErrorMessage(err, "Could not load discount codes"));
     } finally {
       if (isCurrent()) setListLoading(false);
     }
@@ -204,7 +207,7 @@ export default function AdminDiscountCodesPage() {
           cache: "no-store",
         });
         if (!res.ok) {
-          setServicesError(`Failed to load services (${res.status})`);
+          setServicesError('Failed to load services. Please try again.');
           return;
         }
         const data = await res.json();
@@ -212,7 +215,7 @@ export default function AdminDiscountCodesPage() {
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
         console.error("Failed to load service categories:", err);
-        setServicesError(err instanceof Error ? err.message : "Failed to load services");
+        setServicesError(getErrorMessage(err, "Failed to load services"));
       } finally {
         if (!ac.signal.aborted) setIsLoadingServices(false);
       }
@@ -355,14 +358,13 @@ export default function AdminDiscountCodesPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        const detail = json?.error?.message ? ` (${json.error.message})` : "";
-        throw new Error((json.msg || "Failed to save") + detail);
+        throw new Error(messageFromApiBody(json, "Failed to save"));
       }
       toast.success(editingId ? "Discount code updated" : "Discount code created");
       setDialogOpen(false);
       await loadCodes();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save discount code");
+      toast.error(getErrorMessage(err, "Failed to save discount code"));
     } finally {
       setSaving(false);
     }
@@ -373,11 +375,11 @@ export default function AdminDiscountCodesPage() {
     try {
       const res = await authFetch(`${API_BASE}/api/admin/discount-codes/${code._id}`, { method: "DELETE" });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.msg || "Failed to delete");
+      if (!res.ok || !json.success) throw new Error(messageFromApiBody(json, "Failed to delete"));
       toast.success("Code disabled");
       await loadCodes();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete code");
+      toast.error(getErrorMessage(err, "Failed to delete code"));
     }
   };
 

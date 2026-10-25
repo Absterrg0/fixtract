@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { isBookingStatus } from '@/lib/dashboardBookingHelpers';
 import { authFetch } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -111,6 +112,7 @@ const RANGE_OPTIONS: RangeKey[] = ['month', '3months', '12months', 'all'];
 export default function ProfessionalEarningsDashboard() {
   const router = useRouter();
   const t = useTranslations('proArea');
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const { formatMoney } = useCurrency();
   const numberFormat = useMemo(
@@ -170,20 +172,20 @@ export default function ProfessionalEarningsDashboard() {
         setData(payload.data);
       } else {
         setData(null);
-        toast.error(payload?.error?.message || t('earnings.toasts.loadFailed'));
+        toast.error(getErrorText(payload, t('earnings.toasts.loadFailed')));
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       if (!isCurrent()) return;
       setData(null);
-      toast.error(err instanceof Error ? err.message : t('earnings.toasts.loadFailed'));
+      toast.error(getErrorText(err, t('earnings.toasts.loadFailed')));
     } finally {
       if (isCurrent()) {
         setLoading(false);
         setRefreshing(false);
       }
     }
-  }, [t]);
+  }, [getErrorText, t]);
 
   const loadBookings = useCallback(async (selectedRange: RangeKey, signal?: AbortSignal) => {
     const requestId = ++latestBookingsRequestId.current;
@@ -278,7 +280,7 @@ export default function ProfessionalEarningsDashboard() {
           const cloned = response.clone();
           const maybeJson = await cloned.json();
           if (maybeJson && (maybeJson.success === false || maybeJson?.error)) {
-            toast.error(maybeJson?.error?.message || maybeJson?.msg || t('earnings.toasts.csvFailed'));
+            toast.error(getErrorText(maybeJson, t('earnings.toasts.csvFailed')));
             return;
           }
         } catch {
@@ -300,7 +302,7 @@ export default function ProfessionalEarningsDashboard() {
     } finally {
       setExporting(false);
     }
-  }, [range, t]);
+  }, [getErrorText, range, t]);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'professional') {

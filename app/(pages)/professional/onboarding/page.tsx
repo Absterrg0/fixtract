@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useTranslations } from 'next-intl'
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -151,7 +152,7 @@ const resolveMissingRequirements = (
       if (!mappedStep) {
         mappedStep = mapRequirementToStepByKeywords(normalizeRequirementText(requirement))
       }
-      return requirement
+      return /^[A-Z][A-Z0-9_]+$/.test(requirement) ? fallbackMessage : requirement
     }
 
     const normalizedCode = (requirement.code || requirement.type || '').toUpperCase()
@@ -163,7 +164,7 @@ const resolveMissingRequirements = (
       mappedStep = mapRequirementToStepByKeywords(normalizeRequirementText(requirement.message))
     }
 
-    return requirement.message || requirement.code || requirement.type || fallbackMessage
+    return requirement.message || fallbackMessage
   })
 
   if (!mappedStep) {
@@ -292,7 +293,7 @@ function StripeIntegrationStep({
             </div>
 
             {stripeError && (
-              <p className="text-sm text-red-600">{stripeError}</p>
+              <p role="alert" className="text-sm text-red-600">{stripeError}</p>
             )}
           </>
         )}
@@ -486,6 +487,7 @@ function BusinessDetailsStep({
   businessSaving: boolean
 }) {
   const t = useTranslations('proArea')
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const companyNameConflict = t('onboarding.business.usernameCompanyConflict')
   const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
@@ -519,7 +521,7 @@ function BusinessDetailsStep({
           signal: controller.signal,
         })
         const data = await res.json()
-        setUsernameCheck({ available: data.available, reason: data.reason })
+        setUsernameCheck({ available: data.available, reason: getErrorText({ msg: data.reason }, t('onboarding.business.checkFailed')) })
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return
         setUsernameCheck({ reason: t('onboarding.business.checkFailed') })
@@ -685,7 +687,7 @@ function BusinessDetailsStep({
               {vatValidation.valid ? (
                 <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> {t('onboarding.business.vatValidated')}</>
               ) : (
-                <>{vatValidation.error}</>
+                <>{getErrorText(vatValidation, t('onboarding.toasts.invalidVat'))}</>
               )}
             </div>
           )}
@@ -1374,11 +1376,14 @@ export default function ProfessionalOnboardingPage() {
 
 function ProfessionalOnboardingContent() {
   const t = useTranslations('proArea')
+  const getErrorText = useErrorMessage()
+  const requestErrorText = (result: { errorCode?: string; error?: string; msg?: string }, fallback: string) =>
+    result.errorCode && result.errorCode !== 'network' ? fallback : getErrorText(result, fallback)
   const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
     const key = result.errorCode
       ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
       : undefined
-    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
+    return key ? t(key, { country: result.countryCode ?? '' }) : getErrorText(result, t('onboarding.toasts.invalidVat'))
   }
   const { user, loading, isAuthenticated, checkAuth } = useAuth()
   const router = useRouter()
@@ -1568,7 +1573,7 @@ function ProfessionalOnboardingContent() {
 
       const data = await response.json()
       if (!response.ok || !data.success) {
-        setStripeError(data.error?.message || t('onboarding.stripe.loadFailed'))
+        setStripeError(getErrorText(data, t('onboarding.stripe.loadFailed')))
         return
       }
 
@@ -1576,12 +1581,12 @@ function ProfessionalOnboardingContent() {
         ...data.data,
         hasAccount: true,
       })
-    } catch {
-      setStripeError(t('onboarding.stripe.loadFailed'))
+    } catch (error) {
+      setStripeError(getErrorText(error, t('onboarding.stripe.loadFailed')))
     } finally {
       setStripeLoading(false)
     }
-  }, [t])
+  }, [getErrorText, t])
 
   useEffect(() => {
     if (user?.role === 'professional') {
@@ -1706,7 +1711,7 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || t('onboarding.toasts.idProofUploadFailed'))
+        toast.error(getErrorText(result, t('onboarding.toasts.idProofUploadFailed')))
         return false
       }
       toast.success(t('onboarding.toasts.idProofUploaded'))
@@ -1753,7 +1758,7 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || t('onboarding.toasts.idSaveFailed'))
+        toast.error(getErrorText(result, t('onboarding.toasts.idSaveFailed')))
         return false
       }
       toast.success(t('onboarding.toasts.idSaved'))
@@ -1835,7 +1840,7 @@ function ProfessionalOnboardingContent() {
         serviceCategories: selectedServices,
       })
       if (!result.success) {
-        toast.error(result.errorCode ? t('onboarding.toasts.businessSaveFailed') : result.error)
+        toast.error(requestErrorText(result, t('onboarding.toasts.businessSaveFailed')))
         return
       }
       toast.success(t('onboarding.toasts.businessSaved'))
@@ -1885,7 +1890,7 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || t('onboarding.toasts.companyHoursSaveFailed'))
+        toast.error(getErrorText(result, t('onboarding.toasts.companyHoursSaveFailed')))
         return
       }
       toast.success(t('onboarding.toasts.companyHoursSaved'))
@@ -1936,7 +1941,7 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || t('onboarding.toasts.personalHoursSaveFailed'))
+        toast.error(getErrorText(result, t('onboarding.toasts.personalHoursSaveFailed')))
         return
       }
       toast.success(t('onboarding.toasts.personalHoursSaved'))
@@ -1978,7 +1983,7 @@ function ProfessionalOnboardingContent() {
           toast.error(t('onboarding.toasts.completeSteps'))
           setCurrentStep(resolution.step)
         } else {
-          toast.error(result.errorCode ? t('onboarding.toasts.submitFailed') : result.error)
+          toast.error(requestErrorText(result, t('onboarding.toasts.submitFailed')))
         }
       }
     } finally {

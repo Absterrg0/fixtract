@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
+
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -108,7 +111,7 @@ function TicketsAdmin() {
       .catch((e) => {
         // Preserve prior items on refresh failure; only fall back to [] on first load
         setItems((prev) => (prev === null ? [] : prev));
-        toast.error(e instanceof Error ? e.message : "Failed to load tickets");
+        toast.error(getErrorMessage(e, "Failed to load tickets"));
       });
 
   useEffect(() => {
@@ -126,7 +129,7 @@ function TicketsAdmin() {
       toast.success("Updated");
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Update failed");
+      toast.error(getErrorMessage(e, "Update failed"));
     } finally {
       setSaving((s) => ({ ...s, [id]: false }));
     }
@@ -221,7 +224,7 @@ function MeetingsAdmin() {
       .then((next) => setItems(next))
       .catch((e) => {
         setItems((prev) => (prev === null ? [] : prev));
-        toast.error(e instanceof Error ? e.message : "Failed to load");
+        toast.error(getErrorMessage(e, "Failed to load"));
       });
 
   useEffect(() => {
@@ -236,7 +239,7 @@ function MeetingsAdmin() {
       toast.success("Updated");
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Update failed");
+      toast.error(getErrorMessage(e, "Update failed"));
     } finally {
       setSaving((s) => ({ ...s, [id]: false }));
     }

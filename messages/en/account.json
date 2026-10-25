@@ -305,6 +305,7 @@
     "phoneUpdateFailed": "Failed to update phone number",
     "submitSuccess": "Thanks for submitting. Your profile will be checked within 48 hours.",
     "completeRequirements": "Please complete: {items}",
+    "completeRequirementsGeneric": "Complete the missing profile requirements before submitting for verification.",
     "submitFailed": "Failed to submit for verification",
     "customerProfileUpdated": "Profile updated successfully",
     "customerProfileUpdateFailed": "Failed to update profile",

@@ -137,6 +137,7 @@
     "title": "Paiement autorisé !",
     "body": "Votre paiement a bien été autorisé. Les fonds sont conservés en toute sécurité jusqu'à la fin du service.",
     "bookingDetails": "Détails de la réservation",
+    "detailsUnavailable": "Votre paiement a bien été effectué, mais nous n'avons pas pu charger les détails de la réservation. Actualisez la page pour les voir.",
     "bookingNumberLabel": "Réservation n° :",
     "amountAuthorized": "Montant autorisé :",
     "statusLabel": "Statut :",
@@ -219,6 +220,7 @@
   "availabilityPicker": {
     "placeholder": "Choisissez une date",
     "loading": "Chargement des disponibilités...",
+    "loadFailed": "Impossible de charger les disponibilités. Les dates peuvent être inexactes.",
     "weekdays": {
       "mon": "lun",
       "tue": "mar",

@@ -9,6 +9,8 @@ import { Calendar, Clock, Users, MapPin, Link, Video, FileText, X } from "lucide
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
+import { apiErrorFromBody } from '@/lib/apiErrors'
 
 interface Meeting {
   _id: string
@@ -43,6 +45,7 @@ interface MeetingsListProps {
 
 export default function MeetingsList({ projectId, refreshTrigger }: MeetingsListProps) {
   const t = useTranslations('proProjects')
+  const getErrorText = useErrorMessage()
   const { dateFns } = useFormatLocale()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,15 +71,18 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
         credentials: 'include'
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setMeetings(result.data || [])
+      const result = await response.json().catch(() => null)
+      if (response.ok && result?.success !== false) {
+        setMeetings(result?.data || [])
       } else {
-        toast.error(t('meetingsList.errors.load'))
+        toast.error(getErrorText(
+          apiErrorFromBody(result, t('meetingsList.errors.load'), { status: response.status }),
+          t('meetingsList.errors.load'),
+        ))
       }
     } catch (error) {
       console.error('Failed to fetch meetings:', error)
-      toast.error(t('meetingsList.errors.load'))
+      toast.error(getErrorText(error, t('meetingsList.errors.load')))
     } finally {
       setLoading(false)
     }
@@ -95,15 +101,19 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
         })
       })
 
-      if (response.ok) {
+      const payload = await response.json().catch(() => null)
+      if (response.ok && payload?.success !== false) {
         toast.success(t('meetingsList.cancelled'))
         fetchMeetings()
       } else {
-        toast.error(t('meetingsList.errors.cancel'))
+        toast.error(getErrorText(
+          apiErrorFromBody(payload, t('meetingsList.errors.cancel'), { status: response.status }),
+          t('meetingsList.errors.cancel'),
+        ))
       }
     } catch (error) {
       console.error('Failed to cancel meeting:', error)
-      toast.error(t('meetingsList.errors.cancel'))
+      toast.error(getErrorText(error, t('meetingsList.errors.cancel')))
     }
   }
 

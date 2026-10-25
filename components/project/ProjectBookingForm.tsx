@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -276,6 +277,7 @@ export default function ProjectBookingForm({
   const router = useRouter();
   const { user } = useAuth();
   const t = useTranslations('projectBooking');
+  const getErrorText = useErrorMessage();
   const { formatMoney, currency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
 
@@ -2125,7 +2127,7 @@ export default function ProjectBookingForm({
 
       const data = await response.json();
       if (!response.ok || !data?.success || !data?.data?.url) {
-        toast.error(data?.message || t('toasts.uploadFailed'));
+        toast.error(getErrorText(data, t('toasts.uploadFailed')));
         return;
       }
 
@@ -2133,7 +2135,7 @@ export default function ProjectBookingForm({
       toast.success(t('common.attachmentUploaded'));
     } catch (error) {
       console.error('Failed to upload RFQ attachment:', error);
-      toast.error(t('toasts.uploadFailed'));
+      toast.error(getErrorText(error, t('toasts.uploadFailed')));
     } finally {
       setUploadingQuestionIndexes(prev => { const next = new Set(prev); next.delete(index); return next });
     }
@@ -2158,14 +2160,14 @@ export default function ProjectBookingForm({
       );
       const data = await response.json();
       if (!response.ok || !data?.success || !data?.data?.url) {
-        toast.error(data?.msg || t('toasts.uploadFailed'));
+        toast.error(getErrorText(data, t('toasts.uploadFailed')));
         return;
       }
       setRfqAttachments(prev => [...prev, { url: data.data.url, name: data.data.fileName || file.name }]);
       toast.success(t('common.attachmentUploaded'));
     } catch (error) {
       console.error('Failed to upload RFQ attachment:', error);
-      toast.error(t('toasts.uploadFailed'));
+      toast.error(getErrorText(error, t('toasts.uploadFailed')));
     } finally {
       setUploadingRfqAttachment(false);
     }
@@ -2584,17 +2586,17 @@ export default function ProjectBookingForm({
             }, 1500);
           } else if (response.status === 403) {
             debugError?.('[BOOKING] Permission denied');
-            toast.error(data.msg || t('toasts.forbidden'));
+            toast.error(getErrorText(data, t('toasts.forbidden')));
           } else if (response.status === 400) {
             debugError?.('[BOOKING] Bad request - validation error');
-            toast.error(data.msg || t('toasts.checkDetails'));
+            toast.error(getErrorText(data, t('toasts.checkDetails')));
           } else if (response.status === 404) {
             debugError?.('[BOOKING] Resource not found');
-            toast.error(data.msg || t('toasts.projectNotFound'));
+            toast.error(getErrorText(data, t('toasts.projectNotFound')));
           } else {
             debugError?.('[BOOKING] Unknown error status:', response.status);
             toast.error(
-              data.msg || data.message || t('toasts.createFailed')
+              getErrorText(data, t('toasts.createFailed'))
             );
           }
         }

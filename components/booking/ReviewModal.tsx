@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Star, ImagePlus, X } from "lucide-react"
 import {
   Dialog,
@@ -62,6 +63,7 @@ function StarSelector({ value, onChange }: { value: number; onChange: (v: number
 
 export default function ReviewModal({ open, onClose, bookingId, role, onSubmitted }: ReviewModalProps) {
   const t = useTranslations('checkout')
+  const getErrorText = useErrorMessage()
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -168,7 +170,7 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
           onSubmitted?.()
           onClose()
         } else {
-          toast.error(data.msg || t("reviewModal.submitFailed"))
+          toast.error(getErrorText(data, t("reviewModal.submitFailed")))
         }
       } else {
         const body = {
@@ -193,11 +195,11 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
           onSubmitted?.()
           onClose()
         } else {
-          toast.error(data.msg || t("reviewModal.submitFailed"))
+          toast.error(getErrorText(data, t("reviewModal.submitFailed")))
         }
       }
-    } catch {
-      toast.error(t("reviewModal.submitFailed"))
+    } catch (err) {
+      toast.error(getErrorText(err, t("reviewModal.submitFailed")))
     } finally {
       setSubmitting(false)
     }

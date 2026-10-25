@@ -12,5 +12,22 @@
     "noMatches": "Aucun résultat",
     "selectedCount": "{count} sélectionné(s)",
     "searchOptions": "Rechercher {label}"
+  },
+  "errors": {
+    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "network": "Vous semblez être hors ligne. Vérifiez votre connexion internet et réessayez.",
+    "timeout": "Cela prend plus de temps que prévu. Veuillez réessayer.",
+    "canceled": "La demande a été annulée. Veuillez réessayer.",
+    "auth": "Votre session a expiré. Veuillez vous reconnecter.",
+    "signInRequired": "Veuillez vous connecter pour continuer.",
+    "forbidden": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+    "notFound": "Nous n'avons pas trouvé cet élément. Il a peut-être été supprimé.",
+    "validation": "Vérifiez les informations saisies et réessayez.",
+    "conflict": "Cette action est en conflit avec l'état actuel. Actualisez la page et réessayez.",
+    "rateLimited": "Trop de tentatives. Veuillez patienter un instant et réessayer.",
+    "payloadTooLarge": "Ce fichier est trop volumineux. Veuillez choisir un fichier plus petit.",
+    "server": "Une erreur s'est produite de notre côté. Veuillez réessayer.",
+    "unavailable": "Ce service est temporairement indisponible. Veuillez réessayer dans un instant.",
+    "invalidResponse": "Nous n'avons pas pu terminer cette demande. Veuillez réessayer."
   }
 }

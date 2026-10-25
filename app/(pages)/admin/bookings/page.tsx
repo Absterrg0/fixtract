@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -88,7 +90,7 @@ export default function AdminBookingsPage() {
         setItems(json.data.items)
         setTotal(json.data.total)
       } else {
-        toast.error(json.msg || 'Failed to load bookings')
+        toast.error(messageFromApiBody(json, 'Failed to load bookings'))
       }
     } catch {
       if (latestFetchIdRef.current !== fetchId) return

@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -169,7 +171,7 @@ export default function AdminAuditLogsPage() {
       const json = await res.json()
       if (controller.signal.aborted) return
       if (!res.ok || !json.success) {
-        toast.error(json?.msg || 'Failed to load audit logs')
+        toast.error(messageFromApiBody(json, 'Failed to load audit logs'))
         return
       }
       setLogs(json.data.logs as AuditLog[])
@@ -232,7 +234,7 @@ export default function AdminAuditLogsPage() {
       )
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        toast.error(json?.msg || 'Failed to export audit logs')
+        toast.error(messageFromApiBody(json, 'Failed to export audit logs'))
         return
       }
       const blob = await res.blob()
