@@ -40,6 +40,9 @@ import {
   formatVATNumber
 } from "@/lib/vatValidation"
 import { toLocalInputValue } from "@/lib/dateUtils"
+import { listSupportAvailability } from "@/lib/support"
+import { supportCalendarDisplayEvents, supportCalendarWarning } from "@/lib/support/calendar"
+import { resolveSupportTimeZone, supportDateWindow } from "@/lib/support/dates"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
 
 
@@ -91,6 +94,7 @@ export default function ProfilePage() {
 
 function ProfileContent() {
   const t = useTranslations('account')
+  const tCalendar = useTranslations('calendar')
   const getErrorText = useErrorMessage()
   const requestErrorText = (result: { errorCode?: string; error?: string; msg?: string }, fallback: string) =>
     result.errorCode && result.errorCode !== 'network' ? fallback : getErrorText(result, fallback)
@@ -208,6 +212,9 @@ function ProfileContent() {
   const [companyBlockedRanges, setCompanyBlockedRanges] = useState<{ startDate: string, endDate: string, reason?: string, isHoliday?: boolean }[]>([])
   const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({ startDate: '', endDate: '', reason: '', isHoliday: false })
   const [bookingEvents, setBookingEvents] = useState<CalendarEvent[]>([])
+  const [supportMeetingEvents, setSupportMeetingEvents] = useState<CalendarEvent[]>([])
+  const [supportMeetingEventsError, setSupportMeetingEventsError] = useState<string | null>(null)
+  const [supportEventsReloadKey, setSupportEventsReloadKey] = useState(0)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileImageUploading, setProfileImageUploading] = useState(false)
   const profileImageInputRef = useRef<HTMLInputElement>(null)
@@ -735,6 +742,72 @@ function ProfileContent() {
       abortController.abort()
     }
   }, [loading, isAuthenticated, user?.role, user?._id, t])
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || user?.role !== 'professional') {
+      setSupportMeetingEvents([])
+      setSupportMeetingEventsError(null)
+      return
+    }
+
+    const controller = new AbortController()
+
+    const loadSupportMeetings = async () => {
+      // Canonical owner-safe support-calendar feed attached to the existing
+      // professional availability reader. Pending and confirmed reservations
+      // are both real blocked time; no admin identity or notes are exposed.
+      setSupportMeetingEventsError(null)
+      const timeZone = resolveSupportTimeZone(
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      )
+      const range = supportDateWindow(timeZone, 31)
+      const result = await listSupportAvailability({
+        from: range.from,
+        to: range.to,
+        timeZone,
+        signal: controller.signal,
+      })
+      const events: CalendarEvent[] = []
+      for (const event of supportCalendarDisplayEvents(result.events)) {
+        const start = new Date(event.start)
+        const end = new Date(event.end)
+        events.push({
+          id: `support-meeting-${event.id}`,
+          type: 'support',
+          title: event.pending
+            ? tCalendar('eventTitles.supportMeetingPending')
+            : tCalendar('eventTitles.supportMeeting'),
+          start,
+          end,
+          meta: { ticketNumber: event.ticketNumber || undefined, note: event.subject },
+          readOnly: true,
+        })
+      }
+      if (!controller.signal.aborted) setSupportMeetingEvents(events)
+    }
+
+    void loadSupportMeetings().catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      // A failed support feed must be visible: otherwise real busy time looks
+      // free on the calendar without any warning.
+      setSupportMeetingEvents([])
+      setSupportMeetingEventsError(
+        getErrorText(error, ''),
+      )
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [
+    loading,
+    isAuthenticated,
+    user?.role,
+    tCalendar,
+    supportEventsReloadKey,
+    getErrorText,
+    t,
+  ])
 
   useEffect(() => {
     if (loading || !isAuthenticated || user?.role !== 'professional') {
@@ -1530,8 +1603,8 @@ function ProfileContent() {
       meta: { note: range.reason },
       readOnly: true
     }))
-    return [...companyEvents, ...bookingEvents, ...personalEvents]
-  }, [blockedRanges, companyBlockedRanges, bookingEvents, t])
+    return [...companyEvents, ...bookingEvents, ...supportMeetingEvents, ...personalEvents]
+  }, [blockedRanges, companyBlockedRanges, bookingEvents, supportMeetingEvents, t])
 
   const scheduleWindow = useMemo(
     () => getScheduleWindow(companyAvailability),
@@ -2638,6 +2711,27 @@ function ProfileContent() {
                       }
                     }}
                   />
+                  {supportMeetingEventsError && (
+                    <div
+                      role="alert"
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                    >
+                      <span>
+                        {supportCalendarWarning(
+                          t('personalAvailability.supportEventsFailed'),
+                          supportMeetingEventsError,
+                        )}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSupportEventsReloadKey((value) => value + 1)}
+                      >
+                        {t('personalAvailability.supportEventsRetry')}
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

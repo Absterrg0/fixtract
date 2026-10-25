@@ -178,6 +178,8 @@
     "workingHoursTitle": "Persoonlijke werktijden",
     "workingHoursDescription": "Alleen lezen. De werktijden volgen de planning van het bedrijf.",
     "calendarWindow": "Kalendervenster: {days} - {start} tot {end}",
+    "supportEventsFailed": "Ondersteuningsafspraken konden niet worden geladen, dus deze kalender is mogelijk onvolledig.",
+    "supportEventsRetry": "Ondersteuningsafspraken opnieuw laden",
     "bookingTitle": "Boeking",
     "bufferTitle": "Buffer",
     "personalBlockTitle": "Persoonlijke blokkade"

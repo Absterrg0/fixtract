@@ -35,6 +35,12 @@
     "searchMessages": "Berichten zoeken...",
     "searchPosition": "{current}/{total}",
     "supportClosed": "🔒 Deze supportchat is door Fixtract gesloten. Je kunt niet meer antwoorden.",
+    "supportReadOnlyRole": "Dit supportgesprek is alleen-lezen. Supportchat is alleen beschikbaar voor vakmensen; je kunt eerdere berichten wel lezen.",
+    "supportReadOnlyDisabled": "Supportchat is momenteel uitgeschakeld. Je kunt eerdere berichten nog lezen, maar antwoorden en bijlagen zijn niet beschikbaar.",
+    "supportReadOnlyChecking": "Controleren of supportchat beschikbaar is…",
+    "supportReadOnlyUnavailable": "We konden de beschikbaarheid van supportchat niet controleren. Antwoorden is uitgeschakeld tot de controle lukt.",
+    "supportReadOnlyBlocked": "Supportchat is niet meer beschikbaar voor dit gesprek. Je kunt eerdere berichten nog lezen.",
+    "supportReadOnlyRetry": "Opnieuw controleren",
     "selectConversation": "Selecteer een gesprek om berichten te bekijken",
     "absence": "De vakman is afwezig van <date>{from}</date> tot <date>{to}</date>"
   },

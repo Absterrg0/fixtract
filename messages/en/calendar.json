@@ -6,6 +6,8 @@
     "companyClosure": "Company Closure",
     "holiday": "Holiday",
     "available": "Available",
+    "supportMeeting": "Support meeting",
+    "supportMeetingPending": "Support meeting (pending)",
     "allDay": "24/7"
   },
   "weeklyAvailabilityCalendar": {

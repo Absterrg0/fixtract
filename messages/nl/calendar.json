@@ -6,6 +6,8 @@
     "companyClosure": "Bedrijfssluiting",
     "holiday": "Feestdag",
     "available": "Beschikbaar",
+    "supportMeeting": "Supportafspraak",
+    "supportMeetingPending": "Supportafspraak (in afwachting)",
     "allDay": "24/7"
   },
   "weeklyAvailabilityCalendar": {

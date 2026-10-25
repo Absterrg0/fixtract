@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
+import { useSupportChatAccess } from "@/hooks/useSupportChatAccess";
+import { supportChatBlockReasonFromError } from "@/lib/support/chatAccess";
 import ChatList from "@/components/chat/ChatList";
 import ChatThread from "@/components/chat/ChatThread";
 import ChatComposer from "@/components/chat/ChatComposer";
@@ -199,6 +201,26 @@ export default function ChatWidget() {
     () => conversations.find((conversation) => conversation._id === selectedConversationId) || null,
     [conversations, selectedConversationId]
   );
+  const isSupportConversation = selectedConversation?.type === "support";
+  const isSupportClosed =
+    isSupportConversation && selectedConversation?.status === "archived";
+  const supportChatAccess = useSupportChatAccess(
+    Boolean(isSupportConversation),
+    selectedConversationId,
+  );
+  const isSupportReadOnly =
+    Boolean(isSupportConversation) &&
+    (isSupportClosed || !supportChatAccess.canWrite);
+  const supportReadOnlyNotice =
+    supportChatAccess.reason === "role"
+      ? t("page.supportReadOnlyRole")
+      : supportChatAccess.reason === "disabled"
+        ? t("page.supportReadOnlyDisabled")
+        : supportChatAccess.reason === "checking"
+          ? t("page.supportReadOnlyChecking")
+          : supportChatAccess.reason === "unavailable"
+            ? t("page.supportReadOnlyUnavailable")
+            : t("page.supportReadOnlyBlocked");
 
   const shouldShowNewChatPanel =
     userRole === "customer" &&
@@ -552,6 +574,9 @@ export default function ChatWidget() {
     if (!selectedConversationId) {
       throw new Error("No conversation selected");
     }
+    if (isSupportReadOnly) {
+      throw new Error(supportReadOnlyNotice);
+    }
 
     setSending(true);
     try {
@@ -581,6 +606,11 @@ export default function ChatWidget() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (error) {
+      if (isSupportConversation && supportChatBlockReasonFromError(error)) {
+        supportChatAccess.blockFor(error);
+        toast.error(t("page.supportReadOnlyBlocked"));
+        throw new Error(t("page.supportReadOnlyBlocked"));
+      }
       const message = getErrorText(error, t("toasts.sendMessageFailed"));
       toast.error(message);
       throw new Error(message);
@@ -828,11 +858,34 @@ export default function ChatWidget() {
                     conversationId={selectedConversationId}
                   />
                 </div>
-                <ChatComposer
-                  disabled={!selectedConversationId || creatingConversation}
-                  sending={sending}
-                  onSend={handleSend}
-                />
+                {isSupportClosed ? (
+                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
+                    {t("page.supportClosed")}
+                  </div>
+                ) : isSupportReadOnly && isSupportConversation ? (
+                  <div
+                    role="status"
+                    className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-xs text-indigo-800"
+                  >
+                    <span>{supportReadOnlyNotice}</span>
+                    {(supportChatAccess.reason === "unavailable" ||
+                      supportChatAccess.reason === "blocked") && (
+                      <button
+                        type="button"
+                        onClick={() => supportChatAccess.reload()}
+                        className="mx-auto inline-flex min-h-8 items-center rounded-lg border border-indigo-300 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                      >
+                        {t("page.supportReadOnlyRetry")}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <ChatComposer
+                    disabled={!selectedConversationId || creatingConversation}
+                    sending={sending}
+                    onSend={handleSend}
+                  />
+                )}
               </>
             )}
           </CardContent>
