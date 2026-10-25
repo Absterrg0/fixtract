@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -230,7 +232,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       })
       .catch((err: unknown) => {
         setFaqCategories([]);
-        setFaqCategoriesError(err instanceof Error ? err.message : "Failed to load FAQ categories");
+        setFaqCategoriesError(getErrorMessage(err, "Failed to load FAQ categories"));
       });
   }, []);
 
@@ -242,7 +244,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       })
       .catch((err: unknown) => {
         setServiceOptions([]);
-        setServiceOptionsError(err instanceof Error ? err.message : "Failed to load service options");
+        setServiceOptionsError(getErrorMessage(err, "Failed to load service options"));
       });
   }, []);
 
@@ -384,7 +386,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         announceTranslationOutcome(translations);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       actionLock.current = null;
       setSaving(false);
@@ -425,7 +427,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         toast.success(force ? "Translations overwritten" : "Translations updated");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Translation failed");
+      toast.error(getErrorMessage(err, "Translation failed"));
     } finally {
       actionLock.current = null;
       setTranslating(false);
@@ -447,7 +449,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       toast.success("Deleted");
       router.push("/admin/cms");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed");
+      toast.error(getErrorMessage(err, "Delete failed"));
       setDeleting(false);
     } finally {
       actionLock.current = null;
@@ -905,7 +907,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                         <span>{TRANSLATION_STATUS_LABELS[result.status]}</span>
                       </div>
                       {result.error ? (
-                        <p className="mt-1 break-words opacity-90">{result.error}</p>
+                        <p className="mt-1 break-words opacity-90">{getErrorMessage(result.error, "Translation failed")}</p>
                       ) : null}
                     </div>
                   ))}

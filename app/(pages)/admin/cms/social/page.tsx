@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
+
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -55,7 +58,7 @@ export default function AdminSocialSettingsPage() {
           toast.error(`Stored link looks malformed: ${invalid.join(", ")}`);
         }
       })
-      .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to load settings"))
+      .catch((err) => toast.error(getErrorMessage(err, "Failed to load settings")))
       .finally(() => setFetching(false));
   }, [isAuthenticated, user]);
 
@@ -74,7 +77,7 @@ export default function AdminSocialSettingsPage() {
       setValues(next.socialLinks || {});
       toast.success("Social links saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       setSaving(false);
     }

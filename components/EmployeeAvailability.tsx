@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,6 +68,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
   const { user } = useAuth()
   const router = useRouter()
   const t = useTranslations("proTools")
+  const getErrorText = useErrorMessage()
   const tCalendar = useTranslations("calendar")
   const { intl } = useFormatLocale()
   const [loading, setLoading] = useState(true)
@@ -142,7 +144,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           setBlockedRanges(Array.from(mergedRanges.values()))
         } else {
           console.error('Failed to load availability:', data.msg)
-          toast.error(data.msg || t("employeeAvailability.toast.loadFailed"))
+          toast.error(getErrorText(data, t("employeeAvailability.toast.loadFailed")))
         }
       } else {
         console.error('Failed to load availability - server error')
@@ -154,7 +156,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [getErrorText, t])
 
   const saveBlockedRanges = async (
     customRanges: BlockedRange[] = blockedRanges
@@ -180,7 +182,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           await fetchAvailability()
           return true
         }
-        toast.error(data.msg || t("employeeAvailability.toast.updateFailed"))
+        toast.error(getErrorText(data, t("employeeAvailability.toast.updateFailed")))
         return false
       }
       toast.error(t("employeeAvailability.toast.updateFailed"))

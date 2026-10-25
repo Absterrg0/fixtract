@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -147,7 +149,7 @@ export default function AdminReviewsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to load reviews")
+        throw new Error(messageFromApiBody(payload, "Failed to load reviews"))
       }
       if (signal?.aborted || !isMountedRef.current) return
 
@@ -164,7 +166,7 @@ export default function AdminReviewsPage() {
       setStats({ total: 0, hidden: 0, visible: 0 })
       setTotalPages(1)
       setTotalReviews(0)
-      setError(err instanceof Error ? err.message : "Failed to load reviews")
+      setError(getErrorMessage(err, "Failed to load reviews"))
     } finally {
       if (!isMountedRef.current || signal?.aborted) return
       setIsLoading(false)
@@ -186,13 +188,13 @@ export default function AdminReviewsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || `Failed to ${nextAction} review`)
+        throw new Error(messageFromApiBody(payload, `Failed to ${nextAction} review`))
       }
 
       toast.success(nextAction === "hide" ? "Review hidden" : "Review restored")
       await fetchReviews()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to ${nextAction} review`)
+      toast.error(getErrorMessage(err, `Failed to ${nextAction} review`))
     } finally {
       if (isMountedRef.current) {
         setActioningReviewId(null)

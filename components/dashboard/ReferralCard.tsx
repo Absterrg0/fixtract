@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +64,7 @@ type ReferralStatusValue = keyof typeof REFERRAL_STATUS_KEYS
 export default function ReferralCard({ referralData: referralDataProp }: ReferralCardProps) {
   const { user } = useAuth();
   const t = useTranslations('dashboardWidgets');
+  const getErrorText = useErrorMessage();
   const { formatMoney } = useCurrency();
   const { intl } = useFormatLocale();
   const hasExternalData = referralDataProp !== undefined
@@ -126,7 +128,7 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
         toast.success(t('referralCard.codeGenerated'));
         fetchReferralStats();
       } else {
-        toast.error(json.msg || t('referralCard.generateFailed'));
+        toast.error(getErrorText(json, t('referralCard.generateFailed')));
       }
     } catch {
       toast.error(t('referralCard.generateFailedRetry'));

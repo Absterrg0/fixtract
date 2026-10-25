@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
+
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -111,7 +114,7 @@ export default function CmsAdminListPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to load content";
+        const msg = getErrorMessage(err, "Failed to load content");
         setListError(msg);
         toast.error(msg);
       })
@@ -134,7 +137,7 @@ export default function CmsAdminListPage() {
           limit: 1,
         })
           .then((r) => [t, r.pagination.total, null] as const)
-          .catch((err: unknown) => [t, null, err instanceof Error ? err.message : "Failed"] as const)
+          .catch((err: unknown) => [t, null, getErrorMessage(err, "Failed")] as const)
       )
     ).then((entries) => {
       setCounts((prev) => {
@@ -173,7 +176,7 @@ export default function CmsAdminListPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to refresh policy slots";
+        const msg = getErrorMessage(err, "Failed to refresh policy slots");
         setReservedSlotsError(msg);
         setReservedSlots((prev) =>
           prev.length > 0
@@ -206,7 +209,7 @@ export default function CmsAdminListPage() {
         await adminSyncLandingSlots();
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to sync landing slots";
+        const msg = getErrorMessage(err, "Failed to sync landing slots");
         setLandingSlotsSyncError(msg);
       }
       try {
@@ -215,7 +218,7 @@ export default function CmsAdminListPage() {
         setLandingSlots(slots);
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to refresh landing slots";
+        const msg = getErrorMessage(err, "Failed to refresh landing slots");
         setLandingSlotsError(msg);
       } finally {
         if (!cancelled) setLandingSlotsLoading(false);

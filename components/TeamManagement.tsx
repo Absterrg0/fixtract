@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,6 +91,7 @@ interface Employee {
 export default function EmployeeManagement() {
   const router = useRouter()
   const t = useTranslations("proTools")
+  const getErrorText = useErrorMessage()
   const tCalendar = useTranslations("calendar")
   const { intl } = useFormatLocale()
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -207,7 +209,7 @@ export default function EmployeeManagement() {
         setInviteForm({ name: '', email: '', hasEmail: true })
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || t("teamManagement.toast.inviteFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.inviteFailed")))
       }
     } catch (error) {
       console.error('Error inviting employee:', error)
@@ -250,7 +252,7 @@ export default function EmployeeManagement() {
         )
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || t("teamManagement.toast.statusFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.statusFailed")))
       }
     } catch (error) {
       console.error('Error updating employee status:', error)
@@ -294,7 +296,7 @@ export default function EmployeeManagement() {
         setResetPasswordDialog(null)
         setNewPassword('')
       } else {
-        toast.error(data.msg || t("teamManagement.toast.passwordResetFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.passwordResetFailed")))
       }
     } catch (error) {
       console.error('Error resetting password:', error)
@@ -339,7 +341,7 @@ export default function EmployeeManagement() {
         setEmailValue('')
         fetchEmployees()
       } else {
-        toast.error(data.msg || t("teamManagement.toast.emailUpdateFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.emailUpdateFailed")))
       }
     } catch (error) {
       console.error('Error updating employee email:', error)
@@ -370,7 +372,7 @@ export default function EmployeeManagement() {
         setRemoveDialog(null)
         fetchEmployees()
       } else {
-        toast.error(data.msg || t("teamManagement.toast.removeFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.removeFailed")))
       }
     } catch (error) {
       console.error('Error removing employee:', error)
@@ -560,7 +562,7 @@ export default function EmployeeManagement() {
         setAvailabilityDialog(null)
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || t("teamManagement.toast.availabilityUpdateFailed"))
+        toast.error(getErrorText(data, t("teamManagement.toast.availabilityUpdateFailed")))
       }
     } catch (error) {
       console.error('Error updating availability:', error)

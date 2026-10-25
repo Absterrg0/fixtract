@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
@@ -71,7 +73,7 @@ export default function AdminProfessionalManagementPage() {
         return
       }
       if (!controller.signal.aborted && isLatestRequest && !response.ok) {
-        console.error("Failed to load professionals:", payload?.msg || `Request failed with status ${response.status}`)
+        console.error("Failed to load professionals:", messageFromApiBody(payload, `Request failed with status ${response.status}`))
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return
@@ -98,8 +100,8 @@ export default function AdminProfessionalManagementPage() {
         console.error("Failed to parse professional patch response:", error)
       }
       if (!response.ok || !payload?.success) {
-        console.error("Failed to patch professional:", payload?.msg || `Request failed with status ${response.status}`)
-        toast.error(payload?.msg || "Failed to update professional")
+        console.error("Failed to patch professional:", messageFromApiBody(payload, `Request failed with status ${response.status}`))
+        toast.error(messageFromApiBody(payload, "Failed to update professional"))
         return
       }
       toast.success("Professional updated")
@@ -135,7 +137,7 @@ export default function AdminProfessionalManagementPage() {
       })
       const payload = await response.json().catch(() => null)
       if (!response.ok || !payload?.success) {
-        toast.error(payload?.msg || "Failed to reward points")
+        toast.error(messageFromApiBody(payload, "Failed to reward points"))
         return
       }
       toast.success(`Added ${amount} points`)

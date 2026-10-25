@@ -24,7 +24,6 @@ import {
   sendConversationMessage,
   uploadChatImage,
   uploadChatFile,
-  isLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ProfessionalOption } from "@/lib/chatApi";
 import {
@@ -37,6 +36,7 @@ import type { ChatAttachment, ChatConversation, ChatMessage } from "@/types/chat
 import { cn, getAuthToken } from "@/lib/utils";
 import { toast } from "sonner";
 import { getMigratedItem, removeMigratedItem } from "@/lib/storageMigration";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
@@ -78,12 +78,10 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
 
 export default function ChatWidget() {
   const t = useTranslations("chat");
+  const getErrorText = useErrorMessage();
   const pathname = usePathname();
   const chatRouter = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
-
-  const chatErrorMessage = (error: unknown, fallback: string) =>
-    error instanceof Error && !isLocalFallbackError(error) ? error.message : fallback;
 
   const [open, setOpen] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
@@ -174,7 +172,7 @@ export default function ChatWidget() {
         setOpen(false);
         chatRouter.push(`/bookings/${data.data.bookingId}?action=quote`);
       } else {
-        toast.error(data?.error?.message || t("toasts.createQuotationFailed"));
+        toast.error(getErrorText(data, t("toasts.createQuotationFailed")));
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err);
@@ -325,11 +323,11 @@ export default function ChatWidget() {
       const data = await fetchProfessionals();
       setProfessionalOptions(data);
     } catch (error) {
-      setProfessionalsError(chatErrorMessage(error, t("toasts.loadProfessionalsFailed")));
+      setProfessionalsError(getErrorText(error, t("toasts.loadProfessionalsFailed")));
     } finally {
       setLoadingProfessionals(false);
     }
-  }, [open, userRole, t]);
+  }, [open, userRole, getErrorText, t]);
 
   const ensureConversation = useCallback(
     async (detail: ChatWidgetOpenDetail) => {
@@ -399,12 +397,12 @@ export default function ChatWidget() {
         setManualNewChatPanel(false);
         setSelectedConversationId(conversation._id);
       } catch (error) {
-        toast.error(chatErrorMessage(error, t("toasts.startChatFailed")));
+        toast.error(getErrorText(error, t("toasts.startChatFailed")));
       } finally {
         setCreatingConversation(false);
       }
     },
-    [isAuthenticated, loadConversationList, userRole, t]
+    [isAuthenticated, loadConversationList, userRole, getErrorText, t]
   );
 
   useEffect(() => {
@@ -583,9 +581,9 @@ export default function ChatWidget() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (error) {
-      const message = chatErrorMessage(error, t("toasts.sendMessageFailed"));
+      const message = getErrorText(error, t("toasts.sendMessageFailed"));
       toast.error(message);
-      throw error instanceof Error && !isLocalFallbackError(error) ? error : new Error(message);
+      throw new Error(message);
     } finally {
       setSending(false);
     }

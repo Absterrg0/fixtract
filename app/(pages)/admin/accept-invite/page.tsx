@@ -1,4 +1,7 @@
-'use client';
+'use client'
+
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors';
+
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -43,7 +46,8 @@ function AcceptInviteContent() {
     setConfirmPassword('');
 
     if (!API) {
-      setLoadError('App misconfigured: NEXT_PUBLIC_BACKEND_URL is missing.');
+      console.error('Admin invite page: NEXT_PUBLIC_BACKEND_URL is missing.');
+      setLoadError('This invite link is currently unavailable. Please try again later.');
       setLoading(false);
       return;
     }
@@ -63,12 +67,12 @@ function AcceptInviteContent() {
         );
         const json = await res.json();
         if (!res.ok || !json.success) {
-          throw new Error(json.msg || 'Invalid invite link');
+          throw new Error(messageFromApiBody(json, 'Invalid invite link'));
         }
         if (!cancelled) setDetails(json.data);
       } catch (err: unknown) {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : 'Invalid invite link');
+          setLoadError(getErrorMessage(err, 'Invalid invite link'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -83,7 +87,7 @@ function AcceptInviteContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!API) {
-      toast.error('App misconfigured: NEXT_PUBLIC_BACKEND_URL is missing.');
+      toast.error('This invite link is currently unavailable. Please try again later.');
       return;
     }
     if (password.length < 8) {
@@ -105,7 +109,7 @@ function AcceptInviteContent() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.msg || 'Could not activate account');
+        throw new Error(messageFromApiBody(json, 'Could not activate account'));
       }
 
       // Acceptance already succeeded — session sync failures must not look like activation failures
@@ -120,7 +124,7 @@ function AcceptInviteContent() {
         router.push('/login');
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not activate account');
+      toast.error(getErrorMessage(err, 'Could not activate account'));
     } finally {
       setSubmitting(false);
     }

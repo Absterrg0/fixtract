@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { messageFromApiBody } from "@/lib/apiErrors";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -70,7 +73,7 @@ export default function MarketingSubscribersPage() {
       if (filters.status !== "all") params.set("status", filters.status);
       const response = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers?${params.toString()}`);
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw new Error(json?.msg || "Failed to load subscribers");
+      if (!response.ok || !json?.success) throw new Error(messageFromApiBody(json, "Failed to load subscribers"));
       if (loadId !== latestLoadId.current) return;
       setRows(json.data?.subscribers || []);
       setTotal(Number(json.data?.pagination?.total) || 0);
@@ -119,7 +122,7 @@ export default function MarketingSubscribersPage() {
     try {
       const response = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers/sync`, { method: "POST" });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw new Error(json?.msg || "Subscriber sync failed");
+      if (!response.ok || !json?.success) throw new Error(messageFromApiBody(json, "Subscriber sync failed"));
       toast.success(`Subscriber sync complete: ${json.data?.upserted || 0} updated`);
       await load();
     } catch (error) { toast.error(errMessage(error, "Subscriber sync failed")); }

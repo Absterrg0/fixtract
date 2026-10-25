@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Trash2, FileText, Loader2 } from "lucide-react";
 import { toast } from 'sonner';
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 interface ProfessionalAttachmentsProps {
   attachments: string[];
@@ -24,6 +25,7 @@ export default function ProfessionalAttachments({
   label
 }: ProfessionalAttachmentsProps) {
   const t = useTranslations('projectWizard');
+  const getErrorText = useErrorMessage();
   const { uploadFile, uploading, progress } = useFileUpload();
 
   const handleFileUpload = async (file: File) => {
@@ -35,16 +37,15 @@ export default function ProfessionalAttachments({
       return;
     }
 
-    const result = await uploadFile(file, 'attachment', {
-      projectId,
-      questionId
-    });
-
-    if (result) {
+    try {
+      const result = await uploadFile(file, 'attachment', {
+        projectId,
+        questionId
+      });
       onChange([...attachments, result.url]);
       toast.success(t('attachments.toast.uploaded'));
-    } else {
-      toast.error(t('attachments.toast.failed'));
+    } catch (error) {
+      toast.error(getErrorText(error, t('attachments.toast.failed')));
     }
   };
 

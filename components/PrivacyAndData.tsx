@@ -19,11 +19,13 @@ import { Download, Loader2, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch, setAuthToken } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 
 const CONFIRM_PHRASE = "DELETE"
 
 export default function PrivacyAndData() {
   const t = useTranslations("account")
+  const getErrorText = useErrorMessage()
   const router = useRouter()
   const { logout } = useAuth()
   const [downloading, setDownloading] = useState(false)
@@ -60,7 +62,7 @@ export default function PrivacyAndData() {
       toast.success(t("privacy.downloading"))
     } catch (err) {
       console.error("Data export error:", err)
-      toast.error(t("privacy.downloadFailed"))
+      toast.error(getErrorText(err, t("privacy.downloadFailed")))
     } finally {
       setDownloading(false)
     }
@@ -76,7 +78,7 @@ export default function PrivacyAndData() {
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
-        toast.error(body?.msg || t("privacy.deleteFailed"))
+        toast.error(getErrorText(body, t("privacy.deleteFailed")))
         return
       }
       toast.success(body?.msg || t("privacy.deleted"))
@@ -89,7 +91,7 @@ export default function PrivacyAndData() {
       router.replace("/")
     } catch (err) {
       console.error("Account delete error:", err)
-      toast.error(t("privacy.deleteFailed"))
+      toast.error(getErrorText(err, t("privacy.deleteFailed")))
     } finally {
       setDeleting(false)
       setConfirmOpen(false)

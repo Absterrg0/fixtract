@@ -7,15 +7,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
-function errMessage(e: unknown, fallback: string): string {
-  return e instanceof Error && e.message ? e.message : fallback;
-}
-
 function UnsubscribeInner() {
   const t = useTranslations("auth");
+  const getErrorText = useErrorMessage();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const email = searchParams.get("email") || "";
@@ -59,7 +57,7 @@ function UnsubscribeInner() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || t("unsubscribe.failed"));
+        throw new Error(getErrorText(json, t("unsubscribe.failed")));
       }
       if (requestParamsKey === paramsKeyRef.current) {
         setMessage(json.data?.message || t("unsubscribe.unsubscribed"));
@@ -68,7 +66,7 @@ function UnsubscribeInner() {
     } catch (e: unknown) {
       if (requestParamsKey === paramsKeyRef.current) {
         const aborted = e instanceof DOMException && e.name === "AbortError";
-        setMessage(aborted ? t("unsubscribe.timeout") : errMessage(e, t("unsubscribe.failed")));
+        setMessage(aborted ? t("unsubscribe.timeout") : getErrorText(e, t("unsubscribe.failed")));
         setStatus("error");
       }
     } finally {

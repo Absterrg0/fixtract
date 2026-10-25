@@ -14,7 +14,7 @@ import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 import { trackProjectSearch } from '@/lib/analytics';
-import { isTransportError } from '@/lib/apiErrors';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { useAuth } from '@/contexts/AuthContext';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -181,6 +181,7 @@ const extractLocationDetails = (raw?: string | null) => {
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const t = useTranslations('search');
+  const getErrorText = useErrorMessage();
   const { user, loading: authLoading } = useAuth();
   const initialQuery = searchParams.get('q') || '';
   const initialLocation = searchParams.get('loc') || '';
@@ -458,12 +459,7 @@ function SearchPageContent() {
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
       console.error('Search error:', err);
-      const message = isTransportError(err)
-        ? t('page.errorFallback')
-        : err instanceof Error
-          ? err.message
-          : t('page.errorFallback');
-      setError(message);
+      setError(getErrorText(err, t('page.errorFallback')));
     } finally {
       if (searchAbortRef.current === controller) {
         searchAbortRef.current = null;
@@ -586,7 +582,7 @@ function SearchPageContent() {
               <div className="flex flex-col items-center justify-center py-20">
                 <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('page.errorTitle')}</h2>
-                <p className="text-gray-600 mb-6">{error}</p>
+                <p role="alert" className="text-gray-600 mb-6">{error}</p>
                 <Button onClick={performSearch}>{t('page.tryAgain')}</Button>
               </div>
             ) : results.length === 0 ? (

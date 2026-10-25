@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -110,7 +112,7 @@ export default function AdminCancellationRequestsPage() {
         toast.success(`Cancellation approved. Refund: ${json.data?.refundAmount?.toFixed(2) || 0}`)
         fetchRequests()
       } else {
-        toast.error(json.msg || 'Failed to approve cancellation')
+        toast.error(messageFromApiBody(json, 'Failed to approve cancellation'))
       }
     } catch {
       toast.error('Failed to approve cancellation')
@@ -142,7 +144,7 @@ export default function AdminCancellationRequestsPage() {
         setDenyReason('')
         fetchRequests()
       } else {
-        toast.error(json.msg || 'Failed to deny cancellation')
+        toast.error(messageFromApiBody(json, 'Failed to deny cancellation'))
       }
     } catch {
       toast.error('Failed to deny cancellation')

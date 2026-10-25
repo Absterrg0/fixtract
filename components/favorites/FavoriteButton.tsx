@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { apiErrorFromBody } from "@/lib/apiErrors";
 
 import { useEffect, useState, useCallback, useId } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY, HEART_PATH } from "@/lib/constants/favorites";
 import { setMigratedItem } from "@/lib/storageMigration";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 export { PENDING_FAVORITE_KEY };
 
@@ -46,6 +49,7 @@ export default function FavoriteButton({
   const router = useRouter();
   const pathname = usePathname();
   const t = useTranslations("favorites");
+  const getErrorText = useErrorMessage();
   const { user, isAuthenticated, loading } = useAuth();
   const [favorited, setFavorited] = useState(initialFavorited);
   const [count, setCount] = useState<number | undefined>(initialCount);
@@ -102,7 +106,7 @@ export default function FavoriteButton({
       );
       const json = await res.json();
       if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || t("updateFailed"));
+        throw apiErrorFromBody(json, t("updateFailed"), { status: res.status });
       }
       const nextFavorited: boolean = json.data.favorited;
       const nextCount: number = json.data.count;
@@ -112,8 +116,7 @@ export default function FavoriteButton({
     } catch (err) {
       setFavorited(prevFavorited);
       setCount(prevCount);
-      const message = err instanceof Error ? err.message : t("updateFailed");
-      toast.error(message);
+      toast.error(getErrorText(err, t("updateFailed")));
     } finally {
       setBusy(false);
     }
@@ -129,6 +132,7 @@ export default function FavoriteButton({
     onToggled,
     pathname,
     router,
+    getErrorText,
     t,
   ]);
 

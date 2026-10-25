@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -150,7 +152,7 @@ export default function AdminSettingsPage() {
       if (response.ok) {
         const data = await response.json()
         if (!data?.data) {
-          toast.error('Unexpected response from server')
+          toast.error('We could not read the server response. Please try again.')
           return
         }
         applySettingsState(hydrateSettingsResponse(data.data), {
@@ -194,7 +196,7 @@ export default function AdminSettingsPage() {
           setOdooCompanies(data.data.companies)
           setOdooCompaniesError(null)
         } else {
-          setOdooCompaniesError(data?.msg || 'Could not load the Odoo companies')
+          setOdooCompaniesError(messageFromApiBody(data, 'Could not load the Odoo companies'))
         }
       } catch {
         if (!cancelled) setOdooCompaniesError('Could not load the Odoo companies')
@@ -270,7 +272,7 @@ export default function AdminSettingsPage() {
       if (response.ok) {
         const data = await response.json()
         if (!data?.data) {
-          toast.error('Unexpected response from server')
+          toast.error('We could not read the server response. Please try again.')
           return
         }
         applySettingsState(hydrateSettingsResponse(data.data), {
@@ -285,7 +287,7 @@ export default function AdminSettingsPage() {
         toast.success('Platform settings updated successfully')
       } else {
         const errorData = await response.json().catch(() => null)
-        toast.error(errorData?.msg || 'Failed to update settings')
+        toast.error(messageFromApiBody(errorData, 'Failed to update settings'))
       }
     } catch (error) {
       console.error('Failed to save settings:', error)

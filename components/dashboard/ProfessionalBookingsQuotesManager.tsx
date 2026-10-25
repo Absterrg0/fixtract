@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
@@ -130,6 +132,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const router = useRouter()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const t = useTranslations("dashboardWidgets")
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
 
   const statusLabel = (status: string) => {
@@ -280,11 +283,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setShowCreateQuoteModal(false)
         router.push(`/bookings/${data.data.bookingId}?action=quote`)
       } else {
-        alert(data?.error?.message || t("professionalManager.errors.createQuote"))
+        toast.error(getErrorText(data, t("professionalManager.errors.createQuote")))
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err)
-      alert(t("professionalManager.errors.createQuote"))
+      toast.error(getErrorText(err, t("professionalManager.errors.createQuote")))
     } finally {
       setCreatingQuote(false)
     }
@@ -454,7 +457,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           return merged
         })
       } else {
-        const msg = data.msg || t("professionalManager.errors.loadBookings")
+        const msg = getErrorText(data, t("professionalManager.errors.loadBookings"))
         if (append) {
           setLoadMoreError(msg)
         } else {
@@ -464,9 +467,9 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } catch (fetchError) {
       console.error("Failed to fetch bookings:", fetchError)
       if (append) {
-        setLoadMoreError(t("professionalManager.errors.loadBookings"))
+        setLoadMoreError(getErrorText(fetchError, t("professionalManager.errors.loadBookings")))
       } else {
-        setError(t("professionalManager.errors.loadBookings"))
+        setError(getErrorText(fetchError, t("professionalManager.errors.loadBookings")))
       }
     } finally {
       if (append) {
@@ -475,7 +478,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setIsLoading(false)
       }
     }
-  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim(), t])
+  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim(), getErrorText, t])
 
   const refreshBookings = useCallback(async () => {
     await fetchBookings(1, false)

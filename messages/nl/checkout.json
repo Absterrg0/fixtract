@@ -137,6 +137,7 @@
     "title": "Betaling geautoriseerd!",
     "body": "Je betaling is geautoriseerd. Het bedrag wordt veilig vastgehouden tot de dienst is afgerond.",
     "bookingDetails": "Boekingsgegevens",
+    "detailsUnavailable": "Je betaling is geslaagd, maar we konden de boekingsgegevens niet laden. Vernieuw de pagina om ze te bekijken.",
     "bookingNumberLabel": "Boeking #:",
     "amountAuthorized": "Geautoriseerd bedrag:",
     "statusLabel": "Status:",
@@ -219,6 +220,7 @@
   "availabilityPicker": {
     "placeholder": "Kies een datum",
     "loading": "Beschikbaarheid laden...",
+    "loadFailed": "Beschikbaarheid kon niet worden geladen. Datums zijn mogelijk onjuist.",
     "weekdays": {
       "mon": "ma",
       "tue": "di",

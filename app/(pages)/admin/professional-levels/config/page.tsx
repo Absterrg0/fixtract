@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -81,7 +83,7 @@ export default function ProfessionalLevelConfigPage() {
       if (response.ok && payload?.success) {
         setConfig(payload.data.config)
       } else {
-        toast.error(payload?.msg || "Failed to load professional level configuration")
+        toast.error(messageFromApiBody(payload, "Failed to load professional level configuration"))
       }
     } catch (error) {
       console.error("Failed to load professional level configuration:", error)
@@ -130,7 +132,7 @@ export default function ProfessionalLevelConfigPage() {
         setConfig(payload.data.config)
         toast.success("Professional levels saved")
       } else {
-        toast.error(payload?.msg || "Failed to save professional levels")
+        toast.error(messageFromApiBody(payload, "Failed to save professional levels"))
       }
     } catch (error) {
       console.error("Failed to save professional levels:", error)
@@ -153,7 +155,7 @@ export default function ProfessionalLevelConfigPage() {
       if (response.ok && payload?.success) {
         toast.success(`Recalculated ${payload.data.updated} professionals`)
       } else {
-        toast.error(payload?.msg || "Failed to recalculate professional levels")
+        toast.error(messageFromApiBody(payload, "Failed to recalculate professional levels"))
       }
     } catch (error) {
       console.error("Failed to recalculate professional levels:", error)

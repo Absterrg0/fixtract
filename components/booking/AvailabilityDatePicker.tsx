@@ -63,6 +63,7 @@ export default function AvailabilityDatePicker({
   ]
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set())
   const [blockedRanges, setBlockedRanges] = useState<BlockedRange[]>([])
   const [apiEarliestDate, setApiEarliestDate] = useState<Date | null>(null)
@@ -86,10 +87,12 @@ export default function AvailabilityDatePicker({
       setBlockedRanges([])
       setApiEarliestDate(null)
       setLoading(false)
+      setLoadError(false)
       return
     }
     let cancelled = false
     setLoading(true)
+    setLoadError(false)
     const fetchAvailability = async () => {
       try {
         let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/availability`
@@ -111,6 +114,7 @@ export default function AvailabilityDatePicker({
             setBlockedDates(new Set())
             setBlockedRanges([])
             setApiEarliestDate(null)
+            setLoadError(true)
           }
           return
         }
@@ -145,6 +149,7 @@ export default function AvailabilityDatePicker({
           setBlockedDates(new Set())
           setBlockedRanges([])
           setApiEarliestDate(null)
+          setLoadError(true)
         }
       } catch (err) {
         if (!cancelled) {
@@ -152,6 +157,7 @@ export default function AvailabilityDatePicker({
           setBlockedDates(new Set())
           setBlockedRanges([])
           setApiEarliestDate(null)
+          setLoadError(true)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -279,6 +285,12 @@ export default function AvailabilityDatePicker({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+
+          {loadError && (
+            <p role="alert" className="mb-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+              {t('availabilityPicker.loadFailed')}
+            </p>
+          )}
 
           <div className="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-medium text-gray-500">
             {weekdays.map((d, idx) => (

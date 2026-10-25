@@ -3,9 +3,11 @@
 import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 
 function StripeRefreshContent() {
   const t = useTranslations('proArea');
+  const getErrorText = useErrorMessage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -34,7 +36,7 @@ function StripeRefreshContent() {
       const data = await response.json();
 
       if (!data.success) {
-        setError(data.error?.message || t('stripePages.refresh.createFailed'));
+        setError(getErrorText(data, t('stripePages.refresh.createFailed')));
         setLoading(false);
         return;
       }
@@ -42,7 +44,7 @@ function StripeRefreshContent() {
       window.location.href = data.data.url;
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('stripePages.shared.anErrorOccurred'));
+      setError(getErrorText(err, t('stripePages.shared.anErrorOccurred')));
       setLoading(false);
     }
   };
