@@ -179,9 +179,9 @@
         "manage": "Content beheren"
       },
       "supportTickets": {
-        "title": "Supporttickets voor vakmensen",
-        "description": "Bekijk supporttickets en vergaderverzoeken van vakmensen (geen livechat)",
-        "manage": "Supporttickets openen"
+        "title": "Supportaanvragen",
+        "description": "Tickets en afspraken van klanten en vakmensen",
+        "manage": "Support openen"
       },
       "supportChat": {
         "title": "Supportchat",
@@ -321,7 +321,7 @@
     "disputes": "Geschillen",
     "cancellationRequests": "Annuleringsverzoeken",
     "warrantyClaims": "Garantieclaims",
-    "supportTickets": "Supporttickets",
+    "supportTickets": "Supportaanvragen",
     "discountCodes": "Kortingscodes",
     "referrals": "Doorverwijzingen",
     "backlinks": "Backlinks",

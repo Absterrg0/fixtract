@@ -6,6 +6,8 @@
     "companyClosure": "Fermeture de l'entreprise",
     "holiday": "Jour férié",
     "available": "Disponible",
+    "supportMeeting": "Rendez-vous d'assistance",
+    "supportMeetingPending": "Rendez-vous d'assistance (en attente)",
     "allDay": "24/7"
   },
   "weeklyAvailabilityCalendar": {

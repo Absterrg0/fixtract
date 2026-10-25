@@ -216,11 +216,11 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                               </Link>
                             </DropdownMenuItem>
                           )}
-                          {user?.role === "professional" && (
+                          {(user?.role === "customer" || user?.role === "professional") && (
                             <DropdownMenuItem asChild>
-                              <Link href="/professional/support">
+                              <Link href="/support">
                                 <LifeBuoy className="mr-2 h-4 w-4" />
-                                <span>{t("professionalSupport")}</span>
+                                <span>{t("support")}</span>
                               </Link>
                             </DropdownMenuItem>
                           )}
@@ -387,9 +387,9 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                       <Link href="/dashboard/benefits">{t("benefitsProgram")}</Link>
                     </Button>
                   )}
-                  {user?.role === "professional" && (
+                  {(user?.role === "customer" || user?.role === "professional") && (
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/professional/support">{t("professionalSupport")}</Link>
+                      <Link href="/support">{t("support")}</Link>
                     </Button>
                   )}
                   <Button onClick={logout} variant="outline" className="w-full">
