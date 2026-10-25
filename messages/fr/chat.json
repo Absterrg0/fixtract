@@ -35,6 +35,12 @@
     "searchMessages": "Rechercher des messages...",
     "searchPosition": "{current}/{total}",
     "supportClosed": "🔒 Cette conversation d'assistance a été fermée par Fixtract. Vous ne pouvez plus répondre.",
+    "supportReadOnlyRole": "Cette conversation d'assistance est en lecture seule. La messagerie d'assistance est réservée aux professionnels ; vous pouvez toujours lire les messages précédents.",
+    "supportReadOnlyDisabled": "La messagerie d'assistance est actuellement désactivée. Vous pouvez toujours lire les messages précédents, mais les réponses et les pièces jointes sont indisponibles.",
+    "supportReadOnlyChecking": "Vérification de la disponibilité de la messagerie d'assistance…",
+    "supportReadOnlyUnavailable": "Nous n'avons pas pu vérifier la disponibilité de la messagerie d'assistance. Les réponses sont désactivées jusqu'à la prochaine vérification.",
+    "supportReadOnlyBlocked": "La messagerie d'assistance n'est plus disponible pour cette conversation. Vous pouvez toujours lire les messages précédents.",
+    "supportReadOnlyRetry": "Vérifier à nouveau",
     "selectConversation": "Sélectionnez une conversation pour afficher les messages",
     "absence": "Le professionnel est absent du <date>{from}</date> au <date>{to}</date>"
   },

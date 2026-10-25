@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   hasAdminPermission,
   permissionForAdminPage,
+  resolveAdminAreaLevel,
   type AdminPermission,
 } from '@/lib/adminRbac';
 
@@ -14,10 +15,19 @@ export function useAdminAccess() {
   // Do not invent 'super' — missing role means incomplete session payload
   const adminRole = user?.adminRole;
   const permissions = user?.adminPermissions;
+  const supportAccess = useMemo(
+    () => resolveAdminAreaLevel(user, 'support'),
+    [user],
+  );
 
   const can = useMemo(() => {
     return (permission: AdminPermission) => {
       if (!isAdmin) return false;
+      // Support reads are area-level (`support: read`) and therefore absent
+      // from the write-only `support.tickets` permission pack.
+      if (permission === 'support.tickets') {
+        return supportAccess !== 'none';
+      }
       // Fail closed: missing permissions payload must not grant all access.
       // Explicit super may keep a legacy fallback until /me refreshes the pack.
       if (!permissions) {
@@ -25,7 +35,7 @@ export function useAdminAccess() {
       }
       return hasAdminPermission(permissions, permission);
     };
-  }, [isAdmin, permissions, user?.adminRole]);
+  }, [isAdmin, permissions, supportAccess, user?.adminRole]);
 
   const canAccessPath = (pathname: string) => {
     if (!isAdmin) return false;
@@ -34,5 +44,13 @@ export function useAdminAccess() {
     return can(required);
   };
 
-  return { isAdmin, adminRole, permissions: permissions || [], can, canAccessPath };
+  return {
+    isAdmin,
+    adminRole,
+    permissions: permissions || [],
+    supportAccess,
+    canWriteSupport: isAdmin && supportAccess === 'write',
+    can,
+    canAccessPath,
+  };
 }

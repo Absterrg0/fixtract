@@ -178,6 +178,8 @@
     "workingHoursTitle": "Heures de travail personnelles",
     "workingHoursDescription": "Lecture seule. Les heures de travail suivent le planning de l'entreprise.",
     "calendarWindow": "Fenêtre du calendrier : {days} - de {start} à {end}",
+    "supportEventsFailed": "Les rendez-vous d'assistance n'ont pas pu être chargés ; ce calendrier peut être incomplet.",
+    "supportEventsRetry": "Recharger les rendez-vous d'assistance",
     "bookingTitle": "Réservation",
     "bufferTitle": "Marge",
     "personalBlockTitle": "Blocage personnel"

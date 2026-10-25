@@ -179,9 +179,9 @@
         "manage": "Gérer le contenu"
       },
       "supportTickets": {
-        "title": "Tickets de support pour les professionnels",
-        "description": "Examinez les tickets de support et demandes de réunion des professionnels (pas le chat en direct)",
-        "manage": "Ouvrir les tickets de support"
+        "title": "Demandes d'assistance",
+        "description": "Tickets et rendez-vous des clients et des professionnels",
+        "manage": "Ouvrir l'assistance"
       },
       "supportChat": {
         "title": "Chat de support",
@@ -321,7 +321,7 @@
     "disputes": "Litiges",
     "cancellationRequests": "Demandes d'annulation",
     "warrantyClaims": "Réclamations de garantie",
-    "supportTickets": "Tickets de support",
+    "supportTickets": "Demandes d'assistance",
     "discountCodes": "Codes de réduction",
     "referrals": "Parrainages",
     "backlinks": "Backlinks",

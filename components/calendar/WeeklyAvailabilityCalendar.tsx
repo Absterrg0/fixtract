@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-export type CalendarEventType = 'booking' | 'booking-buffer' | 'personal' | 'company'
+export type CalendarEventType = 'booking' | 'booking-buffer' | 'personal' | 'company' | 'support'
 
 export interface CalendarEventMeta {
   bookingId?: string
@@ -25,6 +25,7 @@ export interface CalendarEventMeta {
   }
   note?: string
   rangeIndex?: number
+  ticketNumber?: string
 }
 
 export interface CalendarEvent {
@@ -137,6 +138,11 @@ const EVENT_STYLES: Record<
     gradient: 'from-amber-200 via-orange-200 to-rose-200',
     badge: 'bg-amber-50 text-amber-800',
     text: 'text-amber-900',
+  },
+  support: {
+    gradient: 'from-cyan-200 via-sky-200 to-blue-200',
+    badge: 'bg-cyan-50 text-cyan-800',
+    text: 'text-cyan-900',
   },
 }
 
@@ -522,6 +528,7 @@ export default function WeeklyAvailabilityCalendar({
               { label: t('eventTitles.booking'), type: 'booking' },
               { label: t('eventTitles.buffer'), type: 'booking-buffer' },
               { label: t('eventTitles.companyClosure'), type: 'company' },
+              { label: t('eventTitles.supportMeeting'), type: 'support' },
             ] as const
           ).map((item) => {
             const style = EVENT_STYLES[item.type]

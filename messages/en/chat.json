@@ -35,6 +35,12 @@
     "searchMessages": "Search messages...",
     "searchPosition": "{current}/{total}",
     "supportClosed": "🔒 This support chat has been closed by Fixtract. You can no longer reply.",
+    "supportReadOnlyRole": "This support conversation is read-only. Support chat is only available to professionals; you can still read earlier messages.",
+    "supportReadOnlyDisabled": "Support chat is currently disabled. You can still read earlier messages, but replies and attachments are unavailable.",
+    "supportReadOnlyChecking": "Checking whether support chat is available…",
+    "supportReadOnlyUnavailable": "We couldn't check support chat availability. Replying is disabled until the check succeeds.",
+    "supportReadOnlyBlocked": "Support chat is no longer available for this conversation. You can still read earlier messages.",
+    "supportReadOnlyRetry": "Check again",
     "selectConversation": "Select a conversation to view messages",
     "absence": "Professional is absent from <date>{from}</date> to <date>{to}</date>"
   },

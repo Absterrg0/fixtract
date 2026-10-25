@@ -210,3 +210,89 @@ export function hasAdminPermission(
 ): boolean {
   return Boolean(permissions?.includes(permission));
 }
+
+/** The subset of `/me` needed to resolve effective area access client-side. */
+export interface AdminAccessUser {
+  role?: string | null;
+  adminRole?: AdminRole | string | null;
+  adminPermissions?: AdminPermission[] | null;
+  /** Effective matrix from `/me` (authoritative read/write/none). */
+  adminAccessLevels?: Partial<Record<string, AdminAccessLevel>> | null;
+  /** Legacy/explicit persisted matrix. */
+  adminPermissionLevels?: Partial<Record<string, AdminAccessLevel>> | null;
+  supportAccessLevel?: AdminAccessLevel | null;
+}
+
+/**
+ * Effective access level for an admin area, mirroring the server:
+ * - an explicit `adminPermissionLevels` override wins (including `none`);
+ * - when the levels payload is absent (legacy accounts), the permission pack
+ *   is authoritative, then the documented role pack;
+ * - super admins always have write;
+ * - anything unknown fails closed.
+ *
+ * The server remains authoritative for every request. This only keeps page
+ * gates and write controls aligned with the read/write split it enforces.
+ */
+export function resolveAdminAreaLevel(
+  user: AdminAccessUser | null | undefined,
+  area: AdminAccessArea
+): AdminAccessLevel {
+  if (!user || user.role !== 'admin') return 'none';
+  if (user.adminRole === 'super') return 'write';
+
+  // `/me` now returns the effective area matrix from the same resolver the
+  // server authorizes with. Prefer it; it already includes role defaults,
+  // configured role access and explicit overrides.
+  const effective = user.adminAccessLevels;
+  const effectiveLevel = effective?.[area];
+  if (
+    effectiveLevel === 'write' ||
+    effectiveLevel === 'read' ||
+    effectiveLevel === 'none'
+  ) {
+    return effectiveLevel;
+  }
+  if (effective && Object.keys(effective).length > 0) return 'none';
+  if (area === 'support' && user.supportAccessLevel) {
+    return user.supportAccessLevel;
+  }
+
+  const levels = user.adminPermissionLevels;
+  const explicit = levels?.[area];
+  if (explicit === 'write' || explicit === 'read' || explicit === 'none') {
+    return explicit;
+  }
+  // A populated levels matrix is the complete effective matrix: a missing
+  // area means no access, not the role default.
+  if (levels && Object.keys(levels).length > 0) return 'none';
+
+  // Legacy account without an explicit matrix. The permissions payload is
+  // derived from its effective role/levels server-side, so respect it.
+  if (Array.isArray(user.adminPermissions)) {
+    if (area === 'support') {
+      return hasAdminPermission(user.adminPermissions, 'support.tickets')
+        ? 'write'
+        : 'none';
+    }
+    return 'none';
+  }
+
+  // Very old payloads have neither field; fall back to the known role pack.
+  if (user.adminRole === 'care' && area === 'support') return 'write';
+  return 'none';
+}
+
+export function canReadAdminArea(
+  user: AdminAccessUser | null | undefined,
+  area: AdminAccessArea
+): boolean {
+  return resolveAdminAreaLevel(user, area) !== 'none';
+}
+
+export function canWriteAdminArea(
+  user: AdminAccessUser | null | undefined,
+  area: AdminAccessArea
+): boolean {
+  return resolveAdminAreaLevel(user, area) === 'write';
+}
