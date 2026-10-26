@@ -597,11 +597,14 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
     if (provided.length > 0) return provided
     const raw = booking.payment
     const rawCurrency = ownRecordedCurrency(raw as NewPaymentFields | null)
-    if (raw && (recordedNumber(raw.refundAmount) != null || raw.timestamps?.refundedAt || raw.refundedAt)) {
+    const rawRefundAmount = raw ? recordedNumber(raw.refundAmount) : null
+    if (raw && (rawRefundAmount != null || raw.timestamps?.refundedAt || raw.refundedAt)) {
       return [
         {
           id: "payment:aggregate-refund",
-          amount: raw.refundAmount ?? raw.totalWithVat ?? null,
+          // A refund timestamp or payment status does not prove how much was
+          // refunded; only the stored refund amount is evidence.
+          amount: rawRefundAmount,
           currency: rawCurrency,
           currencySource: rawCurrency ? "payment" : "not_recorded",
           refundedAt: raw.timestamps?.refundedAt || raw.refundedAt || null,
