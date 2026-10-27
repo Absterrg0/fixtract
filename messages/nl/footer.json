@@ -1,0 +1,35 @@
+{
+  "description": "Fixtract is een vertrouwd platform dat klanten verbindt met geverifieerde vakmensen voor elke klus in en rond je huis. Van kleine reparaties tot grote verbouwingen: wij zorgen ervoor dat het werk gedaan wordt, met gegarandeerde kwaliteit en zekerheid.",
+  "copyright": "© {year} Fixtract. Alle rechten voorbehouden.",
+  "columns": {
+    "popularServices": "Populaire diensten",
+    "forCustomers": "Voor klanten",
+    "forProfessionals": "Voor vakmensen",
+    "company": "Bedrijf"
+  },
+  "links": {
+    "interiorDesign": "Interieurontwerp",
+    "plumbing": "Loodgieterij",
+    "electricalWork": "Elektriciteitswerken",
+    "painting": "Schilderwerk",
+    "renovation": "Renovatie",
+    "howItWorks": "Hoe het werkt",
+    "findProfessionals": "Vakmensen vinden",
+    "safetyTrust": "Veiligheid en vertrouwen",
+    "projectIdeas": "Projectideeën",
+    "joinAsProfessional": "Word professional",
+    "successStories": "Succesverhalen",
+    "about": "Over Fixtract",
+    "blog": "Blog",
+    "news": "Nieuws",
+    "faq": "Veelgestelde vragen"
+  },
+  "legal": {
+    "privacyPolicy": "Privacybeleid",
+    "termsOfService": "Gebruiksvoorwaarden",
+    "cookiePolicy": "Cookiebeleid",
+    "gdprCompliance": "GDPR-naleving",
+    "platformRules": "Platformregels",
+    "selfBillingAgreement": "Zelffacturatieovereenkomst"
+  }
+}

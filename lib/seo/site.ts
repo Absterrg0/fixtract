@@ -32,6 +32,11 @@ export const siteUrl = (): string => {
 
 export const SITE_NAME = "Fixtract";
 export const SITE_TAGLINE = "One Platform, Every Solution.";
+/**
+ * English fallback for contexts without a request locale (manifest, JSON-LD,
+ * synchronous noindex/admin metadata). Localized pages use
+ * `common.meta.siteDescription` through `buildMetadata` / the root layout.
+ */
 export const SITE_DESCRIPTION =
   "Fixtract connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed.";
 export const OG_DEFAULT_IMAGE = "/fixtract-logo.png";

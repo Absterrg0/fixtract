@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { CONSENT_EVENT, STORAGE_KEY, LEGACY_STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
 
 export default function CookieConsent() {
+  const t = useTranslations('cookieConsent')
   const [decided, setDecided] = useState<ConsentState | null | undefined>(undefined)
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [analyticsOn, setAnalyticsOn] = useState(false)
@@ -50,30 +52,29 @@ export default function CookieConsent() {
     <>
       <div
         role="region"
-        aria-label="Cookie consent"
+        aria-label={t('regionLabel')}
         aria-live="polite"
         className="fixed bottom-0 left-0 right-0 z-[100] border-t bg-background p-4 shadow-lg sm:p-6"
       >
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">We use cookies</p>
+            <p className="font-medium text-foreground">{t('title')}</p>
             <p className="mt-1">
-              Essential cookies keep the site running. With your consent we&apos;d also use analytics and marketing
-              cookies to improve our service. You can change your choice anytime.{' '}
+              {t('intro')}{' '}
               <a href="/privacy-policy" className="underline underline-offset-2 hover:text-foreground">
-                Privacy policy
+                {t('privacyPolicy')}
               </a>
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:flex-nowrap">
             <Button variant="outline" size="sm" onClick={() => setCustomizeOpen(true)}>
-              Customize
+              {t('customize')}
             </Button>
             <Button variant="outline" size="sm" onClick={handleRejectAll}>
-              Reject all
+              {t('rejectAll')}
             </Button>
             <Button size="sm" onClick={handleAcceptAll}>
-              Accept all
+              {t('acceptAll')}
             </Button>
           </div>
         </div>
@@ -82,18 +83,16 @@ export default function CookieConsent() {
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Cookie preferences</DialogTitle>
-            <DialogDescription>
-              Choose which categories of cookies to allow. You can change this later from the privacy policy page.
-            </DialogDescription>
+            <DialogTitle>{t('preferencesTitle')}</DialogTitle>
+            <DialogDescription>{t('preferencesDescription')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p id="cookie-label-necessary" className="font-medium">Necessary</p>
+                <p id="cookie-label-necessary" className="font-medium">{t('necessary')}</p>
                 <p className="text-sm text-muted-foreground">
-                  Required for the site to function (login, security, payment processing). Always on.
+                  {t('necessaryDescription')}
                 </p>
               </div>
               <Switch checked disabled aria-labelledby="cookie-label-necessary" />
@@ -101,9 +100,9 @@ export default function CookieConsent() {
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p id="cookie-label-analytics" className="font-medium">Analytics</p>
+                <p id="cookie-label-analytics" className="font-medium">{t('analytics')}</p>
                 <p className="text-sm text-muted-foreground">
-                  Helps us understand how the site is used so we can improve it. No personal data is sold.
+                  {t('analyticsDescription')}
                 </p>
               </div>
               <Switch
@@ -115,9 +114,9 @@ export default function CookieConsent() {
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p id="cookie-label-marketing" className="font-medium">Marketing</p>
+                <p id="cookie-label-marketing" className="font-medium">{t('marketing')}</p>
                 <p className="text-sm text-muted-foreground">
-                  Used to show relevant content and measure campaign performance.
+                  {t('marketingDescription')}
                 </p>
               </div>
               <Switch
@@ -130,9 +129,9 @@ export default function CookieConsent() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCustomizeOpen(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
-            <Button onClick={handleSave}>Save preferences</Button>
+            <Button onClick={handleSave}>{t('savePreferences')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

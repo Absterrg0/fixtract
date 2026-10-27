@@ -1,0 +1,35 @@
+{
+  "description": "Fixtract est une plateforme de confiance qui met en relation des particuliers et des professionnels vérifiés pour tous les travaux de votre logement. Des petites réparations aux grands chantiers de rénovation, nous vous permettons de mener votre projet à bien, avec qualité et sécurité garanties.",
+  "copyright": "© {year} Fixtract. Tous droits réservés.",
+  "columns": {
+    "popularServices": "Services populaires",
+    "forCustomers": "Pour les particuliers",
+    "forProfessionals": "Pour les professionnels",
+    "company": "Entreprise"
+  },
+  "links": {
+    "interiorDesign": "Architecture d'intérieur",
+    "plumbing": "Plomberie",
+    "electricalWork": "Travaux électriques",
+    "painting": "Peinture",
+    "renovation": "Rénovation",
+    "howItWorks": "Comment ça marche",
+    "findProfessionals": "Trouver un professionnel",
+    "safetyTrust": "Sécurité et confiance",
+    "projectIdeas": "Idées de projets",
+    "joinAsProfessional": "Devenir professionnel",
+    "successStories": "Réussites",
+    "about": "À propos de Fixtract",
+    "blog": "Blog",
+    "news": "Actualités",
+    "faq": "FAQ"
+  },
+  "legal": {
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions d'utilisation",
+    "cookiePolicy": "Politique de cookies",
+    "gdprCompliance": "Conformité RGPD",
+    "platformRules": "Règles de la plateforme",
+    "selfBillingAgreement": "Convention d'autofacturation"
+  }
+}

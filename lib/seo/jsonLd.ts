@@ -1,6 +1,6 @@
 import { SITE_NAME, SITE_DESCRIPTION, absoluteUrl, siteUrl } from "./site";
 
-export function organizationSchema() {
+export function organizationSchema(description: string = SITE_DESCRIPTION) {
   const sameAs = (process.env.NEXT_PUBLIC_SOCIAL_URLS || "")
     .split(",")
     .map((u) => u.trim())
@@ -11,7 +11,7 @@ export function organizationSchema() {
     name: SITE_NAME,
     url: siteUrl(),
     logo: absoluteUrl("/fixtract-logo.png"),
-    description: SITE_DESCRIPTION,
+    description,
     ...(sameAs.length > 0 ? { sameAs } : {}),
   };
 }

@@ -1,0 +1,28 @@
+{
+  "forProfessionals": "For Professionals",
+  "services": "Services",
+  "about": "About",
+  "menu": "Menu",
+  "openMenu": "Open menu",
+  "closeMenu": "Close menu",
+  "signIn": "Sign In",
+  "join": "Join",
+  "favorites": "Favorites",
+  "messages": "Messages",
+  "supportChat": "Support chat",
+  "dashboard": "Dashboard",
+  "profile": "Profile",
+  "benefitsProgram": "Benefits Program",
+  "professionalSupport": "Professional Support",
+  "logOut": "Log out",
+  "homeLabel": "Fixtract home",
+  "serviceCategories": "Service categories",
+  "fallbackCategories": {
+    "smallTasks": "Small tasks",
+    "interior": "Interior",
+    "exterior": "Exterior",
+    "outdoorWork": "Outdoor work",
+    "renovation": "Renovation",
+    "inspections": "Inspections"
+  }
+}

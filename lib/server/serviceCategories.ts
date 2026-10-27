@@ -6,6 +6,11 @@ export interface ServiceCategoryItem {
   name: string;
   slug: string;
   icon?: string;
+  /**
+   * True only for the app's static outage fallback. The subnav translates
+   * these known labels; names returned by the API stay untouched.
+   */
+  isFallback?: boolean;
   services: Array<{
     name: string;
     slug: string;
@@ -16,12 +21,12 @@ export interface ServiceCategoryItem {
 const SERVICE_CATEGORY_TIMEOUT_MS = 3_000;
 
 const FALLBACK_SERVICE_CATEGORIES: ServiceCategoryItem[] = [
-  { name: "Small tasks", slug: "small-tasks", services: [] },
-  { name: "Interior", slug: "interior", services: [] },
-  { name: "Exterior", slug: "exterior", services: [] },
-  { name: "Outdoor work", slug: "outdoor-work", services: [] },
-  { name: "Renovation", slug: "renovation", services: [] },
-  { name: "Inspections", slug: "inspections", services: [] },
+  { name: "Small tasks", slug: "small-tasks", services: [], isFallback: true },
+  { name: "Interior", slug: "interior", services: [], isFallback: true },
+  { name: "Exterior", slug: "exterior", services: [], isFallback: true },
+  { name: "Outdoor work", slug: "outdoor-work", services: [], isFallback: true },
+  { name: "Renovation", slug: "renovation", services: [], isFallback: true },
+  { name: "Inspections", slug: "inspections", services: [], isFallback: true },
 ];
 
 const isNonBlankString = (value: unknown): value is string =>

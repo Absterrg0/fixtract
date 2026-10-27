@@ -1,0 +1,16 @@
+{
+  "loading": "Chargement…",
+  "tryAgain": "Réessayer",
+  "close": "Fermer",
+  "meta": {
+    "siteDescription": "Fixtract met en relation des clients et des professionnels vérifiés pour tous les services liés à votre habitat — des petites réparations aux rénovations complètes. Qualité et sécurité garanties."
+  },
+  "multiSelect": {
+    "placeholder": "Sélectionner…",
+    "searchPlaceholder": "Rechercher…",
+    "options": "Options",
+    "noMatches": "Aucun résultat",
+    "selectedCount": "{count} sélectionné(s)",
+    "searchOptions": "Rechercher {label}"
+  }
+}

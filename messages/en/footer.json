@@ -1,0 +1,35 @@
+{
+  "description": "Fixtract is a trusted platform connecting customers with verified professionals for any property service. From minor repairs to major renovations, we make it simple to get the job done with quality and security guaranteed.",
+  "copyright": "© {year} Fixtract. All rights reserved.",
+  "columns": {
+    "popularServices": "Popular Services",
+    "forCustomers": "For Customers",
+    "forProfessionals": "For Professionals",
+    "company": "Company"
+  },
+  "links": {
+    "interiorDesign": "Interior Design",
+    "plumbing": "Plumbing",
+    "electricalWork": "Electrical Work",
+    "painting": "Painting",
+    "renovation": "Renovation",
+    "howItWorks": "How It Works",
+    "findProfessionals": "Find Professionals",
+    "safetyTrust": "Safety & Trust",
+    "projectIdeas": "Project Ideas",
+    "joinAsProfessional": "Join as Professional",
+    "successStories": "Success Stories",
+    "about": "About Fixtract",
+    "blog": "Blog",
+    "news": "News",
+    "faq": "FAQ"
+  },
+  "legal": {
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "cookiePolicy": "Cookie Policy",
+    "gdprCompliance": "GDPR Compliance",
+    "platformRules": "Platform Rules",
+    "selfBillingAgreement": "Self-Billing Agreement"
+  }
+}
