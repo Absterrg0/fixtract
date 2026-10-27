@@ -1,4 +1,6 @@
 'use client'
+
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
 import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -371,7 +373,7 @@ export default function ProjectApprovalPage() {
       }
     } catch (error) {
       console.error('Error fetching projects:', error)
-      toast.error('Failed to fetch pending projects')
+      toast.error(getErrorMessage(error, 'Failed to fetch pending projects'))
     }
     setIsLoading(false)
   }
@@ -392,7 +394,7 @@ export default function ProjectApprovalPage() {
       }
     } catch (error) {
       console.error('Error fetching approved projects:', error)
-      toast.error('Failed to fetch approved projects')
+      toast.error(getErrorMessage(error, 'Failed to fetch approved projects'))
     }
     setIsLoading(false)
   }
@@ -422,7 +424,7 @@ export default function ProjectApprovalPage() {
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to fetch project changes' }))
         if (!controller.signal.aborted) {
-          const msg = errorData?.error || `Failed to fetch changes (${response.status})`
+          const msg = messageFromApiBody(errorData, 'Failed to fetch project changes')
           setChangesError(msg)
           toast.error(msg)
         }
@@ -431,8 +433,8 @@ export default function ProjectApprovalPage() {
       if (error instanceof DOMException && error.name === 'AbortError') return
       console.error('Error fetching project changes:', error)
       if (!controller.signal.aborted) {
-        setChangesError('Failed to fetch project changes')
-        toast.error('Failed to fetch project changes')
+        setChangesError(getErrorMessage(error, 'Failed to fetch project changes'))
+        toast.error(getErrorMessage(error, 'Failed to fetch project changes'))
       }
     } finally {
       if (!controller.signal.aborted) {

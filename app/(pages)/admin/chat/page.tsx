@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -101,7 +103,7 @@ function AdminChatInner() {
       const json = await res.json()
       if (requestId !== inboxRequestIdRef.current) return
       if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || "Failed to load conversations")
+        throw new Error(messageFromApiBody(json, "Failed to load conversations"))
       }
       const nextTotal = Math.max(0, Number(json.data?.total) || 0)
       const lastPage = Math.max(1, Math.ceil(nextTotal / 20))
@@ -111,9 +113,9 @@ function AdminChatInner() {
         return
       }
       setConversations(Array.isArray(json.data?.items) ? json.data.items : [])
-    } catch {
+    } catch (error) {
       if (!silent && requestId === inboxRequestIdRef.current) {
-        toast.error("Failed to load conversations")
+        toast.error(getErrorMessage(error, "Failed to load conversations"))
       }
     } finally {
       // Always clear when this request is latest — a silent poll can supersede a
@@ -150,20 +152,21 @@ function AdminChatInner() {
       const msgJson = await msgRes.json()
       if (conversationId !== selectedIdRef.current) return
       if (!convRes.ok || !convJson?.success) {
-        throw new Error(convJson?.msg || "Failed to load conversation")
+        throw new Error(messageFromApiBody(convJson, "Failed to load conversation"))
       }
       if (!msgRes.ok || !msgJson?.success) {
-        throw new Error(msgJson?.msg || "Failed to load messages")
+        throw new Error(messageFromApiBody(msgJson, "Failed to load messages"))
       }
       setConversation(convJson.data)
       const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
       setMessages(items)
       markAdminConversationSeen(conversationId)
       setLoadError(null)
-    } catch {
+    } catch (error) {
       if (!silent) {
-        toast.error("Failed to load conversation")
-        setLoadError("Failed to load conversation. Please try again.")
+        const message = getErrorMessage(error, "Failed to load conversation")
+        toast.error(message)
+        setLoadError(message)
       }
     } finally {
       if (!silent) setIsLoading(false)
@@ -231,14 +234,14 @@ function AdminChatInner() {
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || "Failed to send")
+        toast.error(messageFromApiBody(json, "Failed to send"))
         return
       }
       setText("")
       await load()
       await loadConversations(true)
-    } catch {
-      toast.error("Failed to send")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to send"))
     } finally {
       setSending(false)
     }
@@ -252,14 +255,14 @@ function AdminChatInner() {
       const res = await authFetch(`${BACKEND}/api/admin/conversations/${conversationId}/close`, { method: "POST" })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || "Failed to close chat")
+        toast.error(messageFromApiBody(json, "Failed to close chat"))
         return
       }
       toast.success("Support chat closed")
       await load()
       await loadConversations(true)
-    } catch {
-      toast.error("Failed to close chat")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to close chat"))
     } finally {
       setClosing(false)
     }

@@ -1,5 +1,7 @@
 'use client'
 
+import { apiErrorFromBody, getErrorMessage } from '@/lib/apiErrors';
+
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +11,6 @@ import { useEffect, useState, useCallback } from "react"
 import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption, AlertTriangle, FileText, Shield, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { authFetch } from "@/lib/utils"
 import { startAdminSupportChat } from "@/lib/admin-chat-utils"
 import { toast } from "sonner"
 import { MessageSquare } from "lucide-react"
@@ -70,6 +71,10 @@ interface Professional {
 }
 
 export default function ProfessionalsAdminPage() {
+  const humanizeRequirement = (value: string) =>
+    /^[A-Z][A-Z0-9_]+$/.test(value)
+      ? value.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
+      : value
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -77,6 +82,7 @@ export default function ProfessionalsAdminPage() {
 
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [approvalError, setApprovalError] = useState<{ professionalId: string, message: string, missingRequirements: string[] } | null>(null)
@@ -135,16 +141,19 @@ export default function ProfessionalsAdminPage() {
 
   const fetchProfessionals = useCallback(async () => {
     setIsLoading(true)
+    setLoadError(null)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professionals?status=${status}`, {
         credentials: 'include'
       })
-      if (response.ok) {
-        const data = await response.json()
-        setProfessionals(data.data.professionals)
+      const data = await response.json().catch(() => null)
+      if (!response.ok || data?.success === false) {
+        throw apiErrorFromBody(data, 'Failed to load professionals', { status: response.status })
       }
+      setProfessionals(data.data.professionals)
     } catch (error) {
       console.error('Failed to fetch professionals:', error)
+      setLoadError(getErrorMessage(error, 'Failed to load professionals'))
     } finally {
       setIsLoading(false)
     }
@@ -163,16 +172,20 @@ export default function ProfessionalsAdminPage() {
         method: 'PUT',
         credentials: 'include',
       })
+      const payload = await response.json().catch(() => null)
 
-      if (response.ok) {
-        fetchProfessionals()
-        // Update the selected professional if it's the same one
-        if (selectedProfessional?._id === professionalId) {
-          setSelectedProfessional(prev => prev ? { ...prev, isIdVerified: true } : null)
-        }
+      if (!response.ok || payload?.success === false) {
+        throw apiErrorFromBody(payload, 'Failed to verify ID proof', { status: response.status })
+      }
+
+      fetchProfessionals()
+      // Update the selected professional if it's the same one
+      if (selectedProfessional?._id === professionalId) {
+        setSelectedProfessional(prev => prev ? { ...prev, isIdVerified: true } : null)
       }
     } catch (error) {
       console.error('Failed to verify ID proof:', error)
+      toast.error(getErrorMessage(error, 'Failed to verify ID proof'))
     } finally {
       setActionLoading(null)
     }
@@ -268,21 +281,28 @@ export default function ProfessionalsAdminPage() {
         body: body ? JSON.stringify(body) : undefined,
       })
 
+      const errorData = response.ok ? null : await response.json().catch(() => null)
       if (response.ok) {
         fetchProfessionals()
         setSelectedProfessional(null)
+      } else if (action === 'approve' && errorData?.data?.missingRequirements) {
+        setApprovalError({
+          professionalId,
+          message: getErrorMessage(
+            apiErrorFromBody(errorData, `Failed to ${action} professional`, { status: response.status }),
+            `Failed to ${action} professional`,
+          ),
+          missingRequirements: errorData.data.missingRequirements
+        })
       } else {
-        const errorData = await response.json()
-        if (action === 'approve' && errorData.data?.missingRequirements) {
-          setApprovalError({
-            professionalId,
-            message: errorData.msg,
-            missingRequirements: errorData.data.missingRequirements
-          })
-        }
+        toast.error(getErrorMessage(
+          apiErrorFromBody(errorData, `Failed to ${action} professional`, { status: response.status }),
+          `Failed to ${action} professional`,
+        ))
       }
     } catch (error) {
       console.error(`Failed to ${action} professional:`, error)
+      toast.error(getErrorMessage(error, `Failed to ${action} professional`))
     } finally {
       setActionLoading(null)
     }
@@ -328,17 +348,20 @@ export default function ProfessionalsAdminPage() {
         setSelectedProfessional(null)
         setIdChangeReviewModal({ isOpen: false, professional: null, rejectionReason: '', error: null })
       } else {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => null)
         setIdChangeReviewModal(prev => ({
           ...prev,
-          error: errorData.msg || `Failed to ${action} ID changes`
+          error: getErrorMessage(
+            apiErrorFromBody(errorData, `Failed to ${action} ID changes`, { status: response.status }),
+            `Failed to ${action} ID changes`,
+          )
         }))
       }
     } catch (error) {
       console.error(`Failed to ${action} ID changes:`, error)
       setIdChangeReviewModal(prev => ({
         ...prev,
-        error: `Failed to ${action} ID changes`
+        error: getErrorMessage(error, `Failed to ${action} ID changes`)
       }))
     } finally {
       setIdChangeLoading(false)
@@ -435,6 +458,12 @@ export default function ProfessionalsAdminPage() {
             </Button>
           ))}
         </div>
+
+        {loadError && (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {loadError}
+          </div>
+        )}
 
         {/* Professionals List */}
         {isLoading ? (
@@ -568,11 +597,14 @@ export default function ProfessionalsAdminPage() {
                         <XCircle className="h-4 w-4" />
                         Cannot Approve - Missing Requirements:
                       </div>
+                      {approvalError.message && (
+                        <p className="text-xs text-red-700 mb-2">{approvalError.message}</p>
+                      )}
                       <ul className="text-xs text-red-700 space-y-1">
                         {approvalError.missingRequirements.map((requirement, index) => (
                           <li key={index} className="flex items-center gap-2">
                             <AlertTriangle className="h-3 w-3" />
-                            {requirement}
+                            {humanizeRequirement(requirement)}
                           </li>
                         ))}
                       </ul>

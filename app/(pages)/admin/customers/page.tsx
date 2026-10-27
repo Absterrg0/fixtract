@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
@@ -75,11 +77,11 @@ export default function AdminCustomersPage() {
         return
       }
       if (!controller.signal.aborted && isLatestRequest && !response.ok) {
-        console.error("Failed to load customers:", payload?.msg || `Request failed with status ${response.status}`)
+        toast.error(messageFromApiBody(payload, "Failed to load customers"))
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return
-      console.error("Failed to load customers:", e)
+      toast.error(getErrorMessage(e, "Failed to load customers"))
     }
   }, [address, country, level, search])
 
@@ -103,12 +105,12 @@ export default function AdminCustomersPage() {
         console.error("Failed to parse customer patch response:", error)
       }
       if (!response.ok || !payload?.success) {
-        console.error("Failed to patch customer:", payload?.msg || `Request failed with status ${response.status}`)
+        toast.error(messageFromApiBody(payload, "Failed to update customer"))
         return
       }
       await load()
     } catch (e) {
-      console.error("Failed to patch customer:", e)
+      toast.error(getErrorMessage(e, "Failed to update customer"))
     } finally {
       setPatching(null)
     }
@@ -126,12 +128,12 @@ export default function AdminCustomersPage() {
       })
       const payload = await response.json().catch(() => null)
       if (!response.ok || (payload != null && !payload.success)) {
-        console.error("Failed to delete customer:", payload?.msg || response.status)
+        toast.error(messageFromApiBody(payload, "Failed to delete customer"))
         return
       }
       setRows((prev) => prev.filter((r) => r._id !== customerId))
     } catch (e) {
-      console.error("Failed to delete customer:", e)
+      toast.error(getErrorMessage(e, "Failed to delete customer"))
     } finally {
       setDeletingIds((prev) => { const next = new Set(prev); next.delete(customerId); return next })
     }

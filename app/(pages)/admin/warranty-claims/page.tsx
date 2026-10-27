@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -128,13 +130,13 @@ export default function AdminWarrantyClaimsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to load warranty analytics")
+        throw new Error(messageFromApiBody(payload, "Failed to load warranty analytics"))
       }
       setAnalytics(payload.data || null)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
       console.error("[ADMIN][WARRANTY] analytics fetch failed", err)
-      setError(err instanceof Error ? err.message : "Failed to load warranty analytics")
+      setError(getErrorMessage(err, "Failed to load warranty analytics"))
     } finally {
       setIsLoadingAnalytics(false)
     }
@@ -160,7 +162,7 @@ export default function AdminWarrantyClaimsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to load warranty claims")
+        throw new Error(messageFromApiBody(payload, "Failed to load warranty claims"))
       }
 
       const data = payload.data || {}
@@ -173,7 +175,7 @@ export default function AdminWarrantyClaimsPage() {
       setClaims([])
       setTotalPages(1)
       setTotalClaims(0)
-      setError(err instanceof Error ? err.message : "Failed to load warranty claims")
+      setError(getErrorMessage(err, "Failed to load warranty claims"))
     } finally {
       setIsLoadingClaims(false)
     }
@@ -211,12 +213,12 @@ export default function AdminWarrantyClaimsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to close claim")
+        throw new Error(messageFromApiBody(payload, "Failed to close claim"))
       }
       toast.success(`Claim ${claim.claimNumber} closed`)
       await Promise.all([fetchClaims(), fetchAnalytics()])
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to close claim")
+      toast.error(getErrorMessage(err, "Failed to close claim"))
     } finally {
       setClosingClaimId(null)
     }
@@ -234,7 +236,7 @@ export default function AdminWarrantyClaimsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to run warranty checks")
+        throw new Error(messageFromApiBody(payload, "Failed to run warranty checks"))
       }
       const { escalated, closed, errors } = payload.data || {}
       const parts: string[] = []
@@ -244,7 +246,7 @@ export default function AdminWarrantyClaimsPage() {
       toast.success(parts.length ? parts.join(", ") : "No overdue claims found")
       await Promise.all([fetchClaims(), fetchAnalytics()])
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to run warranty checks")
+      toast.error(getErrorMessage(err, "Failed to run warranty checks"))
     } finally {
       setIsRunningWarrantyCheck(false)
     }

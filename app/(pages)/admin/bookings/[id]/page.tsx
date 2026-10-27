@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -119,7 +121,7 @@ export default function AdminBookingDetailPage() {
       if (json.success) {
         setData(json.data)
       } else {
-        toast.error(json.msg || 'Failed to load booking')
+        toast.error(messageFromApiBody(json, 'Failed to load booking'))
       }
     } catch {
       toast.error('Failed to load booking')
@@ -143,7 +145,7 @@ export default function AdminBookingDetailPage() {
       })
       const json = await res.json()
       if (!res.ok || !json.success) {
-        toast.error(json.msg || 'Failed to force status')
+        toast.error(messageFromApiBody(json, 'Failed to force status'))
         return
       }
       toast.success(`Status changed to "${forceStatusValue}"`)
@@ -176,7 +178,7 @@ export default function AdminBookingDetailPage() {
       const json = await res.json()
       if (!res.ok || !json.success || !json.data?.conversationId) {
         newWindow?.close()
-        toast.error(json.msg || 'Failed to start support chat')
+        toast.error(messageFromApiBody(json, 'Failed to start support chat'))
         return
       }
       const url = `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`
@@ -199,7 +201,7 @@ export default function AdminBookingDetailPage() {
       const json = await res.json()
       if (!res.ok || !json?.success || !json?.data?.conversationId) {
         chatWindow?.close()
-        toast.error(json?.msg || 'No customer↔professional chat found for this booking')
+        toast.error(messageFromApiBody(json, 'No customer↔professional chat found for this booking'))
         return
       }
       const url = `/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`

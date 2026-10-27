@@ -1,5 +1,7 @@
 "use client"
 
+import { messageFromApiBody } from "@/lib/apiErrors";
+
 import { useEffect, useState } from "react"
 import { Award, Mail, Phone, Star, UserRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -74,7 +76,7 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
         const json = await res.json()
         if (cancelled || controller.signal.aborted) return
         if (!res.ok || !json?.success) {
-          throw new Error(json?.msg || "Failed to load participant")
+          throw new Error(messageFromApiBody(json, "Failed to load participant"))
         }
         setUser(json.data?.user ?? null)
         setKpis(json.data?.kpis ?? null)

@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -170,7 +172,7 @@ export default function AdminChatReportsPage() {
         })
         fetchReports()
       } else {
-        toast.error(json.msg || 'Failed to resolve report')
+        toast.error(messageFromApiBody(json, 'Failed to resolve report'))
       }
     } catch {
       toast.error('Failed to resolve report')

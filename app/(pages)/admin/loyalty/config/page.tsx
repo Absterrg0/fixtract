@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -247,11 +249,13 @@ export default function LoyaltyConfigPage() {
         invalidateClientRequestsByPrefix('loyalty-status:')
         toast.success('Configuration saved successfully!')
       } else {
-        toast.error('Failed to save configuration')
+        const failed = responses.find((response) => !response.ok)
+        const body = await failed?.json().catch(() => null)
+        toast.error(messageFromApiBody(body, 'Failed to save configuration'))
       }
     } catch (error) {
       console.error('Failed to save config:', error)
-      toast.error('Failed to save configuration')
+      toast.error(getErrorMessage(error, 'Failed to save configuration'))
     } finally {
       setIsSaving(false)
     }

@@ -1,4 +1,7 @@
-'use client';
+'use client'
+
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -191,7 +194,7 @@ export default function AdminReferralPage() {
         toast.success('Configuration saved');
         setConfig(data.data);
       } else {
-        toast.error(data.msg || 'Failed to save');
+        toast.error(messageFromApiBody(data, 'Failed to save'));
       }
     } catch (e) {
       toast.error('Failed to save configuration');
@@ -224,7 +227,7 @@ export default function AdminReferralPage() {
         fetchReferrals(referralPage, statusFilter);
         fetchAnalytics();
       } else {
-        toast.error(data.msg || 'Failed to revoke');
+        toast.error(messageFromApiBody(data, 'Failed to revoke'));
       }
     } catch (e) {
       toast.error('Failed to revoke referral');
