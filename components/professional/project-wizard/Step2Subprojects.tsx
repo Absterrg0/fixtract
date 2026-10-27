@@ -153,9 +153,9 @@ interface IServiceConfigurationIncludedItem {
 // canonical value saved with the project; the chips and saved list render the
 // active-locale label from `step2.predefinedItems`.
 const PREDEFINED_ITEM_ENGLISH_NAMES = enProjectWizard.step2.predefinedItems;
-type PredefinedItemKey = keyof typeof PREDEFINED_ITEM_ENGLISH_NAMES;
+export type PredefinedItemKey = keyof typeof PREDEFINED_ITEM_ENGLISH_NAMES;
 
-const PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME = new Map<string, PredefinedItemKey>(
+export const PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME = new Map<string, PredefinedItemKey>(
   (Object.keys(PREDEFINED_ITEM_ENGLISH_NAMES) as PredefinedItemKey[]).map(
     (key) => [PREDEFINED_ITEM_ENGLISH_NAMES[key], key]
   )

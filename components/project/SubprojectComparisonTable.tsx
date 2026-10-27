@@ -10,6 +10,7 @@ import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricin
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
+import { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
 
 const SUFFIXLESS_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
 
@@ -74,6 +75,7 @@ export default function SubprojectComparisonTable({
   onContactProfessional
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
+  const tWizard = useTranslations('projectWizard')
   const { formatPrice } = useCurrency()
   const { customerPrice, originalPrice, loyalty, commissionPercent, loyaltyLoaded } = useCustomerPricing()
   const isPricingReady = commissionPercent != null && loyaltyLoaded
@@ -396,12 +398,15 @@ export default function SubprojectComparisonTable({
                 <div className="space-y-3">
                   {enrichedIncludedItems.map((item, itemIdx) => {
                     const isIncluded = currentIncludedNames.has(item.name);
+                    // Stored canonical English for predefined quick-adds; show the
+                    // active-locale label and leave custom/admin names as-is.
+                    const predefinedKey = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
                     return (
                       <div key={itemIdx} className="flex items-start space-x-3">
                         <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isIncluded ? 'text-green-500' : 'text-gray-300'}`} />
                         <div>
                           <p className={`text-sm font-medium ${isIncluded ? 'text-gray-900' : 'text-gray-400'}`}>
-                            {item.name}
+                            {predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : item.name}
                             {item.paramValue && (
                               <span className="font-bold"> {item.paramValue}</span>
                             )}

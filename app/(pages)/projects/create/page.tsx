@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
 import Step1BasicInfo, { type Step1Ref } from '@/components/professional/project-wizard/Step1BasicInfo'
-import Step2Subprojects from '@/components/professional/project-wizard/Step2Subprojects'
+import Step2Subprojects, { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
 import Step3ExtraOptions from '@/components/professional/project-wizard/Step3ExtraOptions'
 import Step4FAQ from '@/components/professional/project-wizard/Step4FAQ'
 import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQQuestions'
@@ -998,9 +998,14 @@ function ProjectCreateContent() {
                           <div>
                             <span className="text-gray-500">{t('create.includedItems', { count: (sub.included ?? []).length })}</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {(sub.included ?? []).map((item, ii) => (
-                                <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{item.name}</span>
-                              ))}
+                              {(sub.included ?? []).map((item, ii) => {
+                                // Predefined quick-adds are stored by canonical English name;
+                                // resolve the active-locale label, leave custom names as-is.
+                                const predefinedKey = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
+                                return (
+                                  <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : item.name}</span>
+                                );
+                              })}
                             </div>
                           </div>
                         )}

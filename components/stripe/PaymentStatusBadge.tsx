@@ -13,11 +13,14 @@ interface PaymentStatusBadgeProps {
 }
 
 type StatusLabelKey =
+  | 'paymentStatus.idle'
   | 'paymentStatus.completed'
   | 'paymentStatus.authorized'
   | 'paymentStatus.pending'
   | 'paymentStatus.processing'
   | 'paymentStatus.authenticating'
+  | 'paymentStatus.success'
+  | 'paymentStatus.error'
   | 'paymentStatus.failed'
   | 'paymentStatus.refunded'
   | 'paymentStatus.partiallyRefunded'
@@ -30,6 +33,21 @@ type StatusConfig = {
 
 function getStatusConfig(status: PaymentStatus): StatusConfig {
   switch (status) {
+    case 'idle':
+      return {
+        color: 'bg-gray-100 text-gray-800',
+        labelKey: 'paymentStatus.idle',
+      };
+    case 'success':
+      return {
+        color: 'bg-green-100 text-green-800',
+        labelKey: 'paymentStatus.success',
+      };
+    case 'error':
+      return {
+        color: 'bg-red-100 text-red-800',
+        labelKey: 'paymentStatus.error',
+      };
     case 'completed':
       return {
         color: 'bg-green-100 text-green-800',
