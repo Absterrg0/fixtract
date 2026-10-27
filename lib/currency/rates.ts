@@ -30,7 +30,8 @@ function toRateData(payload: ExchangeRatesEnvelope): ExchangeRateData | null {
       normalized[code.toUpperCase()] = value;
     }
   }
-  if (normalized.EUR !== 1) normalized.EUR = 1;
+  if (Object.keys(normalized).length === 0) return null;
+  normalized.EUR = 1;
 
   const date = typeof raw.date === "string" && raw.date ? raw.date : "";
 
@@ -47,7 +48,7 @@ export async function getExchangeRates(): Promise<ExchangeRateData | null> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/public/exchange-rates`, {
       next: { revalidate: RATES_REVALIDATE_SECONDS, tags: ["exchange-rates"] },
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(2_000),
     });
     if (!res.ok) return null;
     return toRateData((await res.json()) as ExchangeRatesEnvelope);

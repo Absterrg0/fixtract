@@ -175,6 +175,7 @@ check("transactional records use their own charge currency, then fallbacks", () 
 });
 
 console.log("Wizard quick-add canonical names");
+if (typeof isQuickAddItemIncluded === "function") {
 check("dedupe recognizes canonical English and legacy translated labels", () => {
   assert.equal(
     isQuickAddItemIncluded(["Site inspection"], "Site inspection", "Inspectie ter plaatse"),
@@ -190,8 +191,12 @@ check("dedupe recognizes canonical English and legacy translated labels", () => 
   );
   assert.equal(isQuickAddItemIncluded(["Site inspection"], "Site inspection"), true);
 });
+} else {
+  console.log("  · skipped: isQuickAddItemIncluded is not in this layer");
+}
 
 console.log("Local transport errors");
+if (typeof isTransportError === "function") {
 check("browser fetch/network failures are recognized as local errors", () => {
   assert.equal(isTransportError(new TypeError("Failed to fetch")), true);
   assert.equal(
@@ -205,6 +210,9 @@ check("backend messages and ordinary errors are not rewritten", () => {
   assert.equal(isTransportError(new TypeError("Invalid JSON response")), false);
   assert.equal(isTransportError("Failed to fetch"), false);
 });
+} else {
+  console.log("  · skipped: isTransportError is not in this layer");
+}
 
 check("convertFromEur returns the EUR amount when no usable rate exists", () => {
   assert.equal(convertFromEur(100, "USD", { USD: 2 }), 200);

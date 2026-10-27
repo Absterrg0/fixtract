@@ -70,6 +70,7 @@ export function removeLangParam(url: string): string {
   try {
     const absolute = /^[a-z][a-z0-9+.-]*:/i.test(url);
     const parsed = new URL(url, "http://fixera.invalid");
+    if (!parsed.searchParams.has("lang")) return url;
     parsed.searchParams.delete("lang");
     return absolute
       ? parsed.toString()

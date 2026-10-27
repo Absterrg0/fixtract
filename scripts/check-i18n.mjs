@@ -42,8 +42,9 @@ function readJson(relativePath) {
   }
 }
 
-/** Flatten nested message objects into dotted paths (`a.b.c`). */
-function flatten(value, prefix = "", out = new Map()) {
+/** Flatten nested message objects into dotted paths (`a.b.c`). Non-string
+ * leaves are collected into `nonStrings` instead of being coerced. */
+function flatten(value, prefix = "", out = new Map(), nonStrings = []) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     for (const [key, child] of Object.entries(value)) {
       flatten(child, prefix ? `${prefix}.${key}` : key, out);
@@ -51,7 +52,9 @@ function flatten(value, prefix = "", out = new Map()) {
   } else if (typeof value === "string") {
     out.set(prefix, value);
   } else if (value !== undefined && value !== null) {
-    out.set(prefix, String(value));
+    // Non-string leaves (numbers, booleans, …) are not localizable copy:
+    // report them instead of coercing so `String(42)` can never pass as UI text.
+    nonStrings.push(prefix);
   }
   return out;
 }
@@ -81,13 +84,24 @@ for (const namespace of namespaces) {
       `i18n/global.d.ts: namespace "${namespace}" is missing from the next-intl type augmentation`
     );
   }
+  if (!globalTypes.includes(`${namespace}: typeof`)) {
+    problems.push(
+      `i18n/global.d.ts: namespace "${namespace}" has an import but no Messages entry`
+    );
+  }
 
   const source = readJson(`messages/${SOURCE_LOCALE}/${namespace}.json`);
   if (!source) {
     problems.push(`messages/${SOURCE_LOCALE}/${namespace}.json is missing`);
     continue;
   }
-  const sourceKeys = flatten(source);
+  const sourceNonStrings = [];
+  const sourceKeys = flatten(source, "", new Map(), sourceNonStrings);
+  if (sourceNonStrings.length) {
+    problems.push(
+      `messages/${SOURCE_LOCALE}/${namespace}.json: non-string values → ${sourceNonStrings.join(", ")}`
+    );
+  }
 
   for (const locale of targetLocales) {
     const path = `messages/${locale}/${namespace}.json`;
@@ -96,7 +110,11 @@ for (const namespace of namespaces) {
       problems.push(`${path} is missing`);
       continue;
     }
-    const keys = flatten(data);
+    const localeNonStrings = [];
+    const keys = flatten(data, "", new Map(), localeNonStrings);
+    if (localeNonStrings.length) {
+      problems.push(`${path}: non-string values → ${localeNonStrings.join(", ")}`);
+    }
 
     const missing = [...sourceKeys.keys()].filter((key) => !keys.has(key));
     const extra = [...keys.keys()].filter((key) => !sourceKeys.has(key));

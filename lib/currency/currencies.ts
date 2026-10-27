@@ -58,13 +58,19 @@ export function isSupportedCurrency(
  * Intl.DisplayNames("nl", { type: "currency" }). Falls back to the code when
  * Intl.DisplayNames is unavailable or rejects the code.
  */
+const displayNamesCache = new Map<string, Intl.DisplayNames>();
+
 export function localizedName(
   code: string,
   locale: string,
   fallback = code
 ): string {
   try {
-    const displayNames = new Intl.DisplayNames([locale], { type: "currency" });
+    let displayNames = displayNamesCache.get(locale);
+    if (!displayNames) {
+      displayNames = new Intl.DisplayNames([locale], { type: "currency" });
+      displayNamesCache.set(locale, displayNames);
+    }
     return displayNames.of(code) || fallback;
   } catch {
     return fallback;
