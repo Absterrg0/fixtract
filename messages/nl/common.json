@@ -12,5 +12,22 @@
     "noMatches": "Geen resultaten",
     "selectedCount": "{count} geselecteerd",
     "searchOptions": "{label} zoeken"
+  },
+  "errors": {
+    "generic": "Er ging iets mis. Probeer het opnieuw.",
+    "network": "Je lijkt offline te zijn. Controleer je internetverbinding en probeer het opnieuw.",
+    "timeout": "Dit duurt langer dan verwacht. Probeer het opnieuw.",
+    "canceled": "De aanvraag is geannuleerd. Probeer het opnieuw.",
+    "auth": "Je sessie is verlopen. Meld je opnieuw aan.",
+    "signInRequired": "Meld je aan om verder te gaan.",
+    "forbidden": "Je hebt geen toestemming om dit te doen.",
+    "notFound": "We konden dat item niet vinden. Het is mogelijk verwijderd.",
+    "validation": "Controleer de ingevoerde gegevens en probeer het opnieuw.",
+    "conflict": "Deze actie conflicteert met de huidige status. Vernieuw de pagina en probeer het opnieuw.",
+    "rateLimited": "Te veel pogingen. Wacht even en probeer het opnieuw.",
+    "payloadTooLarge": "Dat bestand is te groot. Kies een kleiner bestand.",
+    "server": "Er ging iets mis aan onze kant. Probeer het opnieuw.",
+    "unavailable": "Deze dienst is tijdelijk niet beschikbaar. Probeer het binnenkort opnieuw.",
+    "invalidResponse": "We konden die aanvraag niet afronden. Probeer het opnieuw."
   }
 }
