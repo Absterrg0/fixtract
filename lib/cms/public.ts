@@ -10,25 +10,28 @@ import type {
 } from "@/lib/cms";
 import { getVisitorCountryCode, parseVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
+import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 async function parseJsonRequired<T>(res: Response): Promise<T> {
   if (res.status === 204) {
-    throw new Error(`Request returned no body (${res.status}) but a response was expected`);
+    throw new ApiRequestError("The server returned an unexpected response.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${res.status}): ${text.slice(0, 200)}`
-        : `Request failed (${res.status})`
-    );
+    await res.text().catch(() => "");
+    throw new ApiRequestError("The server returned an unexpected response.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const data = await res.json();
   if (!res.ok || data?.success === false) {
-    throw new Error(data?.msg || `Request failed (${res.status})`);
+    throw apiErrorFromBody(data, "The request could not be completed.", { status: res.status });
   }
   return (data?.data ?? data) as T;
 }

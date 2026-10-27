@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { format, parseISO, isValid } from "date-fns"
 import type { Locale as DateFnsLocale } from "date-fns"
 import { toast } from "sonner"
@@ -84,6 +85,7 @@ const isWeekend = (dayKey: string): boolean => {
 
 export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: PlanningDialogProps) {
   const t = useTranslations("dashboardWidgets")
+  const getErrorText = useErrorMessage()
   const { dateFns } = useFormatLocale()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -121,7 +123,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
         })
         const body = await response.json().catch(() => null)
         if (!response.ok || !body?.success) {
-          toast.error(body?.error?.message || t("planningDialog.loadFailed"))
+          toast.error(getErrorText(body, t("planningDialog.loadFailed")))
           if (!cancelled) onClose()
           return
         }
@@ -227,7 +229,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       })
       const body = await response.json().catch(() => null)
       if (!response.ok || !body?.success) {
-        toast.error(body?.error?.message || t("planningDialog.saveFailed"))
+        toast.error(getErrorText(body, t("planningDialog.saveFailed")))
         return
       }
       toast.success(t("planningDialog.updated"))

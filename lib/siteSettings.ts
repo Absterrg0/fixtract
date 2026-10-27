@@ -1,4 +1,5 @@
 import { authFetch } from "@/lib/utils";
+import { apiErrorFromBody } from "@/lib/apiErrors";
 import { PUBLIC_CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS, revalidatePublicTags } from "@/lib/publicCache";
 
 export interface SocialLinks {
@@ -54,13 +55,9 @@ export async function publicGetSiteSettings(): Promise<SiteSettings> {
 
 export async function adminGetSiteSettings(): Promise<SiteSettings> {
   const res = await authFetch(`${API}/api/admin/site-settings`);
-  const { body, text } = await safeParseJson(res);
+  const { body } = await safeParseJson(res);
   if (!res.ok || !body || body?.success === false || body.data == null) {
-    throw new Error(
-      body?.msg ||
-        (text && text.slice(0, 200)) ||
-        `Request failed (${res.status})`
-    );
+    throw apiErrorFromBody(body, 'Could not load site settings', { status: res.status });
   }
   return body.data as SiteSettings;
 }
@@ -71,13 +68,9 @@ export async function adminUpdateSiteSettings(payload: { socialLinks?: SocialLin
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const { body, text } = await safeParseJson(res);
+  const { body } = await safeParseJson(res);
   if (!res.ok || !body || body?.success === false || body.data == null) {
-    throw new Error(
-      body?.msg ||
-        (text && text.slice(0, 200)) ||
-        `Request failed (${res.status})`
-    );
+    throw apiErrorFromBody(body, 'Could not save site settings', { status: res.status });
   }
   try {
     await revalidatePublicTags([PUBLIC_CACHE_TAGS.siteSettings]);

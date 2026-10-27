@@ -1,4 +1,5 @@
 import { authFetch, getAuthToken } from "@/lib/utils";
+import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
@@ -253,16 +254,17 @@ async function parseJson<T>(res: Response): Promise<T | undefined> {
   if (res.status === 204) return undefined;
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${res.status}): ${text.slice(0, 200)}`
-        : `Request failed (${res.status})`
-    );
+    await res.text().catch(() => "");
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   const data = await res.json();
   if (!res.ok || data?.success === false) {
-    throw new Error(data?.msg || `Request failed (${res.status})`);
+    throw apiErrorFromBody(data, "The request could not be completed. Please try again.", {
+      status: res.status,
+    });
   }
   return data.data as T;
 }
@@ -270,11 +272,13 @@ async function parseJson<T>(res: Response): Promise<T | undefined> {
 async function parseJsonRequired<T>(res: Response): Promise<T> {
   const data = await parseJson<T>(res);
   if (data === undefined) {
-    throw new Error(`Request returned no body (${res.status}) but a response was expected`);
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
   }
   return data;
 }
-
 async function revalidatePublicCms(
   type: CmsContentType | undefined,
   slugs: Array<string | undefined> = []

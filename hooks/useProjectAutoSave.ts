@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/apiErrors';
 
 interface ProjectData {
   _id?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export const useProjectAutoSave = (projectData: ProjectData, interval: number = 30000) => {
@@ -26,12 +27,11 @@ export const useProjectAutoSave = (projectData: ProjectData, interval: number = 
       if (result.success) {
         setLastSaved(new Date());
         return result.data;
-      } else {
-        throw new Error(result.message);
       }
-    } catch (error: any) {
+      throw result;
+    } catch (error: unknown) {
       console.error('Auto-save failed:', error);
-      toast.error('Failed to save draft');
+      toast.error(getErrorMessage(error, 'Failed to save draft'));
     } finally {
       setSaving(false);
     }

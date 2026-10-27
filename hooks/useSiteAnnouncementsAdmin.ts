@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/apiErrors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAccess } from "@/hooks/useAdminAccess";
 import {
@@ -78,7 +79,7 @@ export function useSiteAnnouncementsAdmin() {
       } catch (err) {
         if (controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
-        toast.error(err instanceof Error ? err.message : "Could not load announcements");
+        toast.error(getErrorMessage(err, "Could not load announcements"));
       } finally {
         if (!controller.signal.aborted) {
           setListLoading(false);
@@ -125,7 +126,7 @@ export function useSiteAnnouncementsAdmin() {
       setEditor(null);
       setReloadKey((key) => key + 1);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       setSaving(false);
     }
@@ -150,7 +151,7 @@ export function useSiteAnnouncementsAdmin() {
           row._id === item._id ? { ...row, isActive: previousIsActive } : row,
         ),
       );
-      toast.error(err instanceof Error ? err.message : "Could not update");
+      toast.error(getErrorMessage(err, "Could not update"));
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);

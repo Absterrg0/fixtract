@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, Trash2, FileText, AlertCircle } from "lucide-react";
 import { toast } from 'sonner';
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 interface ICertification {
   name: string;
@@ -61,6 +62,7 @@ export default function CertificationManager({
   requiredTypes = []
 }: CertificationManagerProps) {
   const t = useTranslations('projectWizard')
+  const getErrorText = useErrorMessage()
   const certificationTypeLabel = (type: string) => {
     const key = CERTIFICATION_TYPE_KEYS[type as keyof typeof CERTIFICATION_TYPE_KEYS]
     return key ? t(key) : type
@@ -121,10 +123,7 @@ export default function CertificationManager({
       }
     } catch (error) {
       console.error('Certification upload error:', error);
-      const message = error instanceof Error
-        ? error.message
-        : t('certifications.toast.uploadFailed', { type: certificationTypeLabel(type) });
-      toast.error(message);
+      toast.error(getErrorText(error, t('certifications.toast.uploadFailed', { type: certificationTypeLabel(type) })));
     }
   };
 

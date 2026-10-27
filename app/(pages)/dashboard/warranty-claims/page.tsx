@@ -1,5 +1,7 @@
 'use client'
 
+import { apiErrorFromBody } from '@/lib/apiErrors'
+
 import { Suspense } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -14,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, ArrowLeft, CalendarClock, Loader2, RefreshCw, ShieldCheck } from "lucide-react"
 import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES } from "@/lib/warrantyClaim"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 
 interface ClaimRecord {
   _id: string
@@ -125,6 +128,7 @@ function WarrantyClaimsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const t = useTranslations("dashboard")
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const searchSuffix = searchParams.toString() ? `?${searchParams.toString()}` : ""
   const claimIdFromQuery = searchParams.get("claimId") || null
@@ -179,7 +183,7 @@ function WarrantyClaimsContent() {
     const payload = await response.json()
     const claim = payload.claim || payload.data?.claim
     if (!response.ok || !payload.success || !claim) {
-      throw new Error(payload.msg || t("warranty.loadClaimFailed"))
+      throw apiErrorFromBody(payload, t("warranty.loadClaimFailed"), { status: response.status })
     }
 
     return claim as ClaimRecord
@@ -207,12 +211,12 @@ function WarrantyClaimsContent() {
         if (err instanceof DOMException && err.name === "AbortError") return
         setStatusFilter(normalizedStatusFromQuery ?? "all")
         setHighlightedClaim(null)
-        setError(err instanceof Error ? err.message : t("warranty.loadClaimFailed"))
+        setError(getErrorText(err, t("warranty.loadClaimFailed")))
       }
     })()
 
     return () => controller.abort()
-  }, [claimIdFromQuery, fetchClaimById, normalizedStatusFromQuery, t])
+  }, [claimIdFromQuery, fetchClaimById, getErrorText, normalizedStatusFromQuery, t])
 
   const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return
@@ -234,7 +238,7 @@ function WarrantyClaimsContent() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || t("warranty.loadClaimsFailed"))
+        throw apiErrorFromBody(payload, t("warranty.loadClaimsFailed"), { status: response.status })
       }
 
       const data = payload.data || {}
@@ -257,11 +261,11 @@ function WarrantyClaimsContent() {
       setClaims([])
       setTotalPages(1)
       setTotalClaims(0)
-      setError(err instanceof Error ? err.message : t("warranty.loadClaimsFailed"))
+      setError(getErrorText(err, t("warranty.loadClaimsFailed")))
     } finally {
       setIsLoadingClaims(false)
     }
-  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role, t])
+  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role, getErrorText, t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -356,7 +360,7 @@ function WarrantyClaimsContent() {
                 </SelectContent>
               </Select>
             </div>
-            {error && <p className="text-sm text-rose-600 mt-2">{error}</p>}
+            {error && <p role="alert" className="text-sm text-rose-600 mt-2">{error}</p>}
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoadingClaims ? (
@@ -365,7 +369,7 @@ function WarrantyClaimsContent() {
                   <Skeleton key={i} className="h-32 rounded-lg" />
                 ))}
               </div>
-            ) : claims.length === 0 ? (
+            ) : !error && claims.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
                 {t("warranty.empty")}
               </div>

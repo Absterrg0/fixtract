@@ -13,6 +13,8 @@ import { Calendar as CalendarIcon, Clock, Users, MapPin, Link, ChevronLeft, Chev
 import { toast } from 'sonner'
 import { format, addDays, isBefore, startOfDay, isWithinInterval, parseISO } from 'date-fns'
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
+import { apiErrorFromBody } from '@/lib/apiErrors'
 
 interface TeamMember {
   _id: string
@@ -58,6 +60,7 @@ interface MeetingSchedulerProps {
 
 export default function MeetingScheduler({ projectId, onMeetingCreated }: MeetingSchedulerProps) {
   const t = useTranslations('proProjects')
+  const getErrorText = useErrorMessage()
   const { dateFns, intl } = useFormatLocale()
   const [meetingType, setMeetingType] = useState<'planning' | 'team'>('planning')
   const [title, setTitle] = useState('')
@@ -279,10 +282,14 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
         toast.success(t('scheduler.created'))
         onMeetingCreated?.()
       } else {
-        toast.error(t('scheduler.createFailed'))
+        const payload = await response.json().catch(() => null)
+        toast.error(getErrorText(
+          apiErrorFromBody(payload, t('scheduler.createFailed'), { status: response.status }),
+          t('scheduler.createFailed'),
+        ))
       }
-    } catch {
-      toast.error(t('scheduler.createFailed'))
+    } catch (error) {
+      toast.error(getErrorText(error, t('scheduler.createFailed')))
     } finally { setCreating(false) }
   }
 

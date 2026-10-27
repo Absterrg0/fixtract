@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PaymentStatus } from '../../types/stripe';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -29,6 +30,7 @@ export function PaymentForm({
   const stripe = useStripe();
   const elements = useElements();
   const t = useTranslations('checkout');
+  const getErrorText = useErrorMessage();
   const { formatMoney } = useCurrency();
 
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
@@ -62,8 +64,8 @@ export function PaymentForm({
       if (error) {
         // Payment failed
         setPaymentStatus('error');
-        setErrorMessage(error.message || t('paymentForm.paymentFailed'));
-        onError(error.message || t('paymentForm.paymentFailed'));
+        setErrorMessage(getErrorText(error.message, t('paymentForm.paymentFailed')));
+        onError(getErrorText(error.message, t('paymentForm.paymentFailed')));
         return;
       }
 
@@ -89,8 +91,8 @@ export function PaymentForm({
           const { paymentIntent: updatedIntent, error: actionError } = await stripe.handleCardAction(paymentIntent.client_secret);
           if (actionError) {
             setPaymentStatus('error');
-            setErrorMessage(actionError.message || t('paymentForm.threeDsFailed'));
-            onError(actionError.message || t('paymentForm.threeDsFailed'));
+            setErrorMessage(getErrorText(actionError.message, t('paymentForm.threeDsFailed')));
+            onError(getErrorText(actionError.message, t('paymentForm.threeDsFailed')));
           } else if (updatedIntent && (updatedIntent.status === 'succeeded' || updatedIntent.status === 'requires_capture')) {
             setPaymentStatus('success');
             onSuccess(updatedIntent.id);
@@ -102,8 +104,8 @@ export function PaymentForm({
           } else {
             const status = updatedIntent?.status || 'unknown';
             setPaymentStatus('error');
-            setErrorMessage(t('paymentForm.incompleteWithStatus', { status }));
-            onError(t('paymentForm.incompleteShort', { status }));
+            setErrorMessage(t('paymentForm.paymentFailed'));
+            onError(t('paymentForm.paymentFailed'));
           }
           break;
 
@@ -122,14 +124,14 @@ export function PaymentForm({
 
         default:
           setPaymentStatus('error');
-          setErrorMessage(t('paymentForm.unexpectedStatus', { status: paymentIntent.status }));
-          onError(t('paymentForm.unexpectedStatusShort', { status: paymentIntent.status }));
+          setErrorMessage(t('paymentForm.paymentFailed'));
+          onError(t('paymentForm.paymentFailed'));
       }
 
     } catch (err) {
       setPaymentStatus('error');
-      setErrorMessage(err instanceof Error ? err.message : t('paymentForm.genericError'));
-      onError(err instanceof Error ? err.message : t('paymentForm.genericError'));
+      setErrorMessage(getErrorText(err, t('paymentForm.genericError')));
+      onError(getErrorText(err, t('paymentForm.genericError')));
     }
   };
 

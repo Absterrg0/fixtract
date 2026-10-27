@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -484,6 +485,7 @@ interface BacklinkCardProps {
 
 export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProps) {
   const t = useTranslations('dashboardWidgets');
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const [stats, setStats] = useState<BacklinkStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -626,7 +628,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (res.status === 429 && json.cooldownExpiresAt) {
           setCooldownExpiresAt(new Date(json.cooldownExpiresAt));
         }
-        toast.error(formatIsoDatesInMessage(json.msg ?? t('backlink.errors.submissionFailed'), intl));
+        toast.error(formatIsoDatesInMessage(getErrorText(json, t('backlink.errors.submissionFailed')), intl));
         return;
       }
 

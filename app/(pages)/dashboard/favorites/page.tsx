@@ -14,6 +14,7 @@ import ProjectCard from "@/components/search/ProjectCard";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useCustomerPricing } from "@/hooks/useCustomerPricing";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 type ProfessionalPayload = ComponentProps<typeof ProfessionalCard>["professional"];
 type ProjectCardProject = ComponentProps<typeof ProjectCard>["project"];
@@ -34,6 +35,7 @@ export default function FavoritesPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
   const t = useTranslations("dashboard");
+  const getErrorText = useErrorMessage();
   const [tab, setTab] = useState<"professional" | "project">("project");
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -65,7 +67,7 @@ export default function FavoritesPage() {
       if (res.ok && json?.success) {
         setItems(json.data.items || []);
       } else {
-        toast.error(json?.msg || t("favorites.loadFailed"));
+        toast.error(getErrorText(json, t("favorites.loadFailed")));
       }
     } catch {
       if (reqId !== requestIdRef.current) return;
@@ -73,7 +75,7 @@ export default function FavoritesPage() {
     } finally {
       if (reqId === requestIdRef.current) setListLoading(false);
     }
-  }, [t]);
+  }, [getErrorText, t]);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === "customer") {

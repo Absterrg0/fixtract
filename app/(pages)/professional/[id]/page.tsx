@@ -39,6 +39,7 @@ import { useFavoriteStatus } from "@/hooks/useFavoriteStatus"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { CurrencySymbol } from "@/components/currency/CurrencySymbol"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 
 interface ProfessionalData {
   _id: string
@@ -160,6 +161,7 @@ export default function ProfessionalProfilePage() {
   const params = useParams()
   const router = useRouter()
   const t = useTranslations("professionalProfile")
+  const getErrorText = useErrorMessage()
   const { formatPrice } = useCurrency()
   const { intl } = useFormatLocale()
   const professionalId = params?.id as string
@@ -234,7 +236,7 @@ export default function ProfessionalProfilePage() {
       )
       const data = await res.json()
       if (!res.ok || !data.success) {
-        toast.error(data.msg || t("toast.loadFailed"))
+        toast.error(getErrorText(data, t("toast.loadFailed")))
         setProfessional(null)
         setReviews([])
         setRatingsSummary(null)
@@ -252,7 +254,7 @@ export default function ProfessionalProfilePage() {
     } finally {
       setLoading(false)
     }
-  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter, t])
+  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter, getErrorText, t])
 
   useEffect(() => {
     if (!professionalId) return
@@ -291,7 +293,7 @@ export default function ProfessionalProfilePage() {
         setReplyText("")
         fetchReviews(page)
       } else {
-        toast.error(data.msg || t("toast.replyFailed"))
+        toast.error(getErrorText(data, t("toast.replyFailed")))
       }
     } catch {
       toast.error(t("toast.replyFailed"))
@@ -319,7 +321,7 @@ export default function ProfessionalProfilePage() {
         toast.success(t("toast.reviewHidden"))
         fetchReviews(page)
       } else {
-        toast.error(data.msg || t("toast.reviewHideFailed"))
+        toast.error(getErrorText(data, t("toast.reviewHideFailed")))
       }
     } catch {
       toast.error(t("toast.reviewHideFailed"))

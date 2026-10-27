@@ -65,8 +65,10 @@ export default function PaymentSuccessPage() {
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadBookingDetails = useCallback(async () => {
+    setError(null);
     try {
       const response = await fetch(`${API_URL || ''}/api/bookings/${encodeURIComponent(bookingId)}`, {
         credentials: 'include',
@@ -78,12 +80,11 @@ export default function PaymentSuccessPage() {
         data = await response.json();
       }
 
-      if (!response.ok) {
-        const message = data?.msg || `${response.status} ${response.statusText}`;
-        throw new Error(`Failed to load booking details: ${message}`);
+      if (!response.ok || !data?.success || !data.booking) {
+        throw data ?? { status: response.status };
       }
 
-      if (data?.success && data.booking) {
+      if (data.booking) {
         trackCompleteBooking(bookingId, data.booking);
         const hasQuestions =
           Array.isArray(data.booking.project?.postBookingQuestions) &&
@@ -96,10 +97,11 @@ export default function PaymentSuccessPage() {
       }
     } catch (err) {
       console.error('Error loading booking:', err);
+      setError(t('paymentSuccess.detailsUnavailable'));
     } finally {
       setLoading(false);
     }
-  }, [bookingId, router]);
+  }, [bookingId, router, t]);
 
   useEffect(() => {
     void loadBookingDetails();
@@ -136,6 +138,12 @@ export default function PaymentSuccessPage() {
           <p className="text-gray-600 mb-6">
             {t('paymentSuccess.body')}
           </p>
+
+          {error && (
+            <p role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
 
           {!loading && booking && (
             <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">

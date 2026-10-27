@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -158,7 +160,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       })
       .catch((err: unknown) => {
         setFaqCategories([]);
-        setFaqCategoriesError(err instanceof Error ? err.message : "Failed to load FAQ categories");
+        setFaqCategoriesError(getErrorMessage(err, "Failed to load FAQ categories"));
       });
   }, []);
 
@@ -170,7 +172,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       })
       .catch((err: unknown) => {
         setServiceOptions([]);
-        setServiceOptionsError(err instanceof Error ? err.message : "Failed to load service options");
+        setServiceOptionsError(getErrorMessage(err, "Failed to load service options"));
       });
   }, []);
 
@@ -286,7 +288,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         toast.success(status === "published" ? "Published!" : "Draft saved");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       actionLock.current = null;
       setSaving(false);
@@ -308,7 +310,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       toast.success("Deleted");
       router.push("/admin/cms");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed");
+      toast.error(getErrorMessage(err, "Delete failed"));
       setDeleting(false);
     } finally {
       actionLock.current = null;
@@ -706,6 +708,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               </p>
             </div>
           </GradientCard>
+
 
         </div>
       </div>

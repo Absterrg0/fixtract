@@ -4,6 +4,7 @@ import type React from "react"
 
 import { Suspense, useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +16,7 @@ import { toast } from "sonner"
 
 function ResetPasswordContent() {
   const t = useTranslations("auth")
+  const getErrorText = useErrorMessage()
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -69,11 +71,11 @@ function ResetPasswordContent() {
           router.push('/login')
         }, 3000)
       } else {
-        toast.error(data.msg || t('resetPassword.failed'))
+        toast.error(getErrorText(data, t('resetPassword.failed')))
       }
     } catch (error) {
       console.error('Reset password error:', error)
-      toast.error(t('resetPassword.genericError'))
+      toast.error(getErrorText(error, t('resetPassword.genericError')))
     } finally {
       setIsLoading(false)
     }

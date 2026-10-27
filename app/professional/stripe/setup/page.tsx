@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface AccountStatus {
@@ -27,6 +28,7 @@ export default function StripeSetupPage() {
 
 function StripeSetupContent() {
   const t = useTranslations('proArea');
+  const getErrorText = useErrorMessage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -97,7 +99,7 @@ function StripeSetupContent() {
         const createData = await createResponse.json();
 
         if (!createData.success) {
-          setError(createData.error?.message || t('stripePages.setup.createAccountFailed'));
+          setError(getErrorText(createData, t('stripePages.setup.createAccountFailed')));
           setLoading(false);
           return;
         }
@@ -123,7 +125,7 @@ function StripeSetupContent() {
       const onboardingData = await onboardingResponse.json();
 
       if (!onboardingData.success) {
-        setError(onboardingData.error?.message || t('stripePages.setup.createLinkFailed'));
+        setError(getErrorText(onboardingData, t('stripePages.setup.createLinkFailed')));
         setLoading(false);
         return;
       }
@@ -132,7 +134,7 @@ function StripeSetupContent() {
       window.location.href = onboardingData.data.url;
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('stripePages.shared.anErrorOccurred'));
+      setError(getErrorText(err, t('stripePages.shared.anErrorOccurred')));
       setLoading(false);
     }
   };

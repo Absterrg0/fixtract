@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {   ArrowLeft, CheckCircle, Clock, Shield, Smartphone, AtSign } from "lucide-react"
 import { toast } from "sonner"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 
 interface DualVerificationProps {
   email: string;
@@ -39,6 +40,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   onBack
 }) => {
   const t = useTranslations("auth")
+  const getErrorText = useErrorMessage()
  
   const [verificationState, setVerificationState] = useState<VerificationState>({
     emailVerified: false,
@@ -115,10 +117,10 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
           emailResendTime: 60 
         }));
       } else {
-        toast.error(data.message || t("dualVerification.emailCodeSendFailed"));
+        toast.error(getErrorText(data, t("dualVerification.emailCodeSendFailed")));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("dualVerification.emailCodeSendFailed"));
+      toast.error(getErrorText(error, t("dualVerification.emailCodeSendFailed")));
     } finally {
       setVerificationState(prev => ({ ...prev, emailResendLoading: false }));
     }
@@ -146,10 +148,10 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
           phoneResendTime: 60 
         }));
       } else {
-        toast.error(data.message || t("dualVerification.phoneCodeSendFailed"));
+        toast.error(getErrorText(data, t("dualVerification.phoneCodeSendFailed")));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("dualVerification.phoneCodeSendFailed"));
+      toast.error(getErrorText(error, t("dualVerification.phoneCodeSendFailed")));
     } finally {
       setVerificationState(prev => ({ ...prev, phoneResendLoading: false }));
     }
@@ -182,10 +184,10 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
         toast.success(t("dualVerification.emailVerifiedToast"));
         setVerificationState(prev => ({ ...prev, emailVerified: true }));
       } else {
-        toast.error(data.message || t("dualVerification.emailCodeInvalid"));
+        toast.error(getErrorText(data, t("dualVerification.emailCodeInvalid")));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("dualVerification.emailVerifyFailed"));
+      toast.error(getErrorText(error, t("dualVerification.emailVerifyFailed")));
     } finally {
       setVerificationState(prev => ({ ...prev, emailLoading: false }));
     }
@@ -217,10 +219,10 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
         toast.success(t("dualVerification.phoneVerifiedToast"));
         setVerificationState(prev => ({ ...prev, phoneVerified: true }));
       } else {
-        toast.error(data.message || t("dualVerification.phoneCodeInvalid"));
+        toast.error(getErrorText(data, t("dualVerification.phoneCodeInvalid")));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("dualVerification.phoneVerifyFailed"));
+      toast.error(getErrorText(error, t("dualVerification.phoneVerifyFailed")));
     } finally {
       setVerificationState(prev => ({ ...prev, phoneLoading: false }));
     }

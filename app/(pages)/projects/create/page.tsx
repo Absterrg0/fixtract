@@ -1,9 +1,12 @@
 'use client'
 
+import { apiErrorFromBody } from '@/lib/apiErrors'
+
 import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
 import Step1BasicInfo, { type Step1Ref } from '@/components/professional/project-wizard/Step1BasicInfo'
 import Step2Subprojects, { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
@@ -227,6 +230,7 @@ function ProjectCreateContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const t = useTranslations('projects')
+  const getErrorText = useErrorMessage()
   const tWizard = useTranslations('projectWizard')
   const { formatMoney } = useCurrency()
   const { user, isAuthenticated, loading } = useAuth()
@@ -347,7 +351,7 @@ function ProjectCreateContent() {
               return
             }
 
-            throw new Error(errorData.msg || t('create.loadFailed'))
+            throw apiErrorFromBody(errorData, t('create.loadFailed'), { status: response.status })
           }
 
           const project = await response.json()
@@ -405,7 +409,7 @@ function ProjectCreateContent() {
           setCanProceed(true)
         } catch (error) {
           console.error('Failed to load project:', error)
-          toast.error(t('create.loadFailed'))
+          toast.error(getErrorText(error, t('create.loadFailed')))
         } finally {
           setIsLoading(false)
         }
@@ -492,8 +496,7 @@ function ProjectCreateContent() {
       }
     } catch (error) {
       console.error('Save error:', error)
-      const message = error instanceof Error ? error.message : t('create.saveFailed')
-      toast.error(message)
+      toast.error(getErrorText(error, t('create.saveFailed')))
       return null
     }
   }

@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
 import type { Locale as DateFnsLocale } from "date-fns"
 import { toast } from "sonner"
@@ -315,6 +316,7 @@ export default function BookingTimelineBoard({
   onBookingUpdated,
 }: BookingTimelineBoardProps) {
   const t = useTranslations("dashboardWidgets")
+  const getErrorText = useErrorMessage()
   const { dateFns } = useFormatLocale()
   const { formatMoney } = useCurrency()
   const resolvedTitle = title ?? t("timeline.title")
@@ -412,7 +414,7 @@ export default function BookingTimelineBoard({
       const response = await action()
       const payload = await parseResponse(response)
       if (!response.ok || !payload?.success) {
-        toast.error(payload?.error?.message || payload?.msg || t("timeline.toasts.requestFailed"))
+        toast.error(getErrorText(payload, t("timeline.toasts.requestFailed")))
         return
       }
 

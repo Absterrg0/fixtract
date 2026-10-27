@@ -8,6 +8,7 @@ import { Loader2, LifeBuoy, CalendarClock, MessageCircle, Send, Plus } from "luc
 import { useAuth } from "@/contexts/AuthContext";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 import { cn } from "@/lib/utils";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 import {
   proCreateMeetingRequest,
   proCreateTicket,
@@ -16,14 +17,12 @@ import {
   proReplyTicket,
   SupportTicket,
   MeetingRequest,
-  isLocalFallbackError as isSupportLocalFallbackError,
 } from "@/lib/support";
 import {
   fetchConversations,
   fetchConversationMessages,
   sendConversationMessage,
   markConversationAsRead,
-  isLocalFallbackError as isChatLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ChatConversation, ChatMessage } from "@/types/chat";
 
@@ -159,6 +158,7 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function TicketsTab() {
   const t = useTranslations("proArea");
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const [items, setItems] = useState<SupportTicket[] | null>(null);
   const [subject, setSubject] = useState("");
@@ -173,9 +173,9 @@ function TicketsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.loadFailed"));
+          toast.error(getErrorText(e, t("support.tickets.loadFailed")));
         }),
-    [t]
+    [getErrorText, t]
   );
 
   useEffect(() => {
@@ -195,7 +195,7 @@ function TicketsTab() {
       toast.success(t("support.tickets.created"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.createFailed"));
+      toast.error(getErrorText(e, t("support.tickets.createFailed")));
     } finally {
       setSaving(false);
     }
@@ -212,7 +212,7 @@ function TicketsTab() {
       toast.success(t("support.tickets.replySent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.replyFailed"));
+      toast.error(getErrorText(e, t("support.tickets.replyFailed")));
     } finally {
       setReplySending((s) => ({ ...s, [id]: false }));
     }
@@ -316,6 +316,7 @@ function TicketsTab() {
 
 function MeetingsTab() {
   const t = useTranslations("proArea");
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const [items, setItems] = useState<MeetingRequest[] | null>(null);
   const [topic, setTopic] = useState("");
@@ -329,9 +330,9 @@ function MeetingsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.loadFailed"));
+          toast.error(getErrorText(e, t("support.meeting.loadFailed")));
         }),
-    [t]
+    [getErrorText, t]
   );
 
   useEffect(() => {
@@ -352,7 +353,7 @@ function MeetingsTab() {
       toast.success(t("support.meeting.sent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.submitFailed"));
+      toast.error(getErrorText(e, t("support.meeting.submitFailed")));
     } finally {
       setSaving(false);
     }
@@ -451,6 +452,7 @@ const SUPPORT_POLL_MS = 6000;
 
 function SupportChatTab() {
   const t = useTranslations("proArea");
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const [conversation, setConversation] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -514,7 +516,7 @@ function SupportChatTab() {
         markConversationAsRead(conv._id).catch(() => {});
       } catch (e) {
         if (!cancelled) {
-          toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.loadFailed"));
+          toast.error(getErrorText(e, t("support.chat.loadFailed")));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -545,7 +547,7 @@ function SupportChatTab() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [findSupportConversation, loadMessages, t]);
+  }, [findSupportConversation, loadMessages, getErrorText, t]);
 
   useEffect(() => {
     if (shouldStickToBottom.current) {
@@ -571,7 +573,7 @@ function SupportChatTab() {
       setDraft("");
       await loadMessages(id);
     } catch (e) {
-      toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.sendFailed"));
+      toast.error(getErrorText(e, t("support.chat.sendFailed")));
     } finally {
       setSending(false);
     }

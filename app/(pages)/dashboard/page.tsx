@@ -1,5 +1,7 @@
 'use client'
 
+import { apiErrorFromBody } from '@/lib/apiErrors'
+
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +22,7 @@ import { useAdminAccess } from "@/hooks/useAdminAccess"
 import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { useTranslations } from "next-intl"
 
 interface LoyaltyStats {
@@ -158,6 +161,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { can, canAccessPath, adminRole } = useAdminAccess()
   const t = useTranslations("dashboard")
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const { formatMoney } = useCurrency()
 
@@ -312,7 +316,7 @@ export default function DashboardPage() {
 
           if (!response.ok || !data.success) {
             if (allBookings.length === 0) {
-              setBookingsError(data.msg || t("errors.loadBookings"))
+              setBookingsError(getErrorText(apiErrorFromBody(data, t("errors.loadBookings"), { status: response.status }), t("errors.loadBookings")))
             }
             break
           }
@@ -328,14 +332,14 @@ export default function DashboardPage() {
         setBookings(allBookings)
       } catch (error) {
         console.error("Failed to fetch bookings:", error)
-        setBookingsError(t("errors.loadBookings"))
+        setBookingsError(getErrorText(error, t("errors.loadBookings")))
       } finally {
         setBookingsLoading(false)
       }
     }
 
     fetchBookings()
-  }, [user, isAuthenticated, t])
+  }, [user, isAuthenticated, getErrorText, t])
 
   useEffect(() => {
     if (!user || !isAuthenticated || user.role !== "professional") return
@@ -355,16 +359,16 @@ export default function DashboardPage() {
           setWarrantyClaims(payload.data?.claims || [])
           return
         }
-        setWarrantyClaimsError(payload?.msg || t("errors.loadWarrantyClaims"))
+        setWarrantyClaimsError(getErrorText(apiErrorFromBody(payload, t("errors.loadWarrantyClaims"), { status: response.status }), t("errors.loadWarrantyClaims")))
       } catch (error) {
         console.error("Failed to load warranty claims:", error)
-        setWarrantyClaimsError(t("errors.loadWarrantyClaims"))
+        setWarrantyClaimsError(getErrorText(error, t("errors.loadWarrantyClaims")))
       } finally {
         setWarrantyClaimsLoading(false)
       }
     }
     void loadClaims()
-  }, [user, isAuthenticated, t])
+  }, [user, isAuthenticated, getErrorText, t])
 
   const fetchAdminData = useCallback(async () => {
     setIsLoadingStats(true)
@@ -473,7 +477,7 @@ export default function DashboardPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || t('errors.runChecksFailed', { job: jobLabel }))
+        throw apiErrorFromBody(payload, t('errors.runChecksFailed', { job: jobLabel }), { status: response.status })
       }
       const d = payload.data || {}
       if (type === 'warranty') {
@@ -506,7 +510,7 @@ export default function DashboardPage() {
       }
       await fetchAdminData()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('errors.runChecksFailed', { job: jobLabel }))
+      toast.error(getErrorText(err, t('errors.runChecksFailed', { job: jobLabel })))
     } finally {
       setLoading(false)
     }
@@ -1537,7 +1541,7 @@ export default function DashboardPage() {
                             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                           })
                           if (!response.ok) {
-                            throw new Error(t("errors.requestFailedStatus", { status: response.status }))
+                            throw new Error('professional level recalculation failed')
                           }
                           await fetchAdminData()
                           toast.success(t("admin.loyalty.recalculated"))
@@ -1877,7 +1881,7 @@ export default function DashboardPage() {
               )}
 
               {!bookingsLoading && bookingsError && (
-                <div className="text-center py-4 text-red-600">
+                <div role="alert" className="text-center py-4 text-red-600">
                   {bookingsError}
                 </div>
               )}
@@ -1895,7 +1899,7 @@ export default function DashboardPage() {
               )}
 
               {!bookingsLoading && !bookingsError && !warrantyClaimsLoading && warrantyClaimsError && (
-                <div className="text-center py-4 text-amber-700">
+                <div role="alert" className="text-center py-4 text-amber-700">
                   {warrantyClaimsError}
                 </div>
               )}
