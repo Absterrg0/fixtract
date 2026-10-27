@@ -126,6 +126,7 @@ export default function CmsAdminListPage() {
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
+    let cancelled = false;
     Promise.all(
       CMS_TYPE_ORDER.map((t) =>
         adminListCms({
@@ -137,6 +138,7 @@ export default function CmsAdminListPage() {
           .catch((err: unknown) => [t, null, err instanceof Error ? err.message : "Failed"] as const)
       )
     ).then((entries) => {
+      if (cancelled) return;
       setCounts((prev) => {
         const next = { ...prev };
         for (const [t, c] of entries) {
@@ -147,6 +149,9 @@ export default function CmsAdminListPage() {
       const firstErr = entries.find(([, c]) => c === null);
       if (firstErr) toast.error(`Failed to refresh counts: ${firstErr[2] ?? "unknown error"}`);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, user, localeFilter]);
 
   useEffect(() => {
@@ -446,7 +451,7 @@ export default function CmsAdminListPage() {
                 )
               }
               aria-label="Filter by language"
-              className="bg-transparent text-xs font-medium text-rose-700 outline-none"
+              className="bg-transparent text-xs font-medium text-rose-700 outline-none focus-visible:ring-2 focus-visible:ring-rose-400 rounded"
             >
               {LOCALE_FILTERS.map((option) => (
                 <option key={option.value} value={option.value}>

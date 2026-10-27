@@ -415,6 +415,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             .map((r) => (r.locale === "*" ? "all locales" : r.locale.toUpperCase()))
             .join(", ")}.`
         );
+      } else if (translations.length === 0) {
+        toast.info("No translation results were returned.");
       } else if (disabled && translations.length > 0) {
         toast.info("Azure Translator is not configured, so translations were skipped.");
       } else if (manualKept.length > 0 && !force) {

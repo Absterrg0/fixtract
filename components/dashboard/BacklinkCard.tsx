@@ -362,7 +362,9 @@ function SubmissionRow({
   const cooldownLabel = cooldown
     ? cooldown.hours > 0
       ? t('backlink.duration.hoursMinutes', cooldown)
-      : t('backlink.duration.minutes', cooldown)
+      : cooldown.minutes > 0
+        ? t('backlink.duration.minutesSeconds', cooldown)
+        : t('backlink.duration.seconds', cooldown)
     : null;
 
   const canResubmit = submission.status === 'rejected' && cooldown === null && !submitting;

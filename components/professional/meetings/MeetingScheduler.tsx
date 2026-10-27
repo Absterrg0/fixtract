@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -138,9 +138,17 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
     setCalendarDates(dates)
   }, [currentMonth])
 
-  // Meeting type title
+  // Meeting type title (preserves a user-typed title across locale changes:
+  // only empty or still-default titles are replaced by the new default).
+  const defaultTitleRef = useRef('')
   useEffect(() => {
-    setTitle(meetingType === 'planning' ? t('scheduler.defaultPlanningTitle') : t('scheduler.defaultTeamTitle'))
+    const defaultTitle =
+      meetingType === 'planning' ? t('scheduler.defaultPlanningTitle') : t('scheduler.defaultTeamTitle')
+    const previousDefaultTitle = defaultTitleRef.current
+    defaultTitleRef.current = defaultTitle
+    setTitle((currentTitle) =>
+      currentTitle === '' || currentTitle === previousDefaultTitle ? defaultTitle : currentTitle
+    )
   }, [meetingType, t])
 
   // Duration auto-calc

@@ -23,6 +23,12 @@
     "months": "maanden",
     "years": "jaar"
   },
+  "unitOne": {
+    "hours": "uur",
+    "days": "dag",
+    "months": "maand",
+    "years": "jaar"
+  },
   "status": {
     "rfq": "RFQ",
     "rfq_accepted": "RFQ geaccepteerd",
@@ -85,7 +91,7 @@
     "refreshFailed": "Je nieuwste verwijsstatistieken konden niet worden vernieuwd.",
     "introProfessional": "Verwijs vakmensen naar Fixtract en verdien punten om sneller te stijgen.",
     "introCustomer": "Verwijs klanten naar Fixtract en verdien punten voor toekomstige boekingen wanneer zij hun eerste boeking afronden.",
-    "descriptionProfessional": "Deel je code en verdien nivopunten wanneer je verwijzingen hun eerste boeking afronden. Punten helpen je sneller het volgende vakmansniveau te bereiken.",
+    "descriptionProfessional": "Deel je code en verdien niveaupunten wanneer je verwijzingen hun eerste boeking afronden. Punten helpen je sneller het volgende vakmansniveau te bereiken.",
     "descriptionCustomer": "Deel je code en verdien boekingskrediet wanneer je verwijzingen hun eerste boeking afronden. Gebruik je krediet als korting op toekomstige boekingen.",
     "generating": "Bezig met genereren…",
     "getCode": "Mijn verwijscode ophalen",
@@ -103,7 +109,7 @@
     "howItWorks": "Zo werkt het:",
     "step1": "1. Deel je verwijscode of link",
     "step2": "2. Iemand meldt zich aan met je code en rondt de eerste boeking af",
-    "step3Professional": "3. Je verdient {points} nivopunten richting je volgende vakmansniveau!",
+    "step3Professional": "3. Je verdient {points} niveaupunten richting je volgende vakmansniveau!",
     "step3Customer": "3. Je verdient {points} punten ({amount} boekingskrediet)!",
     "recentReferrals": "Recente verwijzingen",
     "userFallback": "Gebruiker",

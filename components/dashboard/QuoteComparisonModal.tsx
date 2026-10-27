@@ -41,7 +41,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
 
   const formatDuration = (d?: { value: number; unit: 'hours' | 'days' | 'months' | 'years' }) => {
     if (!d || !d.value) return '-'
-    return t('quoteComparison.duration', { value: d.value, unit: t(`unit.${d.unit}`) })
+    return t('quoteComparison.duration', { value: d.value, unit: t(d.value === 1 ? `unitOne.${d.unit}` : `unit.${d.unit}`) })
   }
 
   const formatDate = (dateStr?: string) => {
@@ -166,7 +166,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
         return (
           <div className="flex items-center gap-1">
             <span className={`text-sm ${isBest ? 'text-green-700 font-semibold' : ''}`}>
-              {v.warrantyDuration.value} {t(`unit.${v.warrantyDuration.unit}`)}
+              {v.warrantyDuration.value} {t(v.warrantyDuration.value === 1 ? `unitOne.${v.warrantyDuration.unit}` : `unit.${v.warrantyDuration.unit}`)}
             </span>
             {isBest && <ArrowUp className="h-3 w-3 text-green-600" />}
           </div>

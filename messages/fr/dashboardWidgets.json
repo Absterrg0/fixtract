@@ -23,6 +23,12 @@
     "months": "mois",
     "years": "ans"
   },
+  "unitOne": {
+    "hours": "heure",
+    "days": "jour",
+    "months": "mois",
+    "years": "an"
+  },
   "status": {
     "rfq": "RFQ",
     "rfq_accepted": "RFQ acceptée",
