@@ -269,6 +269,10 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       } else if (initial?._id) {
         const updated = await adminUpdateCms(initial._id, payload);
         savedRevision.current = revisionAtSaveStart;
+        // The saved status always applies (it drives publish state and the
+        // "View live" link); other fields keep the revision guard so typing
+        // during the request is never clobbered by the server echo.
+        setForm((prev) => ({ ...prev, status: updated.status }));
         if (formRevision.current === revisionAtSaveStart) {
           setForm({
             ...updated,

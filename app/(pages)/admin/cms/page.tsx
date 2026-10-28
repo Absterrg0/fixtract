@@ -65,7 +65,7 @@ export default function CmsAdminListPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [counts, setCounts] = useState<Record<CmsContentType, number>>({
+  const [counts, setCounts] = useState<Record<CmsContentType, number | null>>({
     blog: 0,
     news: 0,
     faq: 0,
@@ -142,7 +142,9 @@ export default function CmsAdminListPage() {
       setCounts((prev) => {
         const next = { ...prev };
         for (const [t, c] of entries) {
-          if (c !== null) next[t] = c;
+          // A failed request clears that type's count instead of keeping a
+          // stale count from the previously selected language.
+          next[t] = c;
         }
         return next;
       });
@@ -400,7 +402,7 @@ export default function CmsAdminListPage() {
                   activeType === t ? "bg-white/30" : "bg-rose-100 text-rose-600"
                 )}
               >
-                {counts[t] ?? 0}
+                {counts[t] ?? "—"}
               </span>
             </button>
           ))}
