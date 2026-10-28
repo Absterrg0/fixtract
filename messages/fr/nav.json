@@ -1,0 +1,28 @@
+{
+  "forProfessionals": "Pour les professionnels",
+  "services": "Services",
+  "about": "À propos",
+  "menu": "Menu",
+  "openMenu": "Ouvrir le menu",
+  "closeMenu": "Fermer le menu",
+  "signIn": "Connexion",
+  "join": "Devenir membre",
+  "favorites": "Favoris",
+  "messages": "Messages",
+  "supportChat": "Support chat",
+  "dashboard": "Tableau de bord",
+  "profile": "Profil",
+  "benefitsProgram": "Programme d'avantages",
+  "professionalSupport": "Assistance professionnelle",
+  "logOut": "Déconnexion",
+  "homeLabel": "Accueil Fixtract",
+  "serviceCategories": "Catégories de services",
+  "fallbackCategories": {
+    "smallTasks": "Petits travaux",
+    "interior": "Intérieur",
+    "exterior": "Extérieur",
+    "outdoorWork": "Travaux extérieurs",
+    "renovation": "Rénovation",
+    "inspections": "Inspections"
+  }
+}

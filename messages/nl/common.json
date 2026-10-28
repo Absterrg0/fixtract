@@ -1,0 +1,16 @@
+{
+  "loading": "Laden…",
+  "tryAgain": "Opnieuw proberen",
+  "close": "Sluiten",
+  "meta": {
+    "siteDescription": "Fixtract verbindt klanten met geverifieerde vakmensen voor elke dienst aan je woning — van kleine reparaties tot volledige renovaties. Kwaliteit en veiligheid gegarandeerd."
+  },
+  "multiSelect": {
+    "placeholder": "Selecteer…",
+    "searchPlaceholder": "Zoeken…",
+    "options": "Opties",
+    "noMatches": "Geen resultaten",
+    "selectedCount": "{count} geselecteerd",
+    "searchOptions": "{label} zoeken"
+  }
+}

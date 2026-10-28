@@ -1,0 +1,19 @@
+{
+  "regionLabel": "Cookie consent",
+  "title": "We use cookies",
+  "intro": "Essential cookies keep the site running. With your consent we’d also use analytics and marketing cookies to improve our service. You can change your choice anytime.",
+  "privacyPolicy": "Privacy policy",
+  "customize": "Customize",
+  "rejectAll": "Reject all",
+  "acceptAll": "Accept all",
+  "preferencesTitle": "Cookie preferences",
+  "preferencesDescription": "Choose which categories of cookies to allow. You can change this later from the privacy policy page.",
+  "necessary": "Necessary",
+  "necessaryDescription": "Required for the site to function (login, security, payment processing). Always on.",
+  "analytics": "Analytics",
+  "analyticsDescription": "Helps us understand how the site is used so we can improve it. No personal data is sold.",
+  "marketing": "Marketing",
+  "marketingDescription": "Used to show relevant content and measure campaign performance.",
+  "cancel": "Cancel",
+  "savePreferences": "Save preferences"
+}

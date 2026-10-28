@@ -1,0 +1,14 @@
+{
+  "openLanguage": "Change language",
+  "openCurrency": "Change currency",
+  "chooseLanguageTitle": "Choose your language",
+  "chooseLanguageDescription": "Pick the language you'd like to browse in. You can change it at any time.",
+  "selectCurrencyTitle": "Select your currency",
+  "selectCurrencyDescription": "Prices are converted for display only — nothing is charged in your local currency.",
+  "suggestedForYou": "Suggested for you",
+  "allLanguages": "All languages",
+  "allCurrencies": "All currencies",
+  "currencyNote": "Prices are shown in your selected currency for your convenience. This is for display only — your payments are always charged in euros (EUR).",
+  "language": "Language",
+  "currency": "Currency"
+}

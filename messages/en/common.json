@@ -1,0 +1,16 @@
+{
+  "loading": "Loading…",
+  "tryAgain": "Try again",
+  "close": "Close",
+  "meta": {
+    "siteDescription": "Fixtract connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed."
+  },
+  "multiSelect": {
+    "placeholder": "Select…",
+    "searchPlaceholder": "Search…",
+    "options": "Options",
+    "noMatches": "No matches",
+    "selectedCount": "{count} selected",
+    "searchOptions": "Search {label}"
+  }
+}

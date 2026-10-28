@@ -4,6 +4,24 @@ import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
 export type CmsContentStatus = "draft" | "published";
 
+/** Languages the CMS supports (English is the source locale). */
+export const CMS_CONTENT_LOCALES = ["en", "nl", "fr"] as const;
+export type CmsContentLocale = (typeof CMS_CONTENT_LOCALES)[number];
+
+export const CMS_CONTENT_LOCALE_LABELS: Record<CmsContentLocale, string> = {
+  en: "English",
+  nl: "Dutch",
+  fr: "French",
+};
+
+/** Clamp arbitrary CMS locale values to a supported en/nl/fr code. */
+export function normalizeCmsContentLocale(value: unknown): CmsContentLocale {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return (CMS_CONTENT_LOCALES as readonly string[]).includes(normalized)
+    ? (normalized as CmsContentLocale)
+    : "en";
+}
+
 export const CMS_TYPE_LABELS: Record<CmsContentType, string> = {
   blog: "Blog",
   news: "News",
@@ -284,6 +302,7 @@ export async function adminListCms(params: {
   status?: CmsContentStatus;
   search?: string;
   category?: string;
+  locale?: CmsContentLocale;
   page?: number;
   limit?: number;
 }): Promise<CmsListResponse> {
@@ -292,6 +311,7 @@ export async function adminListCms(params: {
   if (params.status) qs.set("status", params.status);
   if (params.search) qs.set("search", params.search);
   if (params.category) qs.set("category", params.category);
+  if (params.locale) qs.set("locale", params.locale);
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
 
@@ -406,9 +426,12 @@ export interface PolicyLink {
   path: string;
 }
 
-export async function publicListPolicyLinks(): Promise<PolicyLink[]> {
+export async function publicListPolicyLinks(
+  params: { locale?: string } = {}
+): Promise<PolicyLink[]> {
   try {
-    const res = await fetch(`${API}/api/public/cms/policy-links`, {
+    const qs = params.locale ? `?locale=${encodeURIComponent(params.locale)}` : '';
+    const res = await fetch(`${API}/api/public/cms/policy-links${qs}`, {
       next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:policy"] },
       signal: AbortSignal.timeout(8000),
     });
@@ -489,6 +512,22 @@ export function getPublicPathForCms(type: CmsContentType, slug: string): string 
     default:
       return null;
   }
+}
+
+/**
+ * Adds `?lang=<locale>` to a public CMS path (before any hash) so the admin
+ * "View live" link previews exactly the document's language. Other params are
+ * preserved; FAQ anchors stay last.
+ */
+export function withCmsLangParam(path: string, locale: string): string {
+  if (!path) return path;
+  const [base, ...hashParts] = path.split("#");
+  const [pathname, ...queryParts] = base.split("?");
+  const params = new URLSearchParams(queryParts.join("?"));
+  params.set("lang", normalizeCmsContentLocale(locale));
+  const query = params.toString();
+  const hash = hashParts.length ? `#${hashParts.join("#")}` : "";
+  return `${pathname}${query ? `?${query}` : ""}${hash}`;
 }
 
 export function getLandingServicePath(slug: string): string | null {

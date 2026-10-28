@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
@@ -18,7 +19,26 @@ interface Category {
   name: string;
   slug: string;
   icon?: string;
+  /** Static outage fallback from lib/server/serviceCategories. */
+  isFallback?: boolean;
   services: Service[];
+}
+
+const FALLBACK_CATEGORY_NAME_KEYS = {
+  "small-tasks": "fallbackCategories.smallTasks",
+  interior: "fallbackCategories.interior",
+  exterior: "fallbackCategories.exterior",
+  "outdoor-work": "fallbackCategories.outdoorWork",
+  renovation: "fallbackCategories.renovation",
+  inspections: "fallbackCategories.inspections",
+} as const;
+
+type FallbackCategorySlug = keyof typeof FALLBACK_CATEGORY_NAME_KEYS;
+
+function fallbackCategoryNameKey(
+  slug: string
+): (typeof FALLBACK_CATEGORY_NAME_KEYS)[FallbackCategorySlug] | undefined {
+  return FALLBACK_CATEGORY_NAME_KEYS[slug as FallbackCategorySlug];
 }
 
 // Shared constant for dropdown width — used in both the portal style and
@@ -51,6 +71,7 @@ export function SubNavbarFallback() {
 }
 
 const SubNavbar = ({ categories }: { categories: Category[] }) => {
+  const t = useTranslations("nav");
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -107,11 +128,22 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
 
   return (
     <>
-      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40" style={{ top: stickyTop }}>
+      <div
+        role="navigation"
+        aria-label={t("serviceCategories")}
+        className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky z-40"
+        style={{ top: stickyTop }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto scrollbar-hide">
           <div className="flex justify-between items-center h-12 min-w-full">
             {categories.map((category) => {
               const CategoryIcon = getCategoryIcon(category.slug, category.name);
+              const fallbackKey = category.isFallback
+                ? fallbackCategoryNameKey(category.slug)
+                : undefined;
+              const categoryLabel = fallbackKey
+                ? t(fallbackKey)
+                : category.name;
               return (
                 <div
                   key={category.slug}
@@ -135,7 +167,7 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
                       }`}
                   >
                     <CategoryIcon className={`w-4 h-4 ${hoveredCategory === category.slug ? 'text-blue-600' : 'text-gray-400'} transition-colors duration-200`} />
-                    {category.name}
+                    {categoryLabel}
                   </Link>
                 </div>
               );

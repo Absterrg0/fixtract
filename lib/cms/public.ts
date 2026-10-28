@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { getLocale } from "next-intl/server";
 import { sanitizeRichText } from "@/lib/cms/sanitize";
 import type {
   CmsContent,
@@ -44,15 +45,30 @@ async function cmsFetchHeaders(): Promise<HeadersInit | undefined> {
   return country ? { "x-vercel-ip-country": country } : undefined;
 }
 
+/**
+ * Content locale for public CMS reads. The backend serves `en` when a doc has
+ * no translation, so we always pass the active locale.
+ *
+ * Cache note: the locale is part of the request URL, i.e. part of Next's fetch
+ * cache key, so nl/fr renders never reuse the en entry. The revalidation tags
+ * stay locale-agnostic on purpose: an admin save must flush every locale
+ * variant, and `app/api/cms/revalidate` only knows the slug/type.
+ */
+async function resolveContentLocale(explicit?: string): Promise<string> {
+  if (explicit) return explicit;
+  return getLocale();
+}
+
 export async function publicListCms(
   type: CmsContentType,
-  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string } = {}
+  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string; locale?: string } = {}
 ): Promise<CmsListResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.tag) qs.set("tag", params.tag);
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
+  qs.set("locale", await resolveContentLocale(params.locale));
   const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
     headers: await cmsFetchHeaders(),
     next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`] },
@@ -65,9 +81,13 @@ export async function publicListCms(
 export async function publicGetCms(
   type: CmsContentType,
   slug: string,
+  params: { locale?: string } = {},
 ): Promise<CmsContent | null> {
+  const qs = new URLSearchParams({
+    locale: await resolveContentLocale(params.locale),
+  });
   const res = await fetch(
-    `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`,
+    `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}?${qs.toString()}`,
     {
       headers: await cmsFetchHeaders(),
       next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
@@ -90,8 +110,11 @@ export async function fetchCmsPostWithError(
   }
 }
 
-export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
-  const res = await fetch(`${API}/api/public/cms/faq`, {
+export async function publicGetFaq(
+  params: { locale?: string } = {}
+): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
+  const qs = new URLSearchParams({ locale: await resolveContentLocale(params.locale) });
+  const res = await fetch(`${API}/api/public/cms/faq?${qs.toString()}`, {
     headers: await cmsFetchHeaders(),
     next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:faq"] },
   });

@@ -1,8 +1,8 @@
 import React, { Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { Facebook, Twitter, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react'
-import { footerSections } from '@/data/content'
 import { publicListPolicyLinks, PolicyLink, CMS_RESERVED_POLICIES } from '@/lib/cms'
 import { publicGetSiteSettings, SiteSettings } from '@/lib/siteSettings'
 
@@ -13,6 +13,50 @@ const MANDATORY_FALLBACKS: PolicyLink[] = CMS_RESERVED_POLICIES.map(({ slug, lab
   title: label,
   path,
 }))
+
+/**
+ * Footer columns. Labels live in the `footer` i18n namespace; hrefs stay in
+ * code so translated labels never change the routing.
+ */
+const FOOTER_COLUMNS = [
+  {
+    title: 'columns.popularServices',
+    links: [
+      { label: 'links.interiorDesign', href: '/services/interior-design' },
+      { label: 'links.plumbing', href: '/services/plumbing-services' },
+      { label: 'links.electricalWork', href: '/services/electrical-work' },
+      { label: 'links.painting', href: '/services/painting-services' },
+      { label: 'links.renovation', href: '/services/home-renovation' },
+    ],
+  },
+  {
+    title: 'columns.forCustomers',
+    links: [
+      { label: 'links.howItWorks', href: '#how-it-works' },
+      { label: 'links.findProfessionals', href: '#services' },
+      { label: 'links.safetyTrust', href: '#features' },
+      { label: 'links.projectIdeas', href: '#' },
+    ],
+  },
+  {
+    title: 'columns.forProfessionals',
+    links: [
+      { label: 'links.joinAsProfessional', href: '/join' },
+      { label: 'links.successStories', href: '#professionals' },
+    ],
+  },
+  {
+    title: 'columns.company',
+    links: [
+      { label: 'links.about', href: '/about' },
+      { label: 'links.blog', href: '/blog' },
+      { label: 'links.news', href: '/news' },
+      { label: 'links.faq', href: '/faq' },
+    ],
+  },
+] as const
+
+/** CMS reserved policy slugs → translated footer labels. */
 
 function isSafeHttpUrl(href: string): boolean {
   try {
@@ -47,8 +91,19 @@ const FooterLinkColumn = ({ title, links }: { title: string; links: { name: stri
   </div>
 )
 
-export default function Footer() {
+export default async function Footer() {
+  const t = await getTranslations('footer')
+  const locale = await getLocale()
   const currentYear = new Date().getFullYear()
+  const copyright = t('copyright', { year: String(currentYear) })
+  const labels: Record<string, string> = {
+    'privacy-policy': t('legal.privacyPolicy'),
+    'terms-of-service': t('legal.termsOfService'),
+    'cookie-policy': t('legal.cookiePolicy'),
+    'gdpr-compliance': t('legal.gdprCompliance'),
+    'platform-rules': t('legal.platformRules'),
+    'self-billing-agreement': t('legal.selfBillingAgreement'),
+  }
 
   return (
     <footer className="bg-gray-900 ">
@@ -65,26 +120,38 @@ export default function Footer() {
               />
             </Link>
             <p className="text-gray-300 mb-8 leading-relaxed">
-              Fixtract is a trusted platform connecting customers with verified professionals for any property service. From minor repairs to major renovations, we make it simple to get the job done with quality and security guaranteed.
+              {t('description')}
             </p>
           </div>
 
-          {footerSections.map((section) => (
-            <FooterLinkColumn key={section.title} title={section.title} links={section.links} />
+          {FOOTER_COLUMNS.map((section) => (
+            <FooterLinkColumn
+              key={section.title}
+              title={t(section.title)}
+              links={section.links.map((link) => ({ name: t(link.label), href: link.href }))}
+            />
           ))}
         </div>
       </div>
 
-      <Suspense fallback={<FooterMetaShell currentYear={currentYear} policies={MANDATORY_FALLBACKS} settings={{ socialLinks: {} }} />}>
-        <FooterMeta currentYear={currentYear} />
+      <Suspense fallback={<FooterMetaShell copyright={copyright} policies={MANDATORY_FALLBACKS} legalLabels={labels} settings={{ socialLinks: {} }} />}>
+        <FooterMeta copyright={copyright} legalLabels={labels} locale={locale} />
       </Suspense>
     </footer>
   )
 }
 
-async function FooterMeta({ currentYear }: { currentYear: number }) {
+async function FooterMeta({
+  copyright,
+  legalLabels,
+  locale,
+}: {
+  copyright: string
+  legalLabels: Record<string, string>
+  locale: string
+}) {
   const [policies, settings] = await Promise.all([
-    publicListPolicyLinks(),
+    publicListPolicyLinks({ locale }),
     publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings)),
   ])
 
@@ -93,16 +160,18 @@ async function FooterMeta({ currentYear }: { currentYear: number }) {
     sourceLinks.map((p) => [p.slug, p])
   )
 
-  return <FooterMetaShell currentYear={currentYear} policies={Object.values(bySlug)} settings={settings} />
+  return <FooterMetaShell copyright={copyright} policies={Object.values(bySlug)} legalLabels={legalLabels} settings={settings} />
 }
 
 function FooterMetaShell({
-  currentYear,
+  copyright,
   policies,
+  legalLabels,
   settings,
 }: {
-  currentYear: number
+  copyright: string
   policies: PolicyLink[]
+  legalLabels: Record<string, string>
   settings: SiteSettings
 }) {
   const bySlug: Record<string, PolicyLink> = Object.fromEntries(
@@ -114,7 +183,7 @@ function FooterMetaShell({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-6">
             <p className="text-gray-400 text-sm text-center sm:text-left">
-              © {currentYear} Fixtract. All rights reserved.
+              {copyright}
             </p>
             <div className="flex items-center space-x-6">
               {SOCIAL_DEFS.map(({ key, name, icon: Icon }) => {
@@ -135,7 +204,7 @@ function FooterMetaShell({
               if (!match) return null
               return (
                 <Link key={slot.slug} href={match.path} className="text-sm text-gray-400 hover:text-white hover:underline">
-                  {slot.label}
+                  {legalLabels[slot.slug] ?? slot.label}
                 </Link>
               )
             })}

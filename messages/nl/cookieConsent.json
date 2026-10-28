@@ -1,0 +1,19 @@
+{
+  "regionLabel": "Cookie-toestemming",
+  "title": "Wij gebruiken cookies",
+  "intro": "Noodzakelijke cookies zorgen ervoor dat de site blijft werken. Met jouw toestemming gebruiken we ook analytische en marketingcookies om onze dienstverlening te verbeteren. Je kunt je keuze op elk moment aanpassen.",
+  "privacyPolicy": "Privacybeleid",
+  "customize": "Aanpassen",
+  "rejectAll": "Alles weigeren",
+  "acceptAll": "Alles accepteren",
+  "preferencesTitle": "Cookievoorkeuren",
+  "preferencesDescription": "Kies welke categorieën cookies je wilt toestaan. Je kunt dit later altijd nog aanpassen op de pagina met het privacybeleid.",
+  "necessary": "Noodzakelijk",
+  "necessaryDescription": "Nodig om de site te laten werken (inloggen, beveiliging, het verwerken van betalingen). Altijd ingeschakeld.",
+  "analytics": "Analytisch",
+  "analyticsDescription": "Laat ons zien hoe de site wordt gebruikt, zodat we hem kunnen verbeteren. Er worden geen persoonlijke gegevens verkocht.",
+  "marketing": "Marketing",
+  "marketingDescription": "Worden gebruikt om relevante inhoud te tonen en de prestaties van campagnes te meten.",
+  "cancel": "Annuleren",
+  "savePreferences": "Voorkeuren opslaan"
+}
