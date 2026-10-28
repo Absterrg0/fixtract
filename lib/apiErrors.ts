@@ -276,7 +276,9 @@ function detailsFrom(error: unknown): ErrorDetails {
       message: error.serverMessage,
       status: error.status,
       code: error.code,
-      kind: error.kind,
+      // A default-constructed 'unknown' kind means "no explicit kind": let the
+      // generic server-message fallback infer one from the message instead.
+      kind: error.kind === 'unknown' ? undefined : error.kind,
     };
   }
 
@@ -388,6 +390,10 @@ function isNetworkError(error: unknown, message?: string): boolean {
   if (code === 'ERR_NETWORK' || code === 'ERR_CONNECTION_REFUSED' || code === 'ERR_CONNECTION_RESET') {
     return true;
   }
+  // Message-only matches come from real runtime Errors. Server copy (plain
+  // bodies, ApiRequestError.serverMessage, plain strings) has no transport
+  // provenance and must keep its own kind.
+  if (!(error instanceof Error) || error instanceof ApiRequestError) return false;
   return Boolean(message && NETWORK_MESSAGE_RE.test(message));
 }
 

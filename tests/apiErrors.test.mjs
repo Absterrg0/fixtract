@@ -197,6 +197,19 @@ test('current backend generic category bodies use localized public copy', () => 
     nl.notFound,
   )
 
+  // A default-kind ApiRequestError carries no explicit kind, so generic server
+  // copy is still recognized (rather than falling back to the caller text).
+  assert.equal(
+    getErrorMessage(apiErrorFromBody({ success: false, msg: 'Please sign in to continue.' }, 'Contextual fallback'), 'Contextual fallback', nl),
+    nl.signInRequired,
+  )
+
+  // Server copy that merely mentions the network is not transport evidence.
+  assert.equal(
+    getErrorMessage(apiErrorFromBody({ success: false, msg: 'Network error while contacting the carrier.' }, 'Contextual fallback'), 'Contextual fallback', nl),
+    'Contextual fallback',
+  )
+
   // Genuinely specific 403/404/validation business detail stays visible.
   assert.equal(
     getErrorMessage(
