@@ -37,6 +37,7 @@ import StartChatButton from "@/components/chat/StartChatButton"
 import FavoriteButton from "@/components/favorites/FavoriteButton"
 import { useFavoriteStatus } from "@/hooks/useFavoriteStatus"
 import { useCurrency } from "@/contexts/CurrencyContext"
+import { CurrencySymbol } from "@/components/currency/CurrencySymbol"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface ProfessionalData {
@@ -442,7 +443,7 @@ export default function ProfessionalProfilePage() {
                       )}
                       {professional.hourlyRate && (
                         <span className="flex items-center gap-1.5 font-medium text-gray-700">
-                          <Euro className="h-4 w-4 text-gray-400" />
+                          <CurrencySymbol className="h-4 w-4 text-gray-400" />
                           {t("page.perHour", { price: formatPrice(professional.hourlyRate) })}
                         </span>
                       )}

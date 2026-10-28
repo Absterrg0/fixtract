@@ -2,6 +2,11 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { ArrowRight } from "lucide-react";
 import { CmsContent, CmsContentType, humanizeCmsSlug } from "@/lib/cms";
+import {
+  findServiceMeta,
+  isTranslatedServiceId,
+  navServiceNameKey,
+} from "@/lib/services/serviceNames";
 import BlogCard from "@/components/cms/BlogCard";
 
 interface Props {
@@ -54,9 +59,21 @@ export default async function ArticleRelatedSections({
   relatedContent,
 }: Props) {
   const t = await getTranslations("content");
+  const tCatalog = await getTranslations("catalog");
   const serviceSlug = relatedServiceSlug?.trim();
   const cards = asRelatedCards(relatedContent);
-  const serviceLabel = relatedServiceLabel?.trim() || (serviceSlug ? humanizeCmsSlug(serviceSlug) : "");
+  // Prefer the localized catalog name over a humanized slug so e.g. French
+  // articles link "Découvrir Services de plomberie", not English fragments.
+  const serviceMeta = serviceSlug ? findServiceMeta(serviceSlug) : null;
+  const serviceNameKey = serviceMeta
+    ? isTranslatedServiceId(serviceMeta.id)
+      ? (`names.services.${serviceMeta.id}.name` as const)
+      : navServiceNameKey(serviceMeta)
+    : undefined;
+  const serviceLabel =
+    relatedServiceLabel?.trim() ||
+    (serviceNameKey ? tCatalog(serviceNameKey) : undefined) ||
+    (serviceSlug ? humanizeCmsSlug(serviceSlug) : "");
 
   if (!serviceSlug && cards.length === 0) return null;
 

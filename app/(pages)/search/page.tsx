@@ -14,7 +14,6 @@ import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 import { trackProjectSearch } from '@/lib/analytics';
-import { isTransportError } from '@/lib/apiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -458,11 +457,10 @@ function SearchPageContent() {
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
       console.error('Search error:', err);
-      const message = isTransportError(err)
-        ? t('page.errorFallback')
-        : err instanceof Error
-          ? err.message
-          : t('page.errorFallback');
+      // fetch() rejects with a TypeError for network-level failures, whatever
+      // the browser wording; server errors are thrown above with translated
+      // copy, so only non-TypeError Errors can carry displayable text.
+      const message = err instanceof TypeError ? t('page.errorFallback') : err instanceof Error ? err.message : t('page.errorFallback');
       setError(message);
     } finally {
       if (searchAbortRef.current === controller) {

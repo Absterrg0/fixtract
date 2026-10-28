@@ -40,6 +40,7 @@
   "popularProjects": {
     "heading": "Populaire projecten",
     "priceOnRequest": "Prijs op aanvraag",
+    "rfq": "Prijs op aanvraag",
     "fromPrice": "Vanaf {price}",
     "noPreview": "Geen voorbeeld",
     "unknownProfessional": "Onbekende vakman",

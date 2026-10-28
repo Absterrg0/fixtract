@@ -59,7 +59,7 @@ const PopularProjectsCarousel = ({
   };
 
   const formatProjectPrice = (price: number | null, type: string) => {
-    if (price === null) return type === 'rfq' ? 'RFQ' : t('popularProjects.priceOnRequest');
+    if (price === null) return type === 'rfq' ? t('popularProjects.rfq') : t('popularProjects.priceOnRequest');
     if (type === 'unit' || type === 'rfq') {
       return t('popularProjects.fromPrice', { price: formatPrice(price) });
     }

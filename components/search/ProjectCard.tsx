@@ -170,8 +170,11 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     if (project.executionDuration) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
-      const unitLabel = t(exec.unit === 'days' ? 'units.days' : 'units.hours', { count: exec.value });
-      return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${unitLabel}`;
+      // The unit message already renders the full "<count> <unit>" label, so
+      // pass a combined "base+buffer" count instead of prefixing the value —
+      // otherwise durations render as "2 2 hours".
+      const count = (buffer?.value ? `${exec.value}+${buffer.value}` : exec.value) as unknown as number;
+      return t(exec.unit === 'days' ? 'units.days' : 'units.hours', { count });
     }
     return null;
   };

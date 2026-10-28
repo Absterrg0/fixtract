@@ -6,10 +6,11 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Euro, ArrowRight, Calendar, Star } from 'lucide-react';
+import { MapPin, ArrowRight, Calendar, Star } from 'lucide-react';
 import StartChatButton from '@/components/chat/StartChatButton';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { CurrencySymbol } from '@/components/currency/CurrencySymbol';
 
 interface ProfessionalCardProps {
   professional: {
@@ -139,7 +140,7 @@ const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }:
 
           {professional.hourlyRate && (
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <Euro className="w-4 h-4 text-gray-400" />
+              <CurrencySymbol className="w-4 h-4 text-gray-400" />
               <span>
                 {t('professionalCard.perHour', { price: formatPrice(professional.hourlyRate) })}
               </span>

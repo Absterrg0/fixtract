@@ -40,6 +40,7 @@
   "popularProjects": {
     "heading": "Projets populaires",
     "priceOnRequest": "Prix sur demande",
+    "rfq": "Sur devis",
     "fromPrice": "À partir de {price}",
     "noPreview": "Aucun aperçu",
     "unknownProfessional": "Professionnel inconnu",
