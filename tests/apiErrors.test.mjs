@@ -204,10 +204,14 @@ test('current backend generic category bodies use localized public copy', () => 
     nl.signInRequired,
   )
 
-  // Server copy that merely mentions the network is not transport evidence.
+  // Server copy that merely mentions the network is not transport evidence:
+  // it must not classify as `network` (no offline message), though its safe
+  // text still displays since the kind is genuinely unknown.
+  const carrierError = apiErrorFromBody({ success: false, msg: 'Network error while contacting the carrier.' }, 'Contextual fallback');
+  assert.equal(classifyApiError(carrierError).kind, 'unknown');
   assert.equal(
-    getErrorMessage(apiErrorFromBody({ success: false, msg: 'Network error while contacting the carrier.' }, 'Contextual fallback'), 'Contextual fallback', nl),
-    'Contextual fallback',
+    getErrorMessage(carrierError, 'Contextual fallback', nl),
+    'Network error while contacting the carrier.',
   )
 
   // Genuinely specific 403/404/validation business detail stays visible.
