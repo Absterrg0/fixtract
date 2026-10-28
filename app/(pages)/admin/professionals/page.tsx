@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption, AlertTriangle, FileText, Shield, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -83,6 +83,8 @@ export default function ProfessionalsAdminPage() {
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // Guards against superseded list requests (e.g. fast tab switches) clobbering state.
+  const requestIdRef = useRef(0)
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [approvalError, setApprovalError] = useState<{ professionalId: string, message: string, missingRequirements: string[] } | null>(null)
@@ -140,6 +142,7 @@ export default function ProfessionalsAdminPage() {
   }, [isAuthenticated, loading, user, router])
 
   const fetchProfessionals = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true)
     setLoadError(null)
     try {
@@ -150,11 +153,14 @@ export default function ProfessionalsAdminPage() {
       if (!response.ok || data?.success === false) {
         throw apiErrorFromBody(data, 'Failed to load professionals', { status: response.status })
       }
+      if (requestId !== requestIdRef.current) return;
       setProfessionals(data.data.professionals)
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Failed to fetch professionals:', error)
       setLoadError(getErrorMessage(error, 'Failed to load professionals'))
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setIsLoading(false)
     }
   }, [status])
