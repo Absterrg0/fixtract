@@ -47,7 +47,7 @@ function readJson(relativePath) {
 function flatten(value, prefix = "", out = new Map(), nonStrings = []) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     for (const [key, child] of Object.entries(value)) {
-      flatten(child, prefix ? `${prefix}.${key}` : key, out);
+      flatten(child, prefix ? `${prefix}.${key}` : key, out, nonStrings);
     }
   } else if (typeof value === "string") {
     out.set(prefix, value);
