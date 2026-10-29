@@ -25,6 +25,8 @@ export function useSupportChatAccess(
     "role" | "disabled" | null
   >(null);
   const blockedReasonRef = useRef<"role" | "disabled" | null>(null);
+  /** Conversation the current server 403 belongs to (stale blocks are ignored). */
+  const blockedConversationRef = useRef<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const requestRef = useRef(0);
 
@@ -44,11 +46,14 @@ export function useSupportChatAccess(
       .then((data) => {
         if (controller.signal.aborted || requestRef.current !== requestId) return;
         setCapabilities(data);
-        // A stale capability must not permanently disable writes. A server
-        // role restriction (wrong support target) still holds until the user
-        // switches conversation or explicitly re-checks.
-        if (blockedReasonRef.current !== "role") {
+        // A refetched capability must not erase a server 403 for the same
+        // conversation: the server actively rejected the write, so keep
+        // blocking until the user switches threads or explicitly retries.
+        if (blockedReasonRef.current && blockedConversationRef.current === (conversationId ?? null)) {
+          // keep the block
+        } else if (blockedReasonRef.current) {
           blockedReasonRef.current = null;
+          blockedConversationRef.current = null;
           setBlockedReason(null);
         }
       })
@@ -68,11 +73,13 @@ export function useSupportChatAccess(
     // A new conversation gets a fresh capability verdict; do not carry a
     // previous thread's server 403 forever.
     blockedReasonRef.current = null;
+    blockedConversationRef.current = null;
     setBlockedReason(null);
   }, [role, conversationId]);
 
   const reload = useCallback(() => {
     blockedReasonRef.current = null;
+    blockedConversationRef.current = null;
     setBlockedReason(null);
     setReloadKey((value) => value + 1);
   }, []);
@@ -81,17 +88,21 @@ export function useSupportChatAccess(
     const reason = supportChatBlockReasonFromError(error);
     if (!reason) return null;
     blockedReasonRef.current = reason;
+    blockedConversationRef.current = conversationId ?? null;
     setBlockedReason(reason);
     // Re-fetch the capability; if the superadmin re-enabled chat the UI must
     // recover instead of staying disabled from the stale payload.
     setReloadKey((value) => value + 1);
     return reason;
-  }, []);
+  }, [conversationId]);
 
+  const activeBlock = blockedConversationRef.current === (conversationId ?? null)
+    ? blockedReason
+    : null;
   const state = resolveSupportChatWriteState(role, capabilities, {
     loading: active && eligible && loading,
     failed: active && eligible && failed,
-    blockedReason,
+    blockedReason: activeBlock,
   });
 
   return {

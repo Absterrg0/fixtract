@@ -59,8 +59,14 @@ export default function SupportChatPanel({
   }, []);
 
   const findSupportConversation = useCallback(async (): Promise<ChatConversation | null> => {
-    const { conversations } = await fetchConversations({ limit: 100 });
-    const support = conversations.filter((item) => item.type === "support");
+    // Walk every page: an older support thread can sit beyond the first page.
+    const support: ChatConversation[] = [];
+    for (let page = 1; ; page += 1) {
+      const data = await fetchConversations({ page, limit: 100 });
+      support.push(...data.conversations.filter((item) => item.type === "support"));
+      const totalPages = data.pagination?.totalPages ?? 1;
+      if (page >= totalPages) break;
+    }
     if (support.length === 0) return null;
     support.sort((a, b) => {
       const at = new Date(a.lastMessageAt || a.updatedAt || a.createdAt).getTime();
@@ -70,9 +76,12 @@ export default function SupportChatPanel({
     return support[0];
   }, []);
 
+  /** Guards overlapping loads/polls: only the newest response may apply. */
+  const loadSeqRef = useRef(0);
   const loadMessages = useCallback(async (conversationId: string) => {
+    const seq = ++loadSeqRef.current;
     const data = await fetchConversationMessages(conversationId, { limit: 100 });
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || seq !== loadSeqRef.current) return;
     setMessages(data.messages);
     setConversation(data.conversation);
   }, []);

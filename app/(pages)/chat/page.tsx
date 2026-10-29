@@ -917,32 +917,36 @@ function ChatContent() {
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
                 {t("page.supportClosed")}
               </div>
-            ) : isSupportReadOnly && isSupportConversation ? (
-              <div
-                role="status"
-                className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-sm text-indigo-800 sm:flex-row sm:items-center sm:justify-center"
-              >
-                <span>{supportReadOnlyNotice}</span>
-                {(supportChatAccess.reason === "disabled" ||
-                  supportChatAccess.reason === "unavailable" ||
-                  supportChatAccess.reason === "blocked") && (
-                  <button
-                    type="button"
-                    onClick={() => supportChatAccess.reload()}
-                    className="mx-auto inline-flex min-h-8 items-center rounded-lg border border-indigo-300 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:mx-0"
-                  >
-                    {t("page.supportReadOnlyRetry")}
-                  </button>
-                )}
-              </div>
             ) : (
-              <ChatComposer
-                disabled={!selectedConversationId}
-                sending={sending}
-                replyTo={replyToMessage}
-                onCancelReply={() => setReplyToMessage(null)}
-                onSend={handleSend}
-              />
+              <>
+                {isSupportReadOnly && isSupportConversation ? (
+                  <div
+                    role="status"
+                    className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-sm text-indigo-800 sm:flex-row sm:items-center sm:justify-center"
+                  >
+                    <span>{supportReadOnlyNotice}</span>
+                    {(supportChatAccess.reason === "disabled" ||
+                      supportChatAccess.reason === "unavailable" ||
+                      supportChatAccess.reason === "blocked") && (
+                      <button
+                        type="button"
+                        onClick={() => supportChatAccess.reload()}
+                        className="mx-auto inline-flex min-h-8 items-center rounded-lg border border-indigo-300 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:mx-0"
+                      >
+                        {t("page.supportReadOnlyRetry")}
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+                {/* Kept mounted while read-only so drafts/attachments survive. */}
+                <ChatComposer
+                  disabled={!selectedConversationId || isSupportReadOnly}
+                  sending={sending}
+                  replyTo={replyToMessage}
+                  onCancelReply={() => setReplyToMessage(null)}
+                  onSend={handleSend}
+                />
+              </>
             )}
           </>
         ) : (

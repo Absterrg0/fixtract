@@ -358,6 +358,23 @@ export default function ChatWidget() {
       if (detail.conversationId) {
         setManualNewChatPanel(false);
         setSelectedConversationId(detail.conversationId);
+        // The target may sit beyond the loaded page. Resolve it into the list
+        // so type/status-based guards (support read-only) apply to it too.
+        if (!conversationListRef.current.some((c) => c._id === detail.conversationId)) {
+          try {
+            const { conversation } = await fetchConversationMessages(
+              String(detail.conversationId),
+              { limit: 1 },
+            );
+            if (conversation) {
+              const next = [conversation, ...conversationListRef.current];
+              conversationListRef.current = next;
+              setConversations(next);
+            }
+          } catch {
+            // Unresolved: the composer stays disabled until the list loads it.
+          }
+        }
         return;
       }
 
@@ -881,7 +898,11 @@ export default function ChatWidget() {
                   </div>
                 ) : (
                   <ChatComposer
-                    disabled={!selectedConversationId || creatingConversation}
+                    disabled={
+                      !selectedConversationId ||
+                      creatingConversation ||
+                      (!selectedConversation && !manualNewChatPanel)
+                    }
                     sending={sending}
                     onSend={handleSend}
                   />
