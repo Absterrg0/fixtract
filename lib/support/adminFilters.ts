@@ -79,10 +79,12 @@ export function adminSupportItemMatchesFilters(
     if (!bookingIds.includes(bookingRef)) return false;
   }
 
+  // Match on meeting data, not `kind`: a ticket can be turned into a meeting
+  // through the admin reschedule path and must stay visible under "with".
   if (filters.meeting === "with") {
-    if (item.kind !== "meeting" || !item.meeting?.scheduledAt) return false;
+    if (!item.meeting?.scheduledAt) return false;
   } else if (filters.meeting === "without") {
-    if (item.kind === "meeting" && item.meeting?.scheduledAt) return false;
+    if (item.meeting?.scheduledAt) return false;
   }
 
   return true;

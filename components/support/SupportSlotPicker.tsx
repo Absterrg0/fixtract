@@ -98,6 +98,13 @@ export default function SupportSlotPicker({
     });
   }, [grouped, windowDates.dates, selected, displayTimeZone]);
 
+  // A refresh can drop the previously selected slot; clear it so the UI never
+  // shows (and submits) a slot the server no longer offers.
+  useEffect(() => {
+    if (loading || error || !selected) return;
+    if (!slots.some((slot) => slot.start === selected.start)) onSelect(null);
+  }, [slots, loading, error, selected, onSelect]);
+
   const visibleSlots = activeDate ? grouped.get(activeDate) || [] : [];
 
   return (

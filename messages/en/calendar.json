@@ -30,6 +30,8 @@
       "workingDay": "Working Day"
     },
     "dateStatus": "{date} - {status}",
-    "tip": "Tip: Click once to start a range, click another day to end it. Click the same day twice to toggle a single-day block."
+    "tip": "Tip: Click once to start a range, click another day to end it. Click the same day twice to toggle a single-day block.",
+    "supportMeetingsLoadFailed": "Support meetings could not be loaded, so this calendar may be incomplete.",
+    "retry": "Retry"
   }
 }

@@ -91,7 +91,7 @@ export function useSupportChatAccess(
   const state = resolveSupportChatWriteState(role, capabilities, {
     loading: active && eligible && loading,
     failed: active && eligible && failed,
-    blocked: blockedReason !== null,
+    blockedReason,
   });
 
   return {

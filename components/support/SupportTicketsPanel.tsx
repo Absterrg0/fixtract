@@ -170,6 +170,9 @@ export default function SupportTicketsPanel({
       );
       setAcknowledgements((current) => ({ ...current, [itemKey]: emailSent }));
       resetForm();
+      // Abort any in-flight page-one listing so it cannot overwrite the
+      // freshly prepended ticket with a pre-create snapshot.
+      setReloadKey((value) => value + 1);
       const number = item.ticketNumber;
       toast.success(
         number

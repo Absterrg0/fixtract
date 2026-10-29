@@ -516,9 +516,14 @@ test('support chat writes are professional and flag gated, with fresh 403 handli
     { canWrite: false, reason: 'disabled' },
   )
   // An old capability payload must not keep an enabled composer after a 403.
-  assert.deepEqual(resolveSupportChatWriteState('professional', enabled, { blocked: true }), {
+  assert.deepEqual(resolveSupportChatWriteState('professional', enabled, { blockedReason: 'disabled' }), {
     canWrite: false,
     reason: 'blocked',
+  })
+  // A role-scoped 403 keeps the role notice instead of the generic one.
+  assert.deepEqual(resolveSupportChatWriteState('professional', enabled, { blockedReason: 'role' }), {
+    canWrite: false,
+    reason: 'role',
   })
 
   assert.equal(
@@ -832,7 +837,8 @@ test('calendar consumers surface support feed failures instead of hiding them', 
   assert.match(admin, /supportDateWindow\(resolvedTimeZone, 31\)/)
   assert.match(admin, /setSupportEventsError/)
   assert.match(admin, /supportCalendarWarning/)
-  assert.match(admin, /Support meetings could not be loaded/)
+  // The warning is now localized through the calendar namespace.
+  assert.match(admin, /availabilityCalendar\.supportMeetingsLoadFailed/)
 
   const profile = readFileSync(
     new URL('../app/(pages)/profile/page.tsx', import.meta.url),

@@ -202,6 +202,9 @@ export default function SupportMeetingsPanel({
       setAcknowledgements((current) => ({ ...current, [itemKey]: emailSent }));
       resetForm();
       setSlotRefreshKey((value) => value + 1);
+      // A page-one list request started before creation would otherwise
+      // overwrite the prepended item with a stale snapshot.
+      retry();
       const number = item.ticketNumber;
       toast.success(
         number

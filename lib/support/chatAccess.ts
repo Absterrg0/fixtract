@@ -24,7 +24,12 @@ type ChatCapabilityLike = {
 export function resolveSupportChatWriteState(
   role: string | undefined | null,
   capabilities: ChatCapabilityLike,
-  options: { loading?: boolean; failed?: boolean; blocked?: boolean } = {},
+  options: {
+    loading?: boolean;
+    failed?: boolean;
+    /** Reason from a server 403 on send/upload ("role" = support-target gate). */
+    blockedReason?: "role" | "disabled" | null;
+  } = {},
 ): SupportChatWriteState {
   if (role !== "professional") return { canWrite: false, reason: "role" };
   if (options.loading) return { canWrite: false, reason: "checking" };
@@ -37,7 +42,10 @@ export function resolveSupportChatWriteState(
   ) {
     return { canWrite: false, reason: "disabled" };
   }
-  if (options.blocked) return { canWrite: false, reason: "blocked" };
+  if (options.blockedReason === "role") {
+    return { canWrite: false, reason: "role" };
+  }
+  if (options.blockedReason) return { canWrite: false, reason: "blocked" };
   return { canWrite: true, reason: null };
 }
 
@@ -56,6 +64,9 @@ export function supportChatBlockReasonFromError(
   };
   if (candidate.status !== 403) return null;
   const message = `${candidate.serverMessage || ""} ${candidate.message || ""}`.toLowerCase();
+  // Only support-access 403s may block composing. Other 403s (e.g. an
+  // attachment rejected by its own rule) must keep their own error.
+  if (!message.includes("support")) return null;
   if (message.includes("professional")) return "role";
   return "disabled";
 }

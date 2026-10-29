@@ -43,6 +43,11 @@ export default function SupportCenter({
   const [configReload, setConfigReload] = useState(0);
   const [tab, setTab] = useState<SupportTab>(initialTab || "ticket");
 
+  // Navigation can change ?tab= without remounting SupportCenter.
+  useEffect(() => {
+    setTab(initialTab || "ticket");
+  }, [initialTab]);
+
   const eligibleRole =
     user?.role === "customer" || user?.role === "professional";
 

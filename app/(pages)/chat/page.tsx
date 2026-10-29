@@ -923,7 +923,8 @@ function ChatContent() {
                 className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-sm text-indigo-800 sm:flex-row sm:items-center sm:justify-center"
               >
                 <span>{supportReadOnlyNotice}</span>
-                {(supportChatAccess.reason === "unavailable" ||
+                {(supportChatAccess.reason === "disabled" ||
+                  supportChatAccess.reason === "unavailable" ||
                   supportChatAccess.reason === "blocked") && (
                   <button
                     type="button"

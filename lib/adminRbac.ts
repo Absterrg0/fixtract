@@ -254,9 +254,6 @@ export function resolveAdminAreaLevel(
     return effectiveLevel;
   }
   if (effective && Object.keys(effective).length > 0) return 'none';
-  if (area === 'support' && user.supportAccessLevel) {
-    return user.supportAccessLevel;
-  }
 
   const levels = user.adminPermissionLevels;
   const explicit = levels?.[area];
@@ -264,8 +261,13 @@ export function resolveAdminAreaLevel(
     return explicit;
   }
   // A populated levels matrix is the complete effective matrix: a missing
-  // area means no access, not the role default.
+  // area means no access, not the role default or the legacy support level.
   if (levels && Object.keys(levels).length > 0) return 'none';
+
+  // Legacy field, consulted only after the explicit matrix has had its say.
+  if (area === 'support' && user.supportAccessLevel) {
+    return user.supportAccessLevel;
+  }
 
   // Legacy account without an explicit matrix. The permissions payload is
   // derived from its effective role/levels server-side, so respect it.

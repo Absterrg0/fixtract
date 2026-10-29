@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fromZonedTime } from 'date-fns-tz'
 import { CalendarDays, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAdminAccess } from '@/hooks/useAdminAccess'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +51,7 @@ function mergeLoadedAvailability(loaded: unknown): Record<DayKey, DaySchedule> {
 }
 
 export default function AdminAvailability() {
+  const t = useTranslations('calendar')
   const { checkAuth, user } = useAuth()
   const { supportAccess } = useAdminAccess()
   const [availability, setAvailability] = useState(defaultAvailability)
@@ -106,7 +108,7 @@ export default function AdminAvailability() {
         events.push({
           id: `support-meeting-${event.id}`,
           type: 'support',
-          title: event.pending ? 'Support meeting (pending)' : 'Support meeting',
+          title: event.pending ? t('eventTitles.supportMeetingPending') : t('eventTitles.supportMeeting'),
           start,
           end,
           meta: { ticketNumber: event.ticketNumber || undefined, note: event.subject },
@@ -220,7 +222,7 @@ export default function AdminAvailability() {
           >
             <span>
               {supportCalendarWarning(
-                'Support meetings could not be loaded, so this calendar may be incomplete.',
+                t('availabilityCalendar.supportMeetingsLoadFailed'),
                 supportEventsError,
               )}
             </span>
@@ -229,7 +231,7 @@ export default function AdminAvailability() {
               onClick={() => setSupportEventsReloadKey((value) => value + 1)}
               className="rounded-md border border-amber-300 bg-white px-2 py-1 font-medium"
             >
-              Retry
+              {t('availabilityCalendar.retry')}
             </button>
           </div>
         ) : null}
