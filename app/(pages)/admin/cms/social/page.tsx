@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Save, Share2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminGetSiteSettings, adminUpdateSiteSettings, SocialLinks } from "@/lib/siteSettings";
+import { getErrorMessage } from "@/lib/apiErrors";
 
 const FIELDS: Array<{ key: keyof SocialLinks; label: string; placeholder: string }> = [
   { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/fixtract" },
@@ -55,7 +56,7 @@ export default function AdminSocialSettingsPage() {
           toast.error(`Stored link looks malformed: ${invalid.join(", ")}`);
         }
       })
-      .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to load settings"))
+      .catch((err) => toast.error(getErrorMessage(err, "Failed to load settings")))
       .finally(() => setFetching(false));
   }, [isAuthenticated, user]);
 
@@ -74,7 +75,7 @@ export default function AdminSocialSettingsPage() {
       setValues(next.socialLinks || {});
       toast.success("Social links saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       setSaving(false);
     }

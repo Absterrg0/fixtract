@@ -39,7 +39,13 @@ export async function startAdminSupportChat(
     }
   } catch (err: unknown) {
     w?.close()
-    toast.error(getErrorMessage(err, "Failed to start chat"))
+    // The only abort source here is the 10s timer: keep its specific timeout
+    // copy instead of the generic cancellation message.
+    toast.error(
+      err instanceof DOMException && err.name === "AbortError"
+        ? "Starting chat timed out. Please try again."
+        : getErrorMessage(err, "Failed to start chat")
+    );
   } finally {
     clearTimeout(timeout)
     setChattingId(null)
