@@ -63,7 +63,12 @@ export default function SupportChatPanel({
     const support: ChatConversation[] = [];
     for (let page = 1; ; page += 1) {
       const data = await fetchConversations({ page, limit: 100 });
-      support.push(...data.conversations.filter((item) => item.type === "support"));
+      // Archived threads stay readable but must not replace the active one.
+      support.push(
+        ...data.conversations.filter(
+          (item) => item.type === "support" && item.status !== "archived",
+        ),
+      );
       const totalPages = data.pagination?.totalPages ?? 1;
       if (page >= totalPages) break;
     }
@@ -155,10 +160,12 @@ export default function SupportChatPanel({
     shouldStickToBottom.current = distanceFromBottom < 80;
   };
 
+  const conversationArchived = conversation?.status === "archived";
+
   const send = async () => {
     const id = conversationIdRef.current;
     const text = draft.trim();
-    if (!id || !text || sending || !canWrite || writeBlocked) return;
+    if (!id || !text || sending || !canWrite || writeBlocked || conversationArchived) return;
     setSending(true);
     try {
       shouldStickToBottom.current = true;
@@ -167,8 +174,8 @@ export default function SupportChatPanel({
       await loadMessages(id);
     } catch (error) {
       if (supportChatBlockReasonFromError(error)) {
+        // The send was rejected: keep the draft so nothing the user typed is lost.
         setWriteBlocked(true);
-        setDraft("");
         onWriteBlocked?.();
         toast.error(t("chat.readOnlyBlocked"));
       } else {
@@ -294,7 +301,7 @@ export default function SupportChatPanel({
           )}
         </div>
 
-        {!canWrite || writeBlocked ? (
+        {!canWrite || writeBlocked || conversationArchived ? (
           <div className="border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-xs text-indigo-700">
             <p>{!canWrite ? t("chat.readOnlyDisabled") : t("chat.readOnlyBlocked")}</p>
             {writeBlocked ? (

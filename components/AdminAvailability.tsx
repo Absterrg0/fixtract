@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fromZonedTime } from 'date-fns-tz'
 import { CalendarDays, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAdminAccess } from '@/hooks/useAdminAccess'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,6 +52,7 @@ function mergeLoadedAvailability(loaded: unknown): Record<DayKey, DaySchedule> {
 
 export default function AdminAvailability() {
   const t = useTranslations('calendar')
+  const locale = useLocale()
   const { checkAuth, user } = useAuth()
   const { supportAccess } = useAdminAccess()
   const [availability, setAvailability] = useState(defaultAvailability)
@@ -125,7 +126,8 @@ export default function AdminAvailability() {
       setSupportEventsError(getErrorMessage(error, ''))
     })
     return () => controller.abort()
-  }, [user?.role, user?._id, resolvedTimeZone, supportEventsReloadKey, supportAccess])
+    // Titles are translated while loading, so a locale switch must refetch.
+  }, [user?.role, user?._id, resolvedTimeZone, supportEventsReloadKey, supportAccess, locale, t])
 
   useEffect(() => {
     void fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, { credentials: 'include' })
