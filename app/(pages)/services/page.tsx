@@ -168,7 +168,7 @@ export default function ServicesHubPage() {
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('servicesPage.errorTitle')}</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p role="alert" className="text-gray-600 mb-6">{error}</p>
             <Button onClick={() => fetchServiceCategories()}>
               {t('tryAgain')}
             </Button>

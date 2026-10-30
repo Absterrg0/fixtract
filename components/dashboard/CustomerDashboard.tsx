@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -177,6 +178,7 @@ export default function CustomerDashboard() {
   const { user } = useAuth()
   const router = useRouter()
   const t = useTranslations("dashboardWidgets")
+  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
 
@@ -246,7 +248,7 @@ export default function CustomerDashboard() {
         )
         const data = await response.json()
         if (!response.ok || !data.success) {
-          setBookingsError(data.msg || t("customerDashboard.loadFailed"))
+          setBookingsError(getErrorText(data, t("customerDashboard.loadFailed")))
           return
         }
         const incoming = data.bookings || []
@@ -262,7 +264,7 @@ export default function CustomerDashboard() {
     } finally {
       setBookingsLoading(false)
     }
-  }, [t])
+  }, [getErrorText, t])
 
   // Fetch all bookings via pagination
   useEffect(() => {
@@ -763,7 +765,7 @@ export default function CustomerDashboard() {
             {bookingsLoading && renderLoadingSkeleton()}
             {!bookingsLoading && bookingsError && (
               <Card className="bg-rose-50 border border-rose-100">
-                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
               </Card>
             )}
             {!bookingsLoading && !bookingsError && (
@@ -817,7 +819,7 @@ export default function CustomerDashboard() {
             {bookingsLoading && renderLoadingSkeleton()}
             {!bookingsLoading && bookingsError && (
               <Card className="bg-rose-50 border border-rose-100">
-                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
               </Card>
             )}
             {!bookingsLoading && !bookingsError && (
@@ -890,7 +892,7 @@ export default function CustomerDashboard() {
             {bookingsLoading && renderLoadingSkeleton()}
             {!bookingsLoading && bookingsError && (
               <Card className="bg-rose-50 border border-rose-100">
-                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
               </Card>
             )}
             {!bookingsLoading && !bookingsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (

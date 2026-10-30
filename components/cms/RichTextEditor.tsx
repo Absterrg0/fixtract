@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -119,7 +121,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
         editor.chain().focus().setImage({ src: url, alt }).run();
         toast.success("Image inserted", { id: "cms-img" });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed", { id: "cms-img" });
+        toast.error(getErrorMessage(err, "Upload failed"), { id: "cms-img" });
       }
     };
     input.click();

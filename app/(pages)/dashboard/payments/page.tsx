@@ -1,4 +1,6 @@
-'use client';
+'use client'
+
+import { apiErrorFromBody } from '@/lib/apiErrors';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -12,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslations } from 'next-intl';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -166,6 +169,7 @@ export default function PaymentsDashboard() {
 function CustomerPaymentsView() {
   const router = useRouter();
   const t = useTranslations('dashboard');
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const { formatMoney } = useCurrency();
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
@@ -193,18 +197,18 @@ function CustomerPaymentsView() {
 
       const payload = await response.json();
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || t('payments.loadFailed'));
+        throw apiErrorFromBody(payload, t('payments.loadFailed'), { status: response.status });
       }
 
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('payments.loadFailed'));
+      setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
       setIsLoading(false);
     }
-  }, [API_URL, page, statusFilter, t]);
+  }, [API_URL, getErrorText, page, statusFilter, t]);
 
   useEffect(() => {
     fetchPayments();
@@ -276,7 +280,7 @@ function CustomerPaymentsView() {
                 </SelectContent>
               </Select>
             </div>
-            {error && <p className="text-sm text-rose-600 mt-2">{error}</p>}
+            {error && <p role="alert" className="text-sm text-rose-600 mt-2">{error}</p>}
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -291,7 +295,7 @@ function CustomerPaymentsView() {
                   </div>
                 ))}
               </div>
-            ) : payments.length === 0 ? (
+            ) : !error && payments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500">
                 {t('payments.table.empty')}
               </div>

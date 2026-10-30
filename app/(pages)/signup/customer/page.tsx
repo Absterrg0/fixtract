@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,6 +109,7 @@ const VAT_ERROR_KEYS = {
 
 function CustomerSignupForm() {
   const t = useTranslations('auth');
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const regionNames = useMemo(() => {
     try {
@@ -125,7 +127,7 @@ function CustomerSignupForm() {
     const key = result.errorCode
       ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
       : undefined;
-    return key ? t(key, { country: result.countryCode ?? '' }) : result.error;
+    return key ? t(key, { country: result.countryCode ?? '' }) : getErrorText(result, t('validation.vatInvalid'));
   };
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>(
     'form'
@@ -952,7 +954,7 @@ function CustomerSignupForm() {
                               </p>
                               {vatValidation.error && (
                                 <p className='text-xs mt-1'>
-                                  {vatValidation.error}
+                                  {vatErrorMessage(vatValidation)}
                                 </p>
                               )}
                             </div>
@@ -964,7 +966,7 @@ function CustomerSignupForm() {
                               <p className='font-medium'>{t('customerSignup.validationFailed')}</p>
                               {vatValidation.error && (
                                 <p className='text-xs mt-1'>
-                                  {vatValidation.error}
+                                  {vatErrorMessage(vatValidation)}
                                 </p>
                               )}
                             </div>

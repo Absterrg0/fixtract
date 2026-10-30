@@ -1,8 +1,10 @@
 'use client'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import type { AdminPermission, AdminRole } from '@/lib/adminRbac'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
@@ -325,6 +327,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
   const pathname = usePathname()
+  const tAuth = useTranslations('auth')
+  const tErrors = useTranslations('common.errors')
+  const errorMessage = useErrorMessage()
 
   const fetchCurrentUser = useCallback(async (): Promise<
     | { status: 'ok'; user: User }
@@ -416,9 +421,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
 
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         authSessionEpochRef.current += 1
         checkAuthGenerationRef.current += 1
         setLoading(false)
@@ -445,15 +450,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return true
       } else {
-        toast.error(data.msg || 'Login failed')
+        const serverMessage = typeof data?.msg === 'string' ? data.msg : ''
+        toast.error(
+          /invalid (?:email|password|credentials)|incorrect (?:email|password)/i.test(serverMessage)
+            ? tAuth('login.invalidCredentials')
+            : errorMessage(data, tAuth('login.failed')),
+        )
         return false
       }
     } catch (error) {
       console.error('Login error:', error)
-      toast.error('Login failed. Please try again.')
+      toast.error(errorMessage(error, tAuth('login.failed')))
       return false
     }
-  }, [pathname, router])
+  }, [errorMessage, pathname, router, tAuth])
 
   const signup = useCallback(async (userData: SignupData): Promise<boolean> => {
     try {
@@ -466,9 +476,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify(userData),
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
 
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         authSessionEpochRef.current += 1
         checkAuthGenerationRef.current += 1
         setLoading(false)
@@ -486,15 +496,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         return true
       } else {
-        toast.error(data.msg || 'Signup failed')
+        toast.error(errorMessage(data, tAuth('register.failed')))
         return false
       }
     } catch (error) {
       console.error('Signup error:', error)
-      toast.error('Signup failed. Please try again.')
+      toast.error(errorMessage(error, tAuth('register.failed')))
       return false
     }
-  }, [])
+  }, [errorMessage, tAuth])
 
   const logout = useCallback(async () => {
     authSessionEpochRef.current += 1
@@ -556,7 +566,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check role-based access for role-restricted routes
       if (isRoleRestrictedRoute && !hasRoleAccess(currentUser.role, pathname)) {
-        toast.error('You do not have permission to access this page')
+        toast.error(pathname.startsWith('/admin') ? 'You do not have permission to access this page' : tErrors('forbidden'))
         router.replace('/dashboard?unauthorized=true')
         return
       }

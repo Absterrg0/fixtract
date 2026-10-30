@@ -1,3 +1,4 @@
+import { getErrorMessage, messageFromApiBody } from "@/lib/apiErrors";
 import { authFetch } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -34,11 +35,17 @@ export async function startAdminSupportChat(
       else window.open(url, "_blank")
     } else {
       w?.close()
-      toast.error(json?.msg || "Failed to start chat")
+      toast.error(messageFromApiBody(json, "Failed to start chat"))
     }
   } catch (err: unknown) {
     w?.close()
-    toast.error(err instanceof DOMException && err.name === "AbortError" ? "Starting chat timed out" : "Failed to start chat")
+    // The only abort source here is the 10s timer: keep its specific timeout
+    // copy instead of the generic cancellation message.
+    toast.error(
+      err instanceof DOMException && err.name === "AbortError"
+        ? "Starting chat timed out. Please try again."
+        : getErrorMessage(err, "Failed to start chat")
+    );
   } finally {
     clearTimeout(timeout)
     setChattingId(null)

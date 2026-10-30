@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { PUBLIC_CACHE_TAGS, revalidatePublicTags } from "@/lib/publicCache"
+import { getErrorMessage, safeUserMessage } from "@/lib/apiErrors"
 
 async function refreshPublicServiceCategories() {
   try {
@@ -345,11 +346,11 @@ export default function ServiceConfigurationManagement() {
       } else {
         const error = await response.json()
         console.error('❌ Fetch failed:', error)
-        toast.error(error.message || 'Failed to fetch service configurations')
+        toast.error(getErrorMessage(error, 'Failed to fetch service configurations'))
       }
     } catch (error) {
       console.error('💥 Error fetching services:', error)
-      toast.error('Failed to load service configurations')
+      toast.error(getErrorMessage(error, 'Failed to load service configurations'))
     } finally {
       setLoading(false)
     }
@@ -362,9 +363,12 @@ export default function ServiceConfigurationManagement() {
 
   // Build a toast-friendly message from a backend error response that may carry fieldErrors
   const formatBackendError = (error: { message?: string; fieldErrors?: Array<{ path?: string; message?: string }> } | undefined, fallback: string) => {
-    const detail = error?.fieldErrors?.map(fe => `${fe.path ?? 'field'}: ${fe.message ?? 'invalid'}`).join('; ')
-    if (detail) return `${error?.message ?? fallback} — ${detail}`
-    return error?.message || fallback
+    const detail = error?.fieldErrors
+      ?.map(fe => ({ path: fe.path ?? 'field', message: safeUserMessage(fe.message) ?? 'invalid' }))
+      .map(fe => `${fe.path}: ${fe.message}`)
+      .join('; ')
+    const base = getErrorMessage(error, fallback)
+    return detail ? `${base} — ${detail}` : base
   }
 
   // Create new service
@@ -409,7 +413,7 @@ export default function ServiceConfigurationManagement() {
       }
     } catch (error) {
       console.error('Error creating service:', error)
-      toast.error('Failed to create service')
+      toast.error(getErrorMessage(error, 'Failed to create service'))
     } finally {
       setSaving(false)
     }
@@ -457,7 +461,7 @@ export default function ServiceConfigurationManagement() {
       }
     } catch (error) {
       console.error('Error updating service:', error)
-      toast.error('Failed to update service')
+      toast.error(getErrorMessage(error, 'Failed to update service'))
     } finally {
       setSaving(false)
     }
@@ -487,11 +491,11 @@ export default function ServiceConfigurationManagement() {
       } else {
         const error = await response.json()
         console.error('❌ Delete failed:', error)
-        toast.error(error.message || 'Failed to delete service')
+        toast.error(getErrorMessage(error, 'Failed to delete service'))
       }
     } catch (error) {
       console.error('💥 Error deleting service:', error)
-      toast.error('Failed to delete service')
+      toast.error(getErrorMessage(error, 'Failed to delete service'))
     } finally {
       setDeleting(false)
     }

@@ -1,3 +1,5 @@
+import { getErrorMessage } from "@/lib/apiErrors";
+
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 export const DEFAULT_LANGUAGES: ReadonlyArray<{ code: string; label: string; countries: string[] }> = [
@@ -10,7 +12,7 @@ export const DEFAULT_LANGUAGES: ReadonlyArray<{ code: string; label: string; cou
 export interface LanguageOption { code: string; label: string; countries: string[] }
 export interface ServiceOption { key: string; label: string; countries?: string[] }
 
-export function errMessage(error: unknown, fallback: string) { return error instanceof Error && error.message ? error.message : fallback; }
+export function errMessage(error: unknown, fallback: string) { return getErrorMessage(error, fallback); }
 export function requireApiBase() { if (!API_BASE) throw new Error("NEXT_PUBLIC_BACKEND_URL is not configured"); return API_BASE; }
 export function formatDate(value?: string | null) { return value ? new Date(value).toLocaleString() : "—"; }
 

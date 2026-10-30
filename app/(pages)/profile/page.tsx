@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAuthToken, buildUsernameSuggestionParams } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { CompanyAvailability, DEFAULT_COMPANY_AVAILABILITY } from "@/lib/defaults/companyAvailability"
 import {
   validateVATFormat,
@@ -90,6 +91,9 @@ export default function ProfilePage() {
 
 function ProfileContent() {
   const t = useTranslations('account')
+  const getErrorText = useErrorMessage()
+  const requestErrorText = (result: { errorCode?: string; error?: string; msg?: string }, fallback: string) =>
+    result.errorCode && result.errorCode !== 'network' ? fallback : getErrorText(result, fallback)
   const { intl } = useFormatLocale()
   const { user, isAuthenticated, loading, checkAuth } = useAuth()
   const router = useRouter()
@@ -110,7 +114,7 @@ function ProfileContent() {
     const key = result.errorCode
       ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
       : undefined
-    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
+    return key ? t(key, { country: result.countryCode ?? '' }) : getErrorText(result, t('toasts.vatUpdateFailed'))
   }
   const weekdayLabel = useMemo(() => {
     const formatter = new Intl.DateTimeFormat(intl, { weekday: 'short' })
@@ -349,13 +353,13 @@ function ProfileContent() {
         return
       }
 
-      setStripeStatusError(data?.error?.message || data?.msg || '')
+      setStripeStatusError(getErrorText(data, t('payments.loadFailed')))
     } catch (error) {
-      setStripeStatusError(error instanceof Error ? error.message : '')
+      setStripeStatusError(getErrorText(error, t('payments.loadFailed')))
     } finally {
       setStripeStatusLoading(false)
     }
-  }, [user?.role])
+  }, [getErrorText, t, user?.role])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -861,7 +865,7 @@ function ProfileContent() {
         await checkAuth()
         setVatValidation({})
       } else {
-        toast.error(result.errorCode ? t('toasts.vatUpdateFailed') : result.error)
+        toast.error(requestErrorText(result, t('toasts.vatUpdateFailed')))
       }
     } catch {
       toast.error(t('toasts.vatUpdateFailed'))
@@ -881,7 +885,7 @@ function ProfileContent() {
         toast.success(t('toasts.vatRemoved'))
         await checkAuth()
       } else {
-        toast.error(result.errorCode ? t('toasts.vatRemoveFailed') : result.error)
+        toast.error(requestErrorText(result, t('toasts.vatRemoveFailed')))
       }
     } catch {
       toast.error(t('toasts.vatRemoveFailed'))
@@ -909,7 +913,7 @@ function ProfileContent() {
         toast.success(t('toasts.profileImageUpdated'))
         await checkAuth()
       } else {
-        toast.error(result.msg || t('toasts.profileImageUploadFailed'))
+        toast.error(getErrorText(result, t('toasts.profileImageUploadFailed')))
       }
     } catch {
       toast.error(t('toasts.profileImageUploadFailed'))
@@ -930,7 +934,7 @@ function ProfileContent() {
         toast.success(t('toasts.profileImageRemoved'))
         await checkAuth()
       } else {
-        toast.error(result.msg || t('toasts.profileImageRemoveFailed'))
+        toast.error(getErrorText(result, t('toasts.profileImageRemoveFailed')))
       }
     } catch {
       toast.error(t('toasts.profileImageRemoveFailed'))
@@ -961,7 +965,7 @@ function ProfileContent() {
         setIdProofFile(null)
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || t('toasts.idProofUploadFailed'))
+        toast.error(getErrorText(result, t('toasts.idProofUploadFailed')))
       }
     } catch {
       toast.error(t('toasts.idProofUploadFailed'))
@@ -993,7 +997,7 @@ function ProfileContent() {
         await checkAuth() // Refresh user data
         return true
       } else {
-        toast.error(result.msg || t('toasts.blockedRangesSaveFailed'))
+        toast.error(getErrorText(result, t('toasts.blockedRangesSaveFailed')))
         return false
       }
     } catch {
@@ -1103,7 +1107,7 @@ function ProfileContent() {
         toast.success(t('toasts.profileUpdated'))
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || t('toasts.profileUpdateFailed'))
+        toast.error(getErrorText(result, t('toasts.profileUpdateFailed')))
       }
     } catch {
       toast.error(t('toasts.profileUpdateFailed'))
@@ -1230,7 +1234,7 @@ function ProfileContent() {
         await checkAuth()
         return true
       } else {
-        toast.error(result.msg || t('companyAvailability.saveFailed'))
+        toast.error(getErrorText(result, t('companyAvailability.saveFailed')))
         return false
       }
     } catch {
@@ -1330,7 +1334,7 @@ function ProfileContent() {
         toast.success(t('toasts.autoPopulated'))
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.errorCode ? t('toasts.autoPopulateFailed') : result.error)
+        toast.error(requestErrorText(result, t('toasts.autoPopulateFailed')))
       }
     } catch {
       toast.error(t('toasts.autoPopulateFailed'))
@@ -1370,7 +1374,7 @@ function ProfileContent() {
         setIsEditingPhone(false)
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || t('toasts.phoneUpdateFailed'))
+        toast.error(getErrorText(result, t('toasts.phoneUpdateFailed')))
       }
     } catch (error) {
       console.error('Phone update error:', error)
@@ -1393,15 +1397,26 @@ function ProfileContent() {
         })
         await checkAuth() // Refresh user data to update professional status
       } else {
-        if (result.missingRequirements && result.missingRequirements.length > 0) {
+        if (
+          (result.missingRequirements && result.missingRequirements.length > 0) ||
+          (result.missingRequirementDetails && result.missingRequirementDetails.length > 0)
+        ) {
+          const items = [
+            ...(result.missingRequirementDetails ?? []).map((detail) => detail.message).filter(Boolean),
+            ...(result.missingRequirements ?? []).filter(
+              (item) => !/^[A-Z][A-Z0-9_]+$/.test(item),
+            ),
+          ] as string[]
           toast.error(
-            t('toasts.completeRequirements', { items: result.missingRequirements.join(', ') }),
+            items.length > 0
+              ? t('toasts.completeRequirements', { items: [...new Set(items)].join(', ') })
+              : t('toasts.completeRequirementsGeneric'),
             {
               duration: 6000,
             }
           )
         } else {
-          toast.error(result.errorCode ? t('toasts.submitFailed') : result.error)
+          toast.error(requestErrorText(result, t('toasts.submitFailed')))
         }
       }
     } catch {
@@ -1448,7 +1463,7 @@ function ProfileContent() {
         toast.success(t('toasts.customerProfileUpdated'))
         await checkAuth()
       } else {
-        toast.error(result.msg || t('toasts.customerProfileUpdateFailed'))
+        toast.error(getErrorText(result, t('toasts.customerProfileUpdateFailed')))
       }
     } catch {
       toast.error(t('toasts.customerProfileUpdateFailed'))
@@ -1482,7 +1497,7 @@ function ProfileContent() {
         setShowIdChangeWarning(false)
         await checkAuth()
       } else {
-        toast.error(result.msg || t('toasts.idInfoUpdateFailed'))
+        toast.error(getErrorText(result, t('toasts.idInfoUpdateFailed')))
       }
     } catch {
       toast.error(t('toasts.idInfoUpdateFailed'))
@@ -1896,14 +1911,14 @@ function ProfileContent() {
                                 <div>
                                   <p className="font-medium text-amber-800">{t('vat.viesUnavailable')}</p>
                                   {vatValidation.error && (
-                                    <p className="text-amber-700">{vatValidation.error}</p>
+                                    <p className="text-amber-700">{vatErrorMessage(vatValidation)}</p>
                                   )}
                                 </div>
                               ) : (
                                 <div>
                                   <p className="font-medium text-red-800">{t('vat.validationFailed')}</p>
                                   {vatValidation.error && (
-                                    <p className="text-red-700">{vatValidation.error}</p>
+                                    <p className="text-red-700">{vatErrorMessage(vatValidation)}</p>
                                   )}
                                 </div>
                               )}
@@ -2127,7 +2142,7 @@ function ProfileContent() {
                                   setUsernameEdit(false)
                                   await checkAuth()
                                 } else {
-                                  toast.error(data.msg || t('toasts.usernameUpdateFailed'))
+                                  toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
                                 }
                               } catch { toast.error(t('toasts.usernameUpdateFailed')) }
                               finally { setUsernameSaving(false) }
@@ -3114,10 +3129,10 @@ function ProfileContent() {
                               ) : vatValidation.transient ? (
                                 <div>
                                   <p className="font-medium text-amber-800">{t('vat.viesUnavailable')}</p>
-                                  <p className="text-amber-700">{vatValidation.error}</p>
+                                  <p className="text-amber-700">{vatErrorMessage(vatValidation)}</p>
                                 </div>
                               ) : (
-                                <p className="text-red-700">{vatValidation.error}</p>
+                                <p className="text-red-700">{vatErrorMessage(vatValidation)}</p>
                               )}
                             </div>
                           </div>

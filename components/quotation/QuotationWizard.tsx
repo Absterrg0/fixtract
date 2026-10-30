@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -230,6 +231,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
   const t = useTranslations('quotation')
+  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   // Quotation amounts are stored in the quotation's own currency (never converted).
@@ -564,11 +566,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         toast.success(isEditing ? t('wizard.updateSuccess') : t('wizard.submitSuccess'))
         onSuccess()
       } else {
-        toast.error(data?.error?.message || data?.msg || t('wizard.submitFailed'))
+        toast.error(getErrorText(data, t('wizard.submitFailed')))
       }
     } catch (err) {
       console.error('Error submitting quotation:', err)
-      toast.error(t('wizard.submitFailedRetry'))
+      toast.error(getErrorText(err, t('wizard.submitFailedRetry')))
     } finally {
       setSubmitting(false)
     }

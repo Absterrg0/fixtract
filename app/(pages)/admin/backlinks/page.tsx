@@ -1,4 +1,7 @@
-'use client';
+'use client'
+
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors';
+
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -758,7 +761,7 @@ export default function AdminBacklinksPage() {
       if (!res.ok) throw new Error('config fetch failed');
       const d = await res.json();
       if (d.success) { setConfig(d.data); return true; }
-      toast.error(d.msg ?? 'Failed to load config');
+      toast.error(messageFromApiBody(d, 'Failed to load config'));
       return false;
     } catch {
       toast.error('Failed to load backlink config');
@@ -773,7 +776,7 @@ export default function AdminBacklinksPage() {
       if (!res.ok) throw new Error('analytics fetch failed');
       const d = await res.json();
       if (d.success) { setAnalytics(d.data); return true; }
-      if (!opts?.silent) toast.error(d.msg ?? 'Failed to load analytics');
+      if (!opts?.silent) toast.error(messageFromApiBody(d, 'Failed to load analytics'));
       else setListRefreshError(true);
       return false;
     } catch {
@@ -799,7 +802,7 @@ export default function AdminBacklinksPage() {
         return true;
       }
       setSubmissionsLoadError(true);
-      if (!opts?.silent) toast.error(d.msg ?? 'Failed to load submissions');
+      if (!opts?.silent) toast.error(messageFromApiBody(d, 'Failed to load submissions'));
       else setListRefreshError(true);
       return false;
     } catch {
@@ -850,8 +853,8 @@ export default function AdminBacklinksPage() {
       });
       const d = await res.json();
       if (d.success) { toast.success('Configuration saved'); setConfig(d.data); }
-      else toast.error(d.msg ?? 'Failed to save');
-    } catch { toast.error('Network error'); }
+      else toast.error(messageFromApiBody(d, 'Failed to save'));
+    } catch (error) { toast.error(getErrorMessage(error, 'Failed to save configuration')); }
     finally { setSaving(false); }
   };
 
@@ -864,13 +867,13 @@ export default function AdminBacklinksPage() {
       });
       const d = await res.json();
       if (d.success) {
-        toast.success(d.msg ?? `${action} successful`);
+        toast.success(messageFromApiBody(d, `${action} successful`));
         fetchSubmissions(page, statusFilter);
         fetchAnalytics();
       } else {
-        toast.error(d.msg ?? `${action} failed`);
+        toast.error(messageFromApiBody(d, `${action} failed`));
       }
-    } catch { toast.error('Network error'); }
+    } catch (error) { toast.error(getErrorMessage(error, 'Backlink action failed')); }
     finally { setActionId(null); }
   };
 
@@ -884,9 +887,9 @@ export default function AdminBacklinksPage() {
         body: JSON.stringify({ reason: reasonInput.trim() }),
       });
       const d = await res.json();
-      if (d.success) { toast.success(d.msg ?? 'Done'); fetchSubmissions(page, statusFilter); fetchAnalytics(); }
-      else toast.error(d.msg ?? 'Failed');
-    } catch { toast.error('Network error'); }
+      if (d.success) { toast.success(messageFromApiBody(d, 'Done')); fetchSubmissions(page, statusFilter); fetchAnalytics(); }
+      else toast.error(messageFromApiBody(d, 'Failed'));
+    } catch (error) { toast.error(getErrorMessage(error, 'Backlink action failed')); }
     finally { setActionId(null); setReasonInput(''); }
   };
 

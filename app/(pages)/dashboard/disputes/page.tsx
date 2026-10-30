@@ -63,7 +63,7 @@ export default function DashboardDisputesPage() {
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine`)
       if (!res.ok) {
-        toast.error(t("disputes.loadFailedStatus", { status: res.status }))
+        toast.error(t("disputes.loadFailed"))
         return
       }
       const json = await res.json()

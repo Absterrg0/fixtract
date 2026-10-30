@@ -1,4 +1,7 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
+
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -29,7 +32,7 @@ export default function EditCmsContentPage() {
     adminGetCms(id)
       .then(setContent)
       .catch((err) => {
-        toast.error(err?.message || "Failed to load content");
+        toast.error(getErrorMessage(err, "Failed to load content"));
         router.replace("/admin/cms");
       })
       .finally(() => setFetching(false));

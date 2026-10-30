@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +35,7 @@ export default function RFQForm({
   onCancel
 }: RFQFormProps) {
   const t = useTranslations('checkout')
+  const getErrorText = useErrorMessage()
   const { dateFns } = useFormatLocale()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -104,11 +106,11 @@ export default function RFQForm({
           onSuccess(data.booking)
         }
       } else {
-        toast.error(data.msg || t('rfqForm.validation.submitFailed'))
+        toast.error(getErrorText(data, t('rfqForm.validation.submitFailed')))
       }
     } catch (error) {
       console.error('RFQ submission error:', error)
-      toast.error(t('rfqForm.validation.genericError'))
+      toast.error(getErrorText(error, t('rfqForm.validation.genericError')))
     } finally {
       setLoading(false)
     }

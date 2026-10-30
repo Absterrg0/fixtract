@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ interface RefundRequest {
 
 export default function RefundRequestsPanel() {
   const t = useTranslations("dashboardWidgets")
+  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
   const [requests, setRequests] = useState<RefundRequest[]>([])
@@ -55,14 +57,14 @@ export default function RefundRequestsPanel() {
       if (res.ok && json?.success) {
         setRequests(Array.isArray(json.data?.requests) ? json.data.requests : [])
       } else {
-        setLoadError(json?.msg || t('refundRequests.loadFailed'))
+        setLoadError(getErrorText(json, t('refundRequests.loadFailed')))
       }
     } catch {
       setLoadError(t('refundRequests.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [getErrorText, t])
 
   useEffect(() => { load() }, [load])
 
@@ -93,7 +95,7 @@ export default function RefundRequestsPanel() {
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || t('refundRequests.respondFailed'))
+        toast.error(getErrorText(json, t('refundRequests.respondFailed')))
         return
       }
       toast.success(

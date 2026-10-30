@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { reportChatMessage, isLocalFallbackError } from "@/lib/chatApi";
+import { reportChatMessage } from "@/lib/chatApi";
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 import { useCommissionRate } from "@/hooks/useCommissionRate";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
@@ -95,6 +96,7 @@ function ReportDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("chat");
+  const getErrorText = useErrorMessage();
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -110,9 +112,7 @@ function ReportDialog({
       toast.success(t("report.submitted"));
       onOpenChange(false);
     } catch (err) {
-      toast.error(
-        err instanceof Error && !isLocalFallbackError(err) ? err.message : t("report.failed")
-      );
+      toast.error(getErrorText(err, t("report.failed")));
     } finally {
       setSubmitting(false);
     }
@@ -176,6 +176,7 @@ function ReviewNotificationCard({
   onReplySubmitted?: () => void;
 }) {
   const t = useTranslations("chat");
+  const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
   const meta = message.reviewMeta;
   const [showReply, setShowReply] = useState(false);
@@ -211,10 +212,10 @@ function ReviewNotificationCard({
         setReplyText("");
         onReplySubmitted?.();
       } else {
-        toast.error(data.msg || t("reviewCard.replyFailed"));
+        toast.error(getErrorText(data, t("reviewCard.replyFailed")));
       }
-    } catch {
-      toast.error(t("reviewCard.replyFailed"));
+    } catch (err) {
+      toast.error(getErrorText(err, t("reviewCard.replyFailed")));
     } finally {
       setSubmitting(false);
     }

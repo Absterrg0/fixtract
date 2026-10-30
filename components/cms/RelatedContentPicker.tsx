@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+import { getErrorMessage } from "@/lib/apiErrors";
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
@@ -72,7 +74,7 @@ export default function RelatedContentPicker({ value, onChange, excludeId, max =
       .catch((err: unknown) => {
         if (cancelled) return;
         setOptions([]);
-        setError(err instanceof Error ? err.message : "Failed to load related content");
+        setError(getErrorMessage(err, "Failed to load related content"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

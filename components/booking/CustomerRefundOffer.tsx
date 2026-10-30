@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { authFetch } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Loader2, RotateCcw } from "lucide-react"
@@ -23,6 +24,7 @@ interface CancellationRequest {
 
 export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onResolved }: CustomerRefundOfferProps) {
   const t = useTranslations('checkout')
+  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const [request, setRequest] = useState<CancellationRequest | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,14 +58,14 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || t('refundOffer.respondFailed'))
+        toast.error(getErrorText(json, t('refundOffer.respondFailed')))
         return
       }
       toast.success(decision === 'accept' ? t('refundOffer.acceptSuccess') : t('refundOffer.refuseSuccess'))
       await load()
       onResolved?.()
-    } catch {
-      toast.error(t('refundOffer.respondFailed'))
+    } catch (error) {
+      toast.error(getErrorText(error, t('refundOffer.respondFailed')))
     } finally {
       setBusy(false)
     }

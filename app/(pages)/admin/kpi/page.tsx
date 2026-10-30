@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -429,7 +431,7 @@ export default function AdminKpiDashboard() {
       )
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        toast.error(json?.error?.message || 'Failed to download')
+        toast.error(messageFromApiBody(json, 'Failed to download'))
         return
       }
       const blob = await res.blob()
@@ -458,7 +460,7 @@ export default function AdminKpiDashboard() {
       if (res.status === 202 || res.ok) {
         toast.success(json?.data?.message || 'Report is being prepared and will be emailed to you.')
       } else {
-        toast.error(json?.error?.message || 'Failed to queue report')
+        toast.error(messageFromApiBody(json, 'Failed to queue report'))
       }
     } catch {
       toast.error('Failed to queue report')

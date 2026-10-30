@@ -1,5 +1,7 @@
 'use client'
 
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -188,7 +190,7 @@ export default function AdminPaymentsPage() {
 
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to load payments")
+        throw new Error(messageFromApiBody(payload, "Failed to load payments"))
       }
 
       const data: ApiResponse = payload.data
@@ -197,7 +199,7 @@ export default function AdminPaymentsPage() {
       setTotalPages(data.pagination.totalPages || 1)
     } catch (err) {
       console.error("[ADMIN][PAYMENTS] fetch failed", err)
-      setError(err instanceof Error ? err.message : "Failed to load payments")
+      setError(getErrorMessage(err, "Failed to load payments"))
     } finally {
       setIsLoading(false)
     }
@@ -252,19 +254,19 @@ export default function AdminPaymentsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to capture payment")
+        throw new Error(messageFromApiBody(payload, "Failed to capture payment"))
       }
       const transferSucceeded = payload.data?.transferSucceeded === true
       if (!transferSucceeded) {
-        toast.error(payload.msg || "Payment captured, but the professional transfer failed. Retry is available.")
+        toast.error(messageFromApiBody(payload, "Payment captured, but the professional transfer failed. Retry is available."))
         fetchPayments()
         return
       }
-      toast.success(payload.msg || "Payment captured and transferred successfully")
+      toast.success(messageFromApiBody(payload, "Payment captured and transferred successfully"))
       setCaptureDialogPayment(null)
       fetchPayments()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to capture payment")
+      toast.error(getErrorMessage(err, "Failed to capture payment"))
     } finally {
       setIsCapturing(false)
     }
@@ -304,14 +306,14 @@ export default function AdminPaymentsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || failureLabel)
+        throw new Error(messageFromApiBody(payload, failureLabel))
       }
       const artifactNumber =
         action === "invoice" ? payload.data?.invoiceNumber : payload.data?.creditNoteNumber
       toast.success(`${successLabel} ${artifactNumber || ""}`.trim())
       await fetchPayments()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : failureLabel)
+      toast.error(getErrorMessage(err, failureLabel))
     } finally {
       finishInvoiceAction(payment._id)
     }
@@ -375,12 +377,12 @@ export default function AdminPaymentsPage() {
         },
       )
       const payload = await response.json()
-      if (!response.ok || !payload.success) throw new Error(payload.msg || "Failed to create manual artifact")
+      if (!response.ok || !payload.success) throw new Error(messageFromApiBody(payload, "Failed to create manual artifact"))
       toast.success(`${manualDocumentType === "invoice" ? "Invoice" : "Credit note"} ${payload.data?.invoiceNumber || "created"}`)
       setManualDialogPayment(null)
       await fetchPayments()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create manual artifact")
+      toast.error(getErrorMessage(err, "Failed to create manual artifact"))
     } finally {
       setIsCreatingManualArtifact(false)
     }
@@ -425,13 +427,13 @@ export default function AdminPaymentsPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to process refund")
+        throw new Error(messageFromApiBody(payload, "Failed to process refund"))
       }
-      toast.success(payload.msg || "Refund processed successfully")
+      toast.success(messageFromApiBody(payload, "Refund processed successfully"))
       setRefundDialogPayment(null)
       fetchPayments()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to process refund")
+      toast.error(getErrorMessage(err, "Failed to process refund"))
     } finally {
       setIsRefunding(false)
     }

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +26,7 @@ const STRENGTH_KEYS = ['veryWeak', 'weak', 'fair', 'good', 'strong', 'veryStrong
 
 export default function PasswordChange({ className }: PasswordChangeProps) {
   const t = useTranslations("account")
+  const getErrorText = useErrorMessage()
   const [loading, setLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -107,15 +109,15 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
         setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' })
         setErrors({ currentPassword: '', newPassword: '', confirmPassword: '' })
       } else {
-        if (data.msg?.includes('Current password is incorrect')) {
+        if (typeof data.msg === 'string' && data.msg.includes('Current password is incorrect')) {
           setErrors(prev => ({ ...prev, currentPassword: t('passwordChange.currentIncorrect') }))
         } else {
-          toast.error(data.msg || t('passwordChange.failed'))
+          toast.error(getErrorText(data, t('passwordChange.failed')))
         }
       }
     } catch (error) {
       console.error('Error changing password:', error)
-      toast.error(t('passwordChange.failed'))
+      toast.error(getErrorText(error, t('passwordChange.failed')))
     } finally {
       setLoading(false)
     }

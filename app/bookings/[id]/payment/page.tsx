@@ -15,6 +15,7 @@ import type { ProjectDto } from '@/types/project';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { format, addDays, parseISO, startOfDay, isWeekend as dateFnsIsWeekend, eachDayOfInterval } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
@@ -203,6 +204,7 @@ export default function BookingPaymentPage() {
   const params = useParams();
   const bookingId = params.id as string;
   const t = useTranslations('checkout');
+  const getErrorText = useErrorMessage();
   const { formatMoney, currency: displayCurrency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
   const { commissionPercent, customerPrice, loyalty, loyaltyLoaded, originalPrice } = useCustomerPricing();
@@ -640,10 +642,10 @@ export default function BookingPaymentPage() {
         setScheduleStep(false);
         await ensurePaymentIntent(bookingId, updatedBooking);
       } else {
-        setError(data?.error?.message || t('paymentPage.validation.saveScheduleFailed'));
+        setError(getErrorText(data, t('paymentPage.validation.saveScheduleFailed')));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('paymentPage.validation.saveScheduleFailed'));
+      setError(getErrorText(err, t('paymentPage.validation.saveScheduleFailed')));
     } finally {
       setSavingSchedule(false);
     }
@@ -697,11 +699,12 @@ export default function BookingPaymentPage() {
         return { ok: false, errorMessage: t('paymentPage.errors.noClientSecret'), booking: nextBooking };
       }
 
-      const message =
-        (data?.error?.message || data?.msg) ??
-        (response.status === 404
+      const message = getErrorText(
+        data ?? { status: response.status },
+        response.status === 404
           ? t('paymentPage.errors.endpointUnavailable')
-          : t('paymentPage.errors.initPaymentFailed'));
+          : t('paymentPage.errors.initPaymentFailed'),
+      );
       console.error('[PAYMENT PAGE] ensurePaymentIntent failed:', message);
       if (!suppressGlobalError) {
         setError(message);
@@ -709,7 +712,7 @@ export default function BookingPaymentPage() {
       restoreClientSecretOnError();
       return { ok: false, errorMessage: message };
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('paymentPage.errors.initPaymentFailed');
+      const message = getErrorText(err, t('paymentPage.errors.initPaymentFailed'));
       console.error('[PAYMENT PAGE] ensurePaymentIntent error:', err);
       if (!suppressGlobalError) {
         setError(message);
@@ -719,7 +722,7 @@ export default function BookingPaymentPage() {
     } finally {
       setInitializingPayment(false);
     }
-  }, [API_URL, router, t]);
+  }, [API_URL, getErrorText, router, t]);
 
   const handleApplyDiscountCode = useCallback(async () => {
     const code = discountCodeInput.trim().toUpperCase();
@@ -732,7 +735,7 @@ export default function BookingPaymentPage() {
     setCodeError(null);
     const result = await ensurePaymentIntent(bookingId, booking, code);
     if (!result.ok) {
-      setCodeError(result.errorMessage || t('paymentPage.discount.unableToApply'));
+      setCodeError(getErrorText(result.errorMessage, t('paymentPage.discount.unableToApply')));
       setApplyingCode(false);
       return;
     }
@@ -747,7 +750,7 @@ export default function BookingPaymentPage() {
       setCodeError(t('paymentPage.discount.notApplicable'));
     }
     setApplyingCode(false);
-  }, [bookingId, booking, discountCodeInput, ensurePaymentIntent, t]);
+  }, [bookingId, booking, discountCodeInput, ensurePaymentIntent, getErrorText, t]);
 
   const handleRemoveDiscountCode = useCallback(async () => {
     if (!bookingId) return;
@@ -755,10 +758,10 @@ export default function BookingPaymentPage() {
     setCodeError(null);
     const result = await ensurePaymentIntent(bookingId, booking, '');
     if (!result.ok) {
-      setCodeError(result.errorMessage || t('paymentPage.discount.unableToRemove'));
+      setCodeError(getErrorText(result.errorMessage, t('paymentPage.discount.unableToRemove')));
     }
     setApplyingCode(false);
-  }, [bookingId, booking, ensurePaymentIntent, t]);
+  }, [bookingId, booking, ensurePaymentIntent, getErrorText, t]);
 
   const loadBookingPaymentDetails = useCallback(async (currentBookingId: string, attempt = 1) => {
     if (retryTimeoutRef.current) {
@@ -835,10 +838,10 @@ export default function BookingPaymentPage() {
 
     } catch (err) {
       console.error('Error loading payment details:', err);
-      setError(err instanceof Error ? err.message : t('paymentPage.errors.loadPaymentDetailsFailed'));
+      setError(getErrorText(err, t('paymentPage.errors.loadPaymentDetailsFailed')));
       setLoading(false);
     }
-  }, [API_URL, ensurePaymentIntent, loadScheduleProposals, loadAvailability, loadWorkingHours, router, t]);
+  }, [API_URL, ensurePaymentIntent, getErrorText, loadScheduleProposals, loadAvailability, loadWorkingHours, router, t]);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -891,14 +894,14 @@ export default function BookingPaymentPage() {
         if (data.error?.code === 'payment_intent_unexpected_state') {
           router.push(`/bookings/${bookingId}/payment/success`);
         } else {
-          setError(data.error?.message || t('paymentPage.errors.paymentConfirmFailed'));
+          setError(getErrorText(data, t('paymentPage.errors.paymentConfirmFailed')));
           setLoading(false);
         }
       }
 
     } catch (err) {
       console.error('Error confirming payment:', err);
-      setError(err instanceof Error ? err.message : t('paymentPage.errors.confirmPaymentFailed'));
+      setError(getErrorText(err, t('paymentPage.errors.confirmPaymentFailed')));
       setLoading(false);
     } finally {
       setConfirming(false);
@@ -906,7 +909,7 @@ export default function BookingPaymentPage() {
   };
 
   const handlePaymentError = (errorMessage: string) => {
-    setError(errorMessage);
+    setError(getErrorText(errorMessage, t('paymentPage.errors.confirmPaymentFailed')));
     // Optionally redirect to error page
     // router.push(`/bookings/${bookingId}/payment/failed?error=${encodeURIComponent(errorMessage)}`);
   };
@@ -997,7 +1000,7 @@ export default function BookingPaymentPage() {
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('paymentPage.errorTitle')}</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p role="alert" className="text-gray-600 mb-6">{error}</p>
             <button
               type="button"
               onClick={() => router.push('/bookings')}

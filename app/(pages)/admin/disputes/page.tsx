@@ -1,5 +1,7 @@
 'use client'
 
+import { messageFromApiBody } from '@/lib/apiErrors';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -306,7 +308,7 @@ export default function AdminDisputesPage() {
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || json?.error?.message || 'Failed to start support chat')
+        toast.error(messageFromApiBody(json, 'Failed to start support chat'))
         return
       }
       const conversationId = json?.data?.conversationId
@@ -334,7 +336,7 @@ export default function AdminDisputesPage() {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${bookingId}/conversation`)
       const json = await res.json()
       if (!res.ok || !json?.success || !json?.data?.conversationId) {
-        toast.error(json?.msg || 'No customer↔professional chat found for this booking')
+        toast.error(messageFromApiBody(json, 'No customer↔professional chat found for this booking'))
         return
       }
       window.open(`/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`, '_blank', 'noopener')
@@ -416,7 +418,7 @@ export default function AdminDisputesPage() {
         )
         const json = await res.json()
         if (!res.ok || !json?.success) {
-          toast.error(json?.msg || 'Failed to resolve warranty claim')
+          toast.error(messageFromApiBody(json, 'Failed to resolve warranty claim'))
           return
         }
         toast.success(successMessage)
@@ -432,7 +434,7 @@ export default function AdminDisputesPage() {
           )
           const json = await res.json()
           if (!res.ok || !json?.success) {
-            toast.error(json?.msg || 'Failed to deny refund request')
+            toast.error(messageFromApiBody(json, 'Failed to deny refund request'))
             return
           }
           toast.success('Refund request denied')
@@ -470,7 +472,7 @@ export default function AdminDisputesPage() {
           )
           const json = await res.json()
           if (!res.ok || !json?.success) {
-            toast.error(json?.msg || 'Failed to approve refund request')
+            toast.error(messageFromApiBody(json, 'Failed to approve refund request'))
             return
           }
           const refunded = typeof json?.data?.refundAmount === 'number' ? json.data.refundAmount : undefined
@@ -511,7 +513,7 @@ export default function AdminDisputesPage() {
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.error?.message || 'Failed to upload attachment(s)')
+        toast.error(messageFromApiBody(json, 'Failed to upload attachment(s)'))
         return
       }
       const urls: string[] = (json.data?.files || []).map((f: { url: string }) => f.url)
@@ -573,8 +575,7 @@ export default function AdminDisputesPage() {
       const json = await res.json()
       if (!res.ok || !json?.success) {
         console.error(json?.error)
-        const code = json?.error?.code ? ` [${json.error.code}]` : ''
-        toast.error(`${json?.error?.message || 'Failed to resolve dispute'}${code}`)
+        toast.error(messageFromApiBody(json, 'Failed to resolve dispute'))
         return
       }
       toast.success('Dispute resolved successfully')

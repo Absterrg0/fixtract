@@ -1,5 +1,7 @@
 'use client'
 
+import { apiErrorFromBody } from '@/lib/apiErrors'
+
 import { Suspense } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
@@ -7,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -571,6 +574,7 @@ export default function BookingDetailPage() {
 function BookingDetailContent() {
   const { user, isAuthenticated, loading } = useAuth()
   const t = useTranslations("bookings")
+  const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const { formatMoney } = useCurrency()
   const formatDate = (value: string | number | Date) => new Date(value).toLocaleDateString(intl)
@@ -735,9 +739,9 @@ function BookingDetailContent() {
             headers
           }
         )
-        const { data, rawText } = await parseResponseBody<BookingApiResponse>(response)
+        const { data } = await parseResponseBody<BookingApiResponse>(response)
         if (!data || !isBookingApiResponse(data)) {
-          setError(rawText || t("errors.unexpectedResponse", { status: response.status }))
+          setError(getErrorText({ status: response.status }, t("errors.loadBooking")))
           return
         }
 
@@ -745,7 +749,7 @@ function BookingDetailContent() {
           setBooking(data.booking)
           if (data.viewerRole) setViewerRole(data.viewerRole)
         } else {
-          setError(data.msg || t("errors.loadBooking"))
+          setError(getErrorText(data, t("errors.loadBooking")))
         }
       } catch (err) {
         console.error("Failed to fetch booking:", err instanceof Error ? err.message : err)
@@ -978,13 +982,13 @@ function BookingDetailContent() {
         }
       )
 
-      const { data, rawText } = await parseResponseBody<{ success?: boolean; data?: { url?: string }; message?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; data?: { url?: string }; message?: string }>(response)
 
       if (response.ok && data?.success && data.data?.url) {
         handleAnswerChange(index, data.data.url)
         toast.success(t("toasts.attachmentUploaded"))
       } else {
-        toast.error(data?.message || rawText || t("toasts.attachmentUploadFailedStatus", { status: response.status }))
+        toast.error(getErrorText(data, t("toasts.attachmentUploadFailed")))
       }
     } catch (err) {
       console.error("Failed to upload post-booking attachment:", err)
@@ -1048,13 +1052,13 @@ function BookingDetailContent() {
         body: form,
       }
     )
-    const { data, rawText } = await parseResponseBody<{
+    const { data } = await parseResponseBody<{
       success?: boolean
       msg?: string
     }>(response)
 
     if (!response.ok || !data?.success) {
-      throw new Error(data?.msg || rawText || t("warranty.errors.uploadEvidence"))
+      throw new Error(getErrorText(data, t("warranty.errors.uploadEvidence")))
     }
   }
 
@@ -1110,14 +1114,14 @@ function BookingDetailContent() {
           }),
         }
       )
-      const { data, rawText } = await parseResponseBody<{
+      const { data } = await parseResponseBody<{
         success?: boolean
         msg?: string
         claim?: WarrantyClaimDetail
       }>(response)
 
       if (!response.ok || !data?.success || !data.claim) {
-        toast.error(data?.msg || rawText || t("warranty.toasts.openFailed"))
+        toast.error(getErrorText(data, t("warranty.toasts.openFailed")))
         return
       }
 
@@ -1152,7 +1156,7 @@ function BookingDetailContent() {
       setShowWarrantyClaimDialog(false)
     } catch (err) {
       console.error("Failed to open warranty claim:", err)
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.openFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.openFailed")))
     } finally {
       setOpeningWarrantyClaim(false)
     }
@@ -1172,13 +1176,13 @@ function BookingDetailContent() {
         body: JSON.stringify(body || {}),
       }
     )
-    const { data, rawText } = await parseResponseBody<{
+    const { data } = await parseResponseBody<{
       success?: boolean
       msg?: string
       claim?: WarrantyClaimDetail
     }>(response)
     if (!response.ok || !data?.success) {
-      throw new Error(data?.msg || rawText || t("warranty.toasts.actionFailed"))
+      throw new Error(getErrorText(data, t("warranty.toasts.actionFailed")))
     }
     return data
   }
@@ -1204,7 +1208,7 @@ function BookingDetailContent() {
       setWarrantyProposalSchedule("")
       toast.success(t("warranty.toasts.proposalSent"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.proposalFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.proposalFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1226,7 +1230,7 @@ function BookingDetailContent() {
       setDeclineReason("")
       toast.success(t("warranty.toasts.declined"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.declineFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.declineFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1240,7 +1244,7 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       toast.success(action === "accept" ? t("warranty.toasts.proposalAccepted") : t("warranty.toasts.proposalDeclined"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.proposalResponseFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.proposalResponseFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1268,7 +1272,7 @@ function BookingDetailContent() {
         })
         const uploadPayload = await uploadResponse.json()
         if (!uploadResponse.ok || !uploadPayload.success) {
-          throw new Error(uploadPayload.msg || t("warranty.toasts.resolutionUploadFailed"))
+          throw apiErrorFromBody(uploadPayload, t("warranty.toasts.resolutionUploadFailed"), { status: uploadResponse.status })
         }
         uploadedFiles = Array.isArray(uploadPayload.data?.files) ? uploadPayload.data.files : []
         attachmentUrls = uploadedFiles
@@ -1307,7 +1311,7 @@ function BookingDetailContent() {
       setWarrantyResolutionFiles([])
       toast.success(t("warranty.toasts.markedResolved"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.markResolvedFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.markResolvedFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1321,7 +1325,7 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       toast.success(t("warranty.toasts.closed"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.confirmResolutionFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.confirmResolutionFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1337,7 +1341,7 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       toast.success(t("warranty.toasts.escalated"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("warranty.toasts.escalateFailed"))
+      toast.error(getErrorText(err, t("warranty.toasts.escalateFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1393,7 +1397,7 @@ function BookingDetailContent() {
         }
       )
 
-      const { data, rawText } = await parseResponseBody<{ success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }>(response)
 
       if (response.ok && data?.success) {
         toast.success(t("postBooking.submitted"))
@@ -1401,7 +1405,7 @@ function BookingDetailContent() {
         // Update the local booking state
         setBooking(prev => prev ? { ...prev, postBookingData: data.postBookingData || answers } : prev)
       } else {
-        toast.error(data?.msg || rawText || t("postBooking.submitFailedStatus", { status: response.status }))
+        toast.error(getErrorText(data, t("postBooking.submitFailed")))
       }
     } catch (err) {
       console.error("Failed to submit post-booking answers:", err)
@@ -1471,7 +1475,7 @@ function BookingDetailContent() {
         }
         await refreshBooking()
       } else {
-        toast.error(data?.error?.message || t("rfq.toasts.respondFailed"))
+        toast.error(getErrorText(data, t("rfq.toasts.respondFailed")))
       }
     } catch (err) {
       console.error("Error responding to RFQ:", err)
@@ -1502,7 +1506,7 @@ function BookingDetailContent() {
         }
         await refreshBooking()
       } else {
-        toast.error(data?.msg || t("vat.toasts.updateFailed"))
+        toast.error(getErrorText(data, t("vat.toasts.updateFailed")))
       }
     } catch (error) {
       console.error("Proceed at standard VAT error:", error)
@@ -1551,7 +1555,7 @@ function BookingDetailContent() {
           await refreshBooking()
         }
       } else {
-        toast.error(data?.error?.message || t("quotation.toasts.respondFailed"))
+        toast.error(getErrorText(data, t("quotation.toasts.respondFailed")))
       }
     } catch (err) {
       console.error("Error responding to quotation:", err)
@@ -1578,7 +1582,7 @@ function BookingDetailContent() {
       if (response.ok && data?.success) {
         router.push(`/bookings/${bookingId}/payment`)
       } else {
-        toast.error(data?.error?.message || t("milestones.toasts.createPaymentFailed"))
+        toast.error(getErrorText(data, t("milestones.toasts.createPaymentFailed")))
       }
     } catch (err) {
       console.error("Error paying milestone:", err)
@@ -1613,7 +1617,7 @@ function BookingDetailContent() {
         toast.success(action === "start" ? t("milestones.toasts.started") : t("milestones.toasts.completed"))
         await refreshBooking()
       } else {
-        toast.error(data?.error?.message || t("milestones.toasts.updateFailed"))
+        toast.error(getErrorText(data, t("milestones.toasts.updateFailed")))
       }
     } catch (err) {
       console.error("Error updating milestone:", err)
@@ -1694,14 +1698,14 @@ function BookingDetailContent() {
         }
       )
 
-      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
 
       if (response.ok && data?.success) {
         toast.success(t("quote.toasts.submitted"))
         setShowQuoteForm(false)
         await refreshBooking()
       } else {
-        toast.error(data?.msg || rawText || t("quote.toasts.submitFailedStatus", { status: response.status }))
+        toast.error(getErrorText(data, t("quote.toasts.submitFailed")))
       }
     } catch (err) {
       console.error("Error submitting quote:", err instanceof Error ? err.message : err)
@@ -1732,7 +1736,7 @@ function BookingDetailContent() {
         }
       )
 
-      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
 
       if (response.ok && data?.success) {
         if (action === "accept") {
@@ -1743,9 +1747,9 @@ function BookingDetailContent() {
           await refreshBooking()
         }
       } else {
-        toast.error(data?.msg || rawText || (action === "accept"
-          ? t("quote.toasts.acceptFailedStatus", { status: response.status })
-          : t("quote.toasts.rejectFailedStatus", { status: response.status })))
+        toast.error(getErrorText(data, (action === "accept"
+          ? t("quote.toasts.acceptFailed")
+          : t("quote.toasts.rejectFailed"))))
       }
     } catch (err) {
       console.error(`Error ${action}ing quote:`, err instanceof Error ? err.message : err)
@@ -1779,7 +1783,7 @@ function BookingDetailContent() {
         }
       )
 
-      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+      const { data } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
 
       if (response.ok && data?.success) {
         if (newStatus === "completed") {
@@ -1791,7 +1795,7 @@ function BookingDetailContent() {
         }
         await refreshBooking()
       } else {
-        toast.error(data?.msg || rawText || t("status.toasts.updateFailedStatus", { status: response.status }))
+        toast.error(getErrorText(data, t("status.toasts.updateFailed")))
       }
     } catch (err) {
       console.error("Failed to update booking status:", err instanceof Error ? err.message : err)
@@ -1856,7 +1860,7 @@ function BookingDetailContent() {
         setCompletionExtraCosts([])
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || t("completion.toasts.failed"))
+        toast.error(getErrorText(result, t("completion.toasts.failed")))
       }
     } catch (err) {
       console.error("Failed to confirm completion:", err)
@@ -1908,7 +1912,7 @@ function BookingDetailContent() {
         return true
       }
 
-      toast.error(result.error?.message || t("extraCosts.toasts.initFailed"))
+      toast.error(getErrorText(result, t("extraCosts.toasts.initFailed")))
       return false
     } catch (err) {
       console.error("Failed to initialize extra cost payment:", err)
@@ -1951,7 +1955,7 @@ function BookingDetailContent() {
         return false
       }
 
-      toast.error(result.error?.message || t("completion.toasts.failed"))
+      toast.error(getErrorText(result, t("completion.toasts.failed")))
       return false
     } catch (err) {
       console.error("Failed to confirm completion:", err)
@@ -1973,7 +1977,7 @@ function BookingDetailContent() {
   }
 
   const handleExtraCostPaymentError = (message: string) => {
-    toast.error(message)
+    toast.error(getErrorText(message, t("completion.toasts.failed")))
   }
 
   const handleCustomerDispute = async () => {
@@ -1995,7 +1999,7 @@ function BookingDetailContent() {
         )
         const uploadPayload = await uploadResponse.json()
         if (!uploadResponse.ok || !uploadPayload.success) {
-          toast.error(uploadPayload?.error?.message || t("dispute.toasts.uploadFailed"))
+          toast.error(getErrorText(uploadPayload, t("dispute.toasts.uploadFailed")))
           setSubmittingDispute(false)
           return
         }
@@ -2027,7 +2031,7 @@ function BookingDetailContent() {
         setDisputeStep('warning')
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || t("dispute.toasts.raiseFailed"))
+        toast.error(getErrorText(result, t("dispute.toasts.raiseFailed")))
       }
     } catch (err) {
       console.error("Failed to raise dispute:", err)
@@ -2080,7 +2084,7 @@ function BookingDetailContent() {
         setCancelEvidence((prev) => [...prev, ...urls].slice(0, 10))
         toast.success(t("toasts.attachmentUploaded"))
       } else {
-        toast.error(result?.error?.message || t("toasts.attachmentUploadFailedShort"))
+        toast.error(getErrorText(result, t("toasts.attachmentUploadFailedShort")))
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
@@ -2130,7 +2134,7 @@ function BookingDetailContent() {
         resetCancelForm()
         await refreshBooking()
       } else {
-        toast.error(result.msg || result.error?.message || t("cancel.toasts.failed"))
+        toast.error(getErrorText(result, t("cancel.toasts.failed")))
       }
     } catch (err) {
       console.error("Failed to cancel booking:", err)
@@ -2179,7 +2183,7 @@ function BookingDetailContent() {
         setRescheduleDescription("")
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || t("reschedule.toasts.requestFailed"))
+        toast.error(getErrorText(result, t("reschedule.toasts.requestFailed")))
       }
     } catch (err) {
       console.error("Failed to request rescheduling:", err)
@@ -2216,7 +2220,7 @@ function BookingDetailContent() {
         setRescheduleRefundNote("")
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || t("reschedule.toasts.respondFailed"))
+        toast.error(getErrorText(result, t("reschedule.toasts.respondFailed")))
       }
     } catch (err) {
       console.error("Failed to respond to reschedule:", err)

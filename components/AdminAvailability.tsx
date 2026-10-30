@@ -1,4 +1,5 @@
 'use client'
+import { getErrorMessage } from "@/lib/apiErrors"
 
 import { useEffect, useMemo, useState } from 'react'
 import { fromZonedTime } from 'date-fns-tz'
@@ -78,7 +79,7 @@ export default function AdminAvailability() {
         setBlockedRanges((json.data?.blockedRanges || []).map((range: BlockedRange) => ({ startDate: range.startDate ? safeFormatInTimeZone(new Date(range.startDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', endDate: range.endDate ? safeFormatInTimeZone(new Date(range.endDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', reason: range.reason || '' })).filter((range: BlockedRange) => range.startDate && range.endDate))
         setTimeZone(normalizedTimeZone)
       })
-      .catch((error: unknown) => { setLoadError(true); toast.error(error instanceof Error ? error.message : 'Failed to load availability') })
+      .catch((error: unknown) => { setLoadError(true); toast.error(getErrorMessage(error, 'Failed to load availability')) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -129,7 +130,7 @@ export default function AdminAvailability() {
       await checkAuth()
       toast.success('Availability saved')
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save availability')
+      toast.error(getErrorMessage(error, 'Failed to save availability'))
     } finally {
       setSaving(false)
     }

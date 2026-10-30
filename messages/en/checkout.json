@@ -137,6 +137,7 @@
     "title": "Payment Authorized!",
     "body": "Your payment has been successfully authorized. The funds are securely held until the service is completed.",
     "bookingDetails": "Booking Details",
+    "detailsUnavailable": "Your payment went through, but we couldn't load the booking details. Refresh the page to see them.",
     "bookingNumberLabel": "Booking #:",
     "amountAuthorized": "Amount Authorized:",
     "statusLabel": "Status:",
@@ -219,6 +220,7 @@
   "availabilityPicker": {
     "placeholder": "Select date",
     "loading": "Loading availability...",
+    "loadFailed": "Could not load availability. Dates may be inaccurate.",
     "weekdays": {
       "mon": "Mo",
       "tue": "Tu",

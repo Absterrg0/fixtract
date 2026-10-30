@@ -6,8 +6,12 @@
     "dev": "node scripts/generate-fcm-sw-config.mjs && next dev",
     "build": "node scripts/generate-fcm-sw-config.mjs && next build",
     "start": "next start",
+    "test": "node --test tests/apiErrors.test.mjs",
     "lint": "next lint",
     "i18n:check": "node scripts/check-i18n.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
