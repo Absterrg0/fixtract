@@ -179,9 +179,9 @@
         "manage": "Manage Content"
       },
       "supportTickets": {
-        "title": "Professional Support Tickets",
-        "description": "Review support tickets and meeting requests from professionals (not live chat)",
-        "manage": "Open Support Tickets"
+        "title": "Support requests",
+        "description": "Tickets and meetings from customers and professionals",
+        "manage": "Open support"
       },
       "supportChat": {
         "title": "Support Chat",
@@ -321,7 +321,7 @@
     "disputes": "Disputes",
     "cancellationRequests": "Cancellation Requests",
     "warrantyClaims": "Warranty Claims",
-    "supportTickets": "Support Tickets",
+    "supportTickets": "Support requests",
     "discountCodes": "Discount Codes",
     "referrals": "Referrals",
     "backlinks": "Backlinks",

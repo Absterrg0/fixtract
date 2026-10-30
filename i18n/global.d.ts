@@ -26,6 +26,7 @@ import projectWizardSteps from "../messages/en/projectWizardSteps.json";
 import proTools from "../messages/en/proTools.json";
 import calendar from "../messages/en/calendar.json";
 import chat from "../messages/en/chat.json";
+import support from "../messages/en/support.json";
 
 /**
  * Type-safety for next-intl: message trees are typed from the English files,
@@ -63,6 +64,7 @@ declare module "next-intl" {
       proTools: typeof proTools;
       calendar: typeof calendar;
       chat: typeof chat;
+      support: typeof support;
     };
   }
 }

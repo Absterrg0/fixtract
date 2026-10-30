@@ -178,6 +178,8 @@
     "workingHoursTitle": "Personal Working Hours",
     "workingHoursDescription": "Read-only. Working hours follow the company schedule.",
     "calendarWindow": "Calendar window: {days} - {start} to {end}",
+    "supportEventsFailed": "Support meetings could not be loaded, so this calendar may be incomplete.",
+    "supportEventsRetry": "Retry support meetings",
     "bookingTitle": "Booking",
     "bufferTitle": "Buffer",
     "personalBlockTitle": "Personal Block"

@@ -16,6 +16,8 @@ import ChatThread from "@/components/chat/ChatThread";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatInfoPanel from "@/components/chat/ChatInfoPanel";
 import { useChatPolling } from "@/hooks/useChatPolling";
+import { useSupportChatAccess } from "@/hooks/useSupportChatAccess";
+import { supportChatBlockReasonFromError } from "@/lib/support/chatAccess";
 import {
   createOrGetConversation,
   fetchConversationMessages,
@@ -222,6 +224,23 @@ function ChatContent() {
     : null;
   const isSupportConversation = selectedConversation?.type === "support";
   const isSupportClosed = isSupportConversation && selectedConversation?.status === "archived";
+  const supportChatAccess = useSupportChatAccess(
+    Boolean(isSupportConversation),
+    selectedConversationId,
+  );
+  const isSupportReadOnly =
+    Boolean(isSupportConversation) &&
+    (isSupportClosed || !supportChatAccess.canWrite);
+  const supportReadOnlyNotice =
+    supportChatAccess.reason === "role"
+      ? t("page.supportReadOnlyRole")
+      : supportChatAccess.reason === "disabled"
+        ? t("page.supportReadOnlyDisabled")
+        : supportChatAccess.reason === "checking"
+          ? t("page.supportReadOnlyChecking")
+          : supportChatAccess.reason === "unavailable"
+            ? t("page.supportReadOnlyUnavailable")
+            : t("page.supportReadOnlyBlocked");
   const otherName = isSupportConversation
     ? t("common.fixtractSupport")
     : otherParticipant?.username || otherParticipant?.name || t("common.conversation");
@@ -401,6 +420,10 @@ function ChatContent() {
       toast.error(t("toasts.selectConversationFirst"));
       return;
     }
+    if (isSupportReadOnly) {
+      toast.error(supportReadOnlyNotice);
+      return;
+    }
 
     setSending(true);
     try {
@@ -437,6 +460,11 @@ function ChatContent() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (sendError) {
+      if (isSupportConversation && supportChatBlockReasonFromError(sendError)) {
+        supportChatAccess.blockFor(sendError);
+        toast.error(t("page.supportReadOnlyBlocked"));
+        throw new Error(t("page.supportReadOnlyBlocked"));
+      }
       const message = getErrorText(sendError, t("toasts.sendMessageFailed"));
       toast.error(message);
       throw new Error(message);
@@ -890,13 +918,35 @@ function ChatContent() {
                 {t("page.supportClosed")}
               </div>
             ) : (
-              <ChatComposer
-                disabled={!selectedConversationId}
-                sending={sending}
-                replyTo={replyToMessage}
-                onCancelReply={() => setReplyToMessage(null)}
-                onSend={handleSend}
-              />
+              <>
+                {isSupportReadOnly && isSupportConversation ? (
+                  <div
+                    role="status"
+                    className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/70 px-4 py-3 text-center text-sm text-indigo-800 sm:flex-row sm:items-center sm:justify-center"
+                  >
+                    <span>{supportReadOnlyNotice}</span>
+                    {(supportChatAccess.reason === "disabled" ||
+                      supportChatAccess.reason === "unavailable" ||
+                      supportChatAccess.reason === "blocked") && (
+                      <button
+                        type="button"
+                        onClick={() => supportChatAccess.reload()}
+                        className="mx-auto inline-flex min-h-8 items-center rounded-lg border border-indigo-300 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:mx-0"
+                      >
+                        {t("page.supportReadOnlyRetry")}
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+                {/* Kept mounted while read-only so drafts/attachments survive. */}
+                <ChatComposer
+                  disabled={!selectedConversationId || isSupportReadOnly}
+                  sending={sending}
+                  replyTo={replyToMessage}
+                  onCancelReply={() => setReplyToMessage(null)}
+                  onSend={handleSend}
+                />
+              </>
             )}
           </>
         ) : (

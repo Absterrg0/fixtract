@@ -1,6 +1,6 @@
 'use client'
 
-import { messageFromApiBody } from '@/lib/apiErrors';
+import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors';
 
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
-import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
+import { ArrowLeft, Settings, Save, Loader2, Euro, LifeBuoy } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatVATNumber, validateVATFormat } from "@/lib/vatValidation"
@@ -17,6 +17,7 @@ import { getAuthToken } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { invalidateClientRequest } from "@/lib/clientRequestCache"
+import { adminSetSupportChatEnabled } from "@/lib/support"
 
 const normalizeCountryCode = (value?: string): string => {
   const trimmed = (value || '').trim()
@@ -74,6 +75,7 @@ type PlatformSettingsFormState = {
   companyVatNumber: string
   companyAddress: CompanyAddressState
   eInvoicing: EInvoicingState
+  supportChatEnabled: boolean
   lastModified: string | null
   version: number
 }
@@ -83,6 +85,7 @@ const hydrateSettingsResponse = (data: {
   companyVatNumber?: string
   companyAddress?: Partial<CompanyAddressState>
   eInvoicing?: EInvoicingResponse
+  supportChatEnabled?: boolean
   lastModified?: string
   version?: number
 }): PlatformSettingsFormState => ({
@@ -101,6 +104,7 @@ const hydrateSettingsResponse = (data: {
     odooCompanyId: typeof data.eInvoicing?.odooCompanyId === 'number' ? data.eInvoicing.odooCompanyId : null,
     odooRecordPayments: data.eInvoicing?.odooRecordPayments === true,
   },
+  supportChatEnabled: data.supportChatEnabled === true,
   lastModified: data.lastModified ?? null,
   version: data.version ?? 0,
 })
@@ -112,6 +116,7 @@ const applySettingsState = (
     setCompanyVatNumber: (value: string) => void
     setCompanyAddress: (value: CompanyAddressState) => void
     setEInvoicing: (value: EInvoicingState) => void
+    setSupportChatEnabled: (value: boolean) => void
     setLastModified: (value: string | null) => void
     setVersion: (value: number) => void
   }
@@ -120,6 +125,7 @@ const applySettingsState = (
   setters.setCompanyVatNumber(settings.companyVatNumber)
   setters.setCompanyAddress(settings.companyAddress)
   setters.setEInvoicing(settings.eInvoicing)
+  setters.setSupportChatEnabled(settings.supportChatEnabled)
   setters.setLastModified(settings.lastModified)
   setters.setVersion(settings.version)
 }
@@ -134,6 +140,8 @@ export default function AdminSettingsPage() {
   const [companyVatNumber, setCompanyVatNumber] = useState('')
   const [companyAddress, setCompanyAddress] = useState({ ...DEFAULT_COMPANY_ADDRESS })
   const [eInvoicing, setEInvoicing] = useState({ ...DEFAULT_E_INVOICING })
+  const [supportChatEnabled, setSupportChatEnabled] = useState(false)
+  const [supportChatSaving, setSupportChatSaving] = useState(false)
   const [odooCompanies, setOdooCompanies] = useState<OdooCompany[]>([])
   const [odooCompaniesError, setOdooCompaniesError] = useState<string | null>(null)
   const [lastModified, setLastModified] = useState<string | null>(null)
@@ -160,6 +168,7 @@ export default function AdminSettingsPage() {
           setCompanyVatNumber,
           setCompanyAddress,
           setEInvoicing,
+          setSupportChatEnabled,
           setLastModified,
           setVersion,
         })
@@ -209,6 +218,23 @@ export default function AdminSettingsPage() {
   }, [isOdooProvider, isAuthenticated, user])
 
   const selectedOdooCompany = odooCompanies.find((company) => company.id === eInvoicing.odooCompanyId)
+
+  const handleSupportChatToggle = async (enabled: boolean) => {
+    if (supportChatSaving) return
+    const previous = supportChatEnabled
+    setSupportChatEnabled(enabled)
+    setSupportChatSaving(true)
+    try {
+      const data = await adminSetSupportChatEnabled(enabled)
+      setSupportChatEnabled(data.supportChatEnabled)
+      toast.success(data.supportChatEnabled ? 'Support chat enabled' : 'Support chat disabled')
+    } catch (error) {
+      setSupportChatEnabled(previous)
+      toast.error(getErrorMessage(error, 'Failed to update the support chat setting'))
+    } finally {
+      setSupportChatSaving(false)
+    }
+  }
 
   const handleSave = async () => {
     if (commissionPercent < 0 || commissionPercent > 100) {
@@ -280,6 +306,7 @@ export default function AdminSettingsPage() {
           setCompanyVatNumber,
           setCompanyAddress,
           setEInvoicing,
+          setSupportChatEnabled,
           setLastModified,
           setVersion,
         })
@@ -589,6 +616,46 @@ export default function AdminSettingsPage() {
                   )}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && user?.adminRole === 'super' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LifeBuoy className="h-5 w-5" />
+                Support chat
+              </CardTitle>
+              <CardDescription>
+                Enable the support chat tab for professional accounts. Customers keep ticket support.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={supportChatEnabled}
+                  onChange={(event) => void handleSupportChatToggle(event.target.checked)}
+                  disabled={supportChatSaving}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                />
+                <span>
+                  <span className="font-medium text-gray-900">Enable professional support chat</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    The server enforces this for new support chats and messages. Historical conversations remain readable.
+                  </span>
+                </span>
+              </label>
+              <p className="text-xs text-gray-500">
+                This is a superadmin-only setting and is off by default.
+              </p>
+              {supportChatSaving && (
+                <p className="flex items-center gap-2 text-xs text-gray-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Saving…
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

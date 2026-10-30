@@ -6,6 +6,8 @@
     "companyClosure": "Bedrijfssluiting",
     "holiday": "Feestdag",
     "available": "Beschikbaar",
+    "supportMeeting": "Supportafspraak",
+    "supportMeetingPending": "Supportafspraak (in afwachting)",
     "allDay": "24/7"
   },
   "weeklyAvailabilityCalendar": {
@@ -28,6 +30,8 @@
       "workingDay": "Werkdag"
     },
     "dateStatus": "{date} - {status}",
-    "tip": "Tip: klik één keer om een periode te starten en klik op een andere dag om die te beëindigen. Klik twee keer op dezelfde dag om een blokkade van één dag in of uit te schakelen."
+    "tip": "Tip: klik één keer om een periode te starten en klik op een andere dag om die te beëindigen. Klik twee keer op dezelfde dag om een blokkade van één dag in of uit te schakelen.",
+    "supportMeetingsLoadFailed": "Supportafspraken konden niet worden geladen, dus deze kalender is mogelijk onvolledig.",
+    "retry": "Opnieuw proberen"
   }
 }

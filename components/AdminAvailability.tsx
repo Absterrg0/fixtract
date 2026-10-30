@@ -1,11 +1,16 @@
 'use client'
 import { getErrorMessage } from "@/lib/apiErrors"
+import { adminListSupportAvailability } from "@/lib/support"
+import { supportCalendarDisplayEvents, supportCalendarWarning } from "@/lib/support/calendar"
+import { supportDateWindow } from "@/lib/support/dates"
 
 import { useEffect, useMemo, useState } from 'react'
 import { fromZonedTime } from 'date-fns-tz'
 import { CalendarDays, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLocale, useTranslations } from 'next-intl'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAdminAccess } from '@/hooks/useAdminAccess'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,10 +51,16 @@ function mergeLoadedAvailability(loaded: unknown): Record<DayKey, DaySchedule> {
 }
 
 export default function AdminAvailability() {
-  const { checkAuth } = useAuth()
+  const t = useTranslations('calendar')
+  const locale = useLocale()
+  const { checkAuth, user } = useAuth()
+  const { supportAccess } = useAdminAccess()
   const [availability, setAvailability] = useState(defaultAvailability)
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [blockedRanges, setBlockedRanges] = useState<BlockedRange[]>([])
+  const [supportMeetingEvents, setSupportMeetingEvents] = useState<CalendarEvent[]>([])
+  const [supportEventsError, setSupportEventsError] = useState<string | null>(null)
+  const [supportEventsReloadKey, setSupportEventsReloadKey] = useState(0)
   const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
   const [newDate, setNewDate] = useState<BlockedDate>({ date: '', reason: '' })
   const [newRange, setNewRange] = useState<BlockedRange>({ startDate: '', endDate: '', reason: '' })
@@ -65,6 +76,58 @@ export default function AdminAvailability() {
     () => buildBlockedCalendarEvents(blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone),
     [blockedDates, blockedRanges, resolvedTimeZone, viewerTimeZone],
   )
+  const calendarEvents = useMemo<CalendarEvent[]>(
+    () => [...blockedEvents, ...supportMeetingEvents],
+    [blockedEvents, supportMeetingEvents],
+  )
+
+  useEffect(() => {
+    if (user?.role !== 'admin' || !user._id || supportAccess === 'none') {
+      setSupportMeetingEvents([])
+      setSupportEventsError(null)
+      return
+    }
+    const controller = new AbortController()
+    const load = async () => {
+      // Canonical admin support-calendar feed from the availability endpoint.
+      // It includes pending and confirmed meetings (and legacy rows) and never
+      // exposes notes. Only this admin's assigned meetings belong on this view.
+      setSupportEventsError(null)
+      const range = supportDateWindow(resolvedTimeZone, 31)
+      const result = await adminListSupportAvailability({
+        from: range.from,
+        to: range.to,
+        timeZone: resolvedTimeZone,
+        signal: controller.signal,
+      })
+      const events: CalendarEvent[] = []
+      for (const event of supportCalendarDisplayEvents(result.events, {
+        assignedAdminId: user._id,
+      })) {
+        const start = new Date(event.start)
+        const end = new Date(event.end)
+        events.push({
+          id: `support-meeting-${event.id}`,
+          type: 'support',
+          title: event.pending ? t('eventTitles.supportMeetingPending') : t('eventTitles.supportMeeting'),
+          start,
+          end,
+          meta: { ticketNumber: event.ticketNumber || undefined, note: event.subject },
+          readOnly: true,
+        })
+      }
+      if (!controller.signal.aborted) setSupportMeetingEvents(events)
+    }
+    void load().catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      // Do not silently hide busy support time: state that the feed failed and
+      // offer a retry next to the calendar.
+      setSupportMeetingEvents([])
+      setSupportEventsError(getErrorMessage(error, ''))
+    })
+    return () => controller.abort()
+    // Titles are translated while loading, so a locale switch must refetch.
+  }, [user?.role, user?._id, resolvedTimeZone, supportEventsReloadKey, supportAccess, locale, t])
 
   useEffect(() => {
     void fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, { credentials: 'include' })
@@ -146,7 +209,7 @@ export default function AdminAvailability() {
         <WeeklyAvailabilityCalendar
           title="Weekly availability calendar"
           description={isTwentyFourSeven ? 'No weekly schedule is configured, so this admin is available 24/7.' : `Displayed in ${resolvedTimeZone}. Use the arrows to check any week — the schedule repeats weekly.`}
-          events={blockedEvents}
+          events={calendarEvents}
           weeklySchedule={availability}
           weeklyScheduleTimeZone={resolvedTimeZone}
           dayStart="00:00"
@@ -154,6 +217,26 @@ export default function AdminAvailability() {
           visibleDays={[0, 1, 2, 3, 4, 5, 6]}
           timeZone={resolvedTimeZone}
         />
+        {supportEventsError ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          >
+            <span>
+              {supportCalendarWarning(
+                t('availabilityCalendar.supportMeetingsLoadFailed'),
+                supportEventsError,
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSupportEventsReloadKey((value) => value + 1)}
+              className="rounded-md border border-amber-300 bg-white px-2 py-1 font-medium"
+            >
+              {t('availabilityCalendar.retry')}
+            </button>
+          </div>
+        ) : null}
         <div className="space-y-2">
           {DAYS.map(({ key, label }) => {
             const day = availability[key]

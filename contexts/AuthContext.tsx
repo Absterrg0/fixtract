@@ -20,7 +20,9 @@ interface User {
   role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
   adminRole?: AdminRole
   adminPermissions?: AdminPermission[]
+  adminAccessLevels?: Partial<Record<string, 'write' | 'read' | 'none'>>
   adminPermissionLevels?: Partial<Record<string, 'write' | 'read' | 'none'>>
+  supportAccessLevel?: 'write' | 'read' | 'none'
   isEmailVerified: boolean
   isPhoneVerified: boolean
   vatNumber?: string
@@ -203,6 +205,7 @@ const ROUTE_CONFIG = {
     '/profile',
     '/bookings',
     '/chat',
+    '/support',
   ],
 
   // Role-based routes - require specific roles
@@ -558,9 +561,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Handle protected routes (require authentication)
     if (isProtectedRoute(pathname) || isRoleRestrictedRoute) {
       if (!isUserAuthenticated) {
-        // Store the intended path for redirect after login
-        sessionStorage.setItem('redirectAfterAuth', pathname)
-        router.replace('/login')
+        // Store the intended path for redirect after login, including query
+        // deep links (for example /support?tab=meeting).
+        const intendedPath = `${pathname}${typeof window !== 'undefined' ? window.location.search : ''}`
+        sessionStorage.setItem('redirectAfterAuth', intendedPath)
+        router.replace(`/login?redirect=${encodeURIComponent(intendedPath)}`)
         return
       }
 
