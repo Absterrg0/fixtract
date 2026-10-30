@@ -186,17 +186,16 @@ export default function ProfessionalsAdminPage() {
       if (!response.ok || data?.success === false) {
         throw apiErrorFromBody(data, 'Failed to load professionals', { status: response.status })
       }
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return false;
       setProfessionals(data.data.professionals)
       return true
     } catch (error) {
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return false;
       console.error('Failed to fetch professionals:', error)
       setLoadError(getErrorMessage(error, 'Failed to load professionals'))
       return false
     } finally {
-      if (requestId !== requestIdRef.current) return;
-      setIsLoading(false)
+      if (requestId === requestIdRef.current) setIsLoading(false)
     }
   }, [status])
 
