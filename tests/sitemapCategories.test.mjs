@@ -11,6 +11,12 @@ test('sitemap lists the live catalog category pages the navigation links to', ()
   assert.match(sitemap, /\/categories\/\$\{encodeURIComponent\(cat\.slug\)\}/)
 })
 
+test('F11: static marketing category slugs (which redirect) are not advertised', () => {
+  assert.doesNotMatch(sitemap, /\/categories\/\$\{cat\.slug\}/)
+  assert.equal((sitemap.match(/\/categories\//g) || []).length, 1, 'only the live-catalog category loop emits category URLs')
+  assert.match(sitemap, /\/services\/\$\{svc\.id\}/, 'static service landing pages stay listed')
+})
+
 test('robots keeps public pages open to every crawler (Google and AI) and points at the sitemap', () => {
   assert.match(robots, /userAgent: "\*",\s*allow: "\/"/)
   assert.doesNotMatch(robots, /GPTBot|ClaudeBot|PerplexityBot|Google-Extended|CCBot/, 'no AI crawler is singled out for blocking')

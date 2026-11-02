@@ -48,13 +48,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: r.priority,
   }));
 
+  // Static service landing pages resolve server-side from data/content. The
+  // static marketing *category* slugs are not listed: they are not category
+  // pages (the category route 308-redirects them to /services).
   for (const cat of serviceCategories) {
-    entries.push({
-      url: `${base}/categories/${cat.slug}`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.6,
-    });
     for (const sub of cat.subCategories || []) {
       for (const svc of sub.services || []) {
         entries.push({
