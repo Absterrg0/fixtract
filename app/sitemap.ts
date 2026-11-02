@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/seo/site";
 import { publicListSitemapEntries, type CmsContentType } from "@/lib/cms";
 import { serviceCategories } from "@/data/content";
+import { getServiceCategories } from "@/lib/server/serviceCategories";
 
 export const revalidate = 3600;
 
@@ -64,6 +65,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         });
       }
     }
+  }
+
+  // Live catalog categories are what the navigation links to; list them so
+  // crawlers discover the real category pages. The built-in outage fallback
+  // is skipped so a backend hiccup never publishes guessed URLs.
+  for (const cat of await getServiceCategories()) {
+    if (cat.isFallback) continue;
+    entries.push({
+      url: `${base}/categories/${encodeURIComponent(cat.slug)}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    });
   }
 
   try {
