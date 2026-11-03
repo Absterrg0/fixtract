@@ -39,6 +39,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import ProjectCard from "@/components/dashboard/ProjectCard"
+import { priceTokenKey } from "@/lib/dashboardOverview"
 
 interface Project {
   _id: string
@@ -215,14 +216,21 @@ export default function ManageProjectsPage() {
   const formatProjectStatusLabel = (status: Project['status']) =>
     t(`manage.statusLabels.${formatProjectStatusKey(status)}`)
 
+  // Recorded identifiers (fixed, unit, m2, hour…) render translated; free-text
+  // option names and display-ready units stay as recorded.
+  const localizePriceToken = (value: string) => {
+    const key = priceTokenKey(value)
+    return key ? t(key) : value
+  }
+
   const cardLabels = {
     service: (value: string) => t('manage.card.service', { value }),
     areaOfWork: (value: string) => t('manage.card.areaOfWork', { value }),
     team: (value: string) => t('manage.card.team', { value }),
     minMembers: (count: number, overlap: string) => t('manage.card.minMembers', { count, overlap }),
-    priceModel: (value: string) => t('manage.card.priceModel', { value }),
+    priceModel: (value: string) => t('manage.card.priceModel', { value: localizePriceToken(value) }),
     startingFrom: (model: string, unit: string | null, price: string) =>
-      t('manage.card.startingFrom', { model, unit: unit ? `/${unit}` : '', price }),
+      t('manage.card.startingFrom', { model: localizePriceToken(model), unit: unit ? `/${localizePriceToken(unit)}` : '', price }),
     noRecordedPrice: t('manage.card.noRecordedPrice'),
     repeatDiscount: (percent: number) => t('manage.card.repeatDiscount', { percent }),
     counts: (subprojects: number, options: number, conditions: number) =>
@@ -963,7 +971,7 @@ export default function ManageProjectsPage() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
           <Card>
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">

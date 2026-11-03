@@ -2,7 +2,7 @@
 
 import { apiErrorFromBody } from '@/lib/apiErrors';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -197,7 +197,11 @@ function CustomerPaymentsView() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Only the latest request may write rows/summary/pages: a slower response
+  // for an older filter must never overwrite the current query's results.
+  const latestPaymentsRequest = useRef(0);
   const fetchPayments = useCallback(async () => {
+    const requestId = ++latestPaymentsRequest.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -216,14 +220,16 @@ function CustomerPaymentsView() {
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t('payments.loadFailed'), { status: response.status });
       }
+      if (requestId !== latestPaymentsRequest.current) return;
 
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
+      if (requestId !== latestPaymentsRequest.current) return;
       setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestPaymentsRequest.current) setIsLoading(false);
     }
   }, [API_URL, getErrorText, page, statusFilter, debouncedSearch, serviceFilter, t]);
 
@@ -455,10 +461,15 @@ function ProfessionalPaymentsView() {
   const [txPage, setTxPage] = useState(1);
   const [txTotalPages, setTxTotalPages] = useState(1);
   const [txStatusFilter, setTxStatusFilter] = useState('all');
-  const [txLoading, setTxLoading] = useState(false);
+  // Starts true: until the first response arrives nothing is known, so the
+  // "no transactions yet" state must not render.
+  const [txLoading, setTxLoading] = useState(true);
   const [txSearch, setTxSearch] = useState('');
   const [txDebouncedSearch, setTxDebouncedSearch] = useState('');
   const [txError, setTxError] = useState(false);
+  // Bumped by the error's Refresh button to repeat the request that failed
+  // (same page, status and search).
+  const [txReloadKey, setTxReloadKey] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => { setTxDebouncedSearch(txSearch); setTxPage(1); }, 300);
     return () => clearTimeout(timer);
@@ -482,16 +493,18 @@ function ProfessionalPaymentsView() {
       });
 
       if (!transactionsResponse.ok) throw new Error("Transactions request failed");
-      if (transactionsResponse.ok) {
-        const transactionsData = await transactionsResponse.json();
-        if (transactionsData.success) {
-          setRecentTransactions(transactionsData.data);
-          setTxTotalPages(transactionsData.pagination?.totalPages || 1);
-          setTxPage(transactionsData.pagination?.page || page);
-        }
-      }
+      const transactionsData = await transactionsResponse.json();
+      if (signal.aborted) return;
+      // An ok response with success:false is a failure too: the catch clears
+      // the previous rows so the table never shows another filter's results.
+      if (!transactionsData.success) throw new Error("Transactions request failed");
+      setRecentTransactions(transactionsData.data);
+      setTxTotalPages(transactionsData.pagination?.totalPages || 1);
+      setTxPage(transactionsData.pagination?.page || page);
     } catch {
-      if (!signal.aborted) { setRecentTransactions([]); setTxError(true); }
+      // Keep the requested page (Refresh repeats it) but drop the rows and the
+      // page count: both belonged to an earlier query.
+      if (!signal.aborted) { setRecentTransactions([]); setTxTotalPages(1); setTxError(true); }
     } finally {
       if (!signal.aborted) setTxLoading(false);
     }
@@ -501,7 +514,7 @@ function ProfessionalPaymentsView() {
     const controller = new AbortController();
     void loadTransactions(txPage, txStatusFilter, txDebouncedSearch, controller.signal);
     return () => controller.abort();
-  }, [txPage, txStatusFilter, txDebouncedSearch, loadTransactions]);
+  }, [txPage, txStatusFilter, txDebouncedSearch, txReloadKey, loadTransactions]);
 
   const loadPaymentData = async () => {
     setCheckingAccount(true);
@@ -754,8 +767,30 @@ function ProfessionalPaymentsView() {
               </Select>
             </div>
 
-            {txError && <p role="alert" className="text-sm text-red-600">{t('payments.loadFailed')}</p>}
-            {recentTransactions.length === 0 ? (
+            {txError && (
+              <div role="alert" className="flex items-center justify-between gap-3 text-sm text-red-600">
+                <p>{t('payments.loadFailed')}</p>
+                <Button variant="outline" size="sm" onClick={() => setTxReloadKey(k => k + 1)}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> {t('common.refresh')}
+                </Button>
+              </div>
+            )}
+            {txError ? null : txLoading ? (
+              // The previous query's rows are hidden until this one answers.
+              <div className="space-y-3 py-2" aria-busy="true">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex gap-4 py-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : recentTransactions.length === 0 && (txStatusFilter !== 'all' || txDebouncedSearch.trim()) ? (
+              // A filter or search matched nothing; the professional may still have transactions.
+              <p className="py-8 text-center text-sm text-gray-500">{t('payments.table.empty')}</p>
+            ) : recentTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="mx-auto h-12 w-12 text-gray-400" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -818,7 +853,7 @@ function ProfessionalPaymentsView() {
                 </table>
               </div>
             )}
-            {txTotalPages > 1 && (
+            {!txError && !txLoading && txTotalPages > 1 && (
               <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
                 <span>{t('common.pageOf', { page: txPage, total: txTotalPages })}</span>
                 <div className="space-x-2">

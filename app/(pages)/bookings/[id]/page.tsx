@@ -43,7 +43,9 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, resolveQuotationVersionFromUrl, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
@@ -1706,33 +1708,22 @@ function BookingDetailContent() {
   // Pinned quotation version from shared-table links (`#quotation-v{N}`).
   // The pinned version is display-only; accept/pay authority stays on the
   // current valid version below.
-  const [pinnedQuoteVersion, setPinnedQuoteVersion] = useState<number | null>(null)
-  useEffect(() => {
-    const readHash = () => {
-      if (typeof window === "undefined") return
-      setPinnedQuoteVersion(
-        resolveQuotationVersionFromUrl(window.location.hash, null, null),
-      )
-    }
-    readHash()
-    window.addEventListener("hashchange", readHash)
-    return () => window.removeEventListener("hashchange", readHash)
-  }, [bookingId])
-  const effectiveQuoteVersion = pinnedQuoteVersion ?? booking?.currentQuoteVersion
-  const currentVersion = hasQuotationVersions
-    ? (booking?.quoteVersions?.find(v => v.version === effectiveQuoteVersion)
-      ?? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
-      ?? null)
-    : null
-  // A pinned hash version is display-only; professional edit flows and
-  // milestone arithmetic must use the authoritative current version.
-  const authoritativeVersion = hasQuotationVersions
-    ? (booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion) ?? currentVersion)
-    : null
-  const viewingPinnedVersion = hasQuotationVersions
-    && pinnedQuoteVersion != null
-    && pinnedQuoteVersion !== booking?.currentQuoteVersion
-    && currentVersion?.version === pinnedQuoteVersion
+  // Back/Forward between version entries, and version picks inside the
+  // Quotation tab (announced as hashchange), keep the pinned version in sync.
+  const [pinnedQuoteVersion, setPinnedQuoteVersion] = usePinnedQuoteVersion(bookingId)
+  // `currentVersion` is the displayed (possibly pinned) version. A pinned hash
+  // version is display-only; professional edit flows and milestone arithmetic
+  // use the authoritative current version, which never falls back to the
+  // pinned one (missing/unmatched currentQuoteVersion -> latest by number).
+  const {
+    displayedVersion: currentVersion,
+    authoritativeVersion,
+    viewingPinnedVersion,
+  } = resolveQuoteVersionView({
+    quoteVersions: booking?.quoteVersions,
+    currentQuoteVersion: booking?.currentQuoteVersion,
+    pinnedVersion: pinnedQuoteVersion,
+  })
   const currentVersionQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
       currentVersion,
@@ -3443,7 +3434,7 @@ function BookingDetailContent() {
                         )}
                       </div>
                     )}
-                    {viewingPinnedVersion && (
+                    {viewingPinnedVersion && pinnedQuoteVersion != null && (
                       <p className="text-xs text-indigo-700">
                         {t("quotation.viewingPinnedVersion", { version: pinnedQuoteVersion })}
                         {" · "}
@@ -3453,51 +3444,41 @@ function BookingDetailContent() {
                       </p>
                     )}
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        onClick={() => handleRespondToQuotation('accepted')}
-                        disabled={respondingToQuotation || viewingPinnedVersion}
-                        className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
-                        size="sm"
-                      >
-                        {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                        {t("quotation.acceptAndPay")}
-                      </Button>
-                      <Button
-                        onClick={() => setShowQuoteRejectionModal(true)}
-                        disabled={respondingToQuotation || viewingPinnedVersion}
-                        variant="outline"
-                        className="h-auto min-w-0 w-full whitespace-normal border-red-300 py-2 text-center text-red-600 hover:bg-red-50 sm:flex-1"
-                        size="sm"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        {t("quotation.rejectWithReason")}
-                      </Button>
-                    </div>
+                    <QuoteResponseActions
+                      responding={respondingToQuotation}
+                      viewingPinnedVersion={viewingPinnedVersion}
+                      onAccept={() => handleRespondToQuotation('accepted')}
+                      onReject={() => setShowQuoteRejectionModal(true)}
+                      acceptLabel={t("quotation.acceptAndPay")}
+                      rejectLabel={t("quotation.rejectWithReason")}
+                    />
                   </div>
                 )}
 
                 {/* Professional: View submitted quotation (read-only) + Edit button */}
-                {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && currentVersion && !showQuotationWizard && (
+                {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && authoritativeVersion && !showQuotationWizard && (
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: authoritativeVersion?.version ?? currentVersion.version })}</h3>
+                      {/* Summary and Edit share the authoritative version, so a
+                          pinned #quotation-vN hash never mixes another version's
+                          terms under this heading. */}
+                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: authoritativeVersion.version })}</h3>
                       <Button onClick={() => setShowQuotationWizard(true)} variant="outline" size="sm">
                         <FileText className="h-4 w-4 mr-2" />
                         {t("quotation.edit")}
                       </Button>
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
-                      <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {currentVersion.scope}</p>
+                      <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {authoritativeVersion.scope}</p>
                       <p>
                         <span className="text-gray-500">{t("quotation.netTotal")}</span>{' '}
-                        <strong>{formatMoney(currentVersion.totalAmount, currentVersion.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(authoritativeVersion.totalAmount, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
                       <p>
                         <span className="text-gray-500">{t("quotation.totalInclVatLabel")}</span>{' '}
-                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, currentVersion.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(calculateQuoteVersionVatTotals(authoritativeVersion).total, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
-                      <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(currentVersion?.validUntil, intl, t("common.notAvailable"))}</p>
+                      <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(authoritativeVersion.validUntil, intl, t("common.notAvailable"))}</p>
                       <p className="text-xs text-gray-500">{t("quotation.waitingForCustomer")}</p>
                     </div>
                   </div>

@@ -27,8 +27,10 @@ import {
   CUSTOMER_BOOKING_STATUSES,
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
+  customerBookingSummaryCounts,
+  statusFilterScope,
 } from "@/lib/dashboardBookingHelpers"
-import { facetCount } from "@/lib/dashboardOverview"
+import { readFacetCounts, readServerCount, statusOptionCount } from "@/lib/dashboardOverview"
 import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
@@ -97,29 +99,56 @@ const CUSTOMER_ACTION_ITEM_KEYS = {
 
 const PAGE_SIZE = 20
 
-const QUOTE_MODE_STATUSES = Array.from(CUSTOMER_QUOTE_STATUSES).join(",")
-const BOOKING_MODE_STATUSES = Array.from(CUSTOMER_BOOKING_STATUSES).join(",")
-
 interface ListState {
   items: Booking[]
   page: number
   totalPages: number
-  total: number
-  statusCounts: Record<string, number>
-  serviceCounts: Record<string, number>
+  /**
+   * Server totals and facets. null = unknown: not loaded yet, the last
+   * request failed, or a successful response did not include (or sent a
+   * malformed) total or facet. Unknown is shown as "—" (or no count), never
+   * as 0, and never as the previous query's numbers.
+   */
+  total: number | null
+  statusCounts: Record<string, number> | null
+  serviceCounts: Record<string, number> | null
+  /** Service filter options; kept on failure so the filter stays usable. */
   distinctServices: string[]
+  /** Filters (not the page) of the query the totals and counts belong to. */
+  queryKey: string | null
+  /** Status filter of that query: the scope the summary figures are summed over. */
+  queryStatus: string | null
   loading: boolean
   error: string | null
 }
+
+/**
+ * A failed list keeps its requested page (Retry repeats it) and its service
+ * options, but its rows, pager, total and facet counts become unknown: they
+ * described an earlier query, not the one that failed.
+ */
+const failedListState = (prev: ListState, page: number, error: string): ListState => ({
+  ...prev,
+  items: [],
+  page,
+  totalPages: 1,
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
+  loading: false,
+  error,
+})
 
 const initialListState: ListState = {
   items: [],
   page: 1,
   totalPages: 1,
-  total: 0,
-  statusCounts: {},
-  serviceCounts: {},
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
   distinctServices: [],
+  queryKey: null,
+  queryStatus: null,
   loading: false,
   error: null,
 }
@@ -142,6 +171,7 @@ export default function CustomerDashboard() {
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [actionBookings, setActionBookings] = useState<ActionNeededBooking[]>([])
   const [actionsLoading, setActionsLoading] = useState(false)
+  const [actionsError, setActionsError] = useState<string | null>(null)
 
   // Filter state
   const [quoteSearch, setQuoteSearch] = useState("")
@@ -156,7 +186,9 @@ export default function CustomerDashboard() {
   const [addressFilter, setAddressFilter] = useState("")
   const [debouncedAddressFilter, setDebouncedAddressFilter] = useState("")
 
-  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
+  // Selected quotes keep their row data, so a comparison can span pages even
+  // though each page load replaces quotes.items.
+  const [selectedQuotes, setSelectedQuotes] = useState<Map<string, Booking>>(new Map())
   const [showComparison, setShowComparison] = useState(false)
   const comparisonCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -180,12 +212,21 @@ export default function CustomerDashboard() {
     return () => clearTimeout(timer)
   }, [addressFilter])
 
+  // Per-list request counters: only the newest request for a list may write
+  // its rows, counts and pager (older, slower responses are discarded).
+  const latestListRequest = useRef({ quotes: 0, bookings: 0 })
   const fetchList = useCallback(async (
     kind: "quotes" | "bookings",
     opts: { page: number; status: string; service: string; search: string; address: string },
   ) => {
     const setState = kind === "quotes" ? setQuotes : setBookings
-    setState((prev) => ({ ...prev, loading: true, error: null }))
+    const requestId = ++latestListRequest.current[kind]
+    const queryKey = JSON.stringify([opts.status, opts.service, opts.search.trim(), kind === "bookings" ? opts.address.trim() : ""])
+    // Another page of the same query keeps its totals while loading; a new
+    // filter makes them unknown until its own response arrives.
+    setState((prev) => (prev.queryKey === queryKey
+      ? { ...prev, loading: true, error: null }
+      : { ...prev, total: null, statusCounts: null, serviceCounts: null, queryKey, queryStatus: opts.status, loading: true, error: null }))
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -195,13 +236,10 @@ export default function CustomerDashboard() {
         page: String(opts.page),
         limit: String(PAGE_SIZE),
       })
-      const modeStatuses = kind === "quotes" ? QUOTE_MODE_STATUSES : BOOKING_MODE_STATUSES
-      if (opts.status !== "all") {
-        // The awaiting-payment alias covers both accepted states server-side.
-        params.append("status", opts.status === "payment_pending" ? "quote_accepted,payment_pending" : opts.status)
-      } else {
-        params.append("status", modeStatuses)
-      }
+      // "all" queries the tab's mode set; the awaiting-payment alias covers
+      // both accepted states server-side.
+      const modeStatuses = kind === "quotes" ? CUSTOMER_QUOTE_STATUSES : CUSTOMER_BOOKING_STATUSES
+      params.append("status", statusFilterScope(opts.status, modeStatuses).join(","))
       if (opts.service !== "all") params.append("service", opts.service)
       if (opts.search.trim()) params.append("search", opts.search.trim())
       if (kind === "bookings" && opts.address.trim().length >= 2) params.append("addressFilter", opts.address.trim())
@@ -211,23 +249,30 @@ export default function CustomerDashboard() {
         { credentials: "include", headers }
       )
       const data = await response.json()
+      if (requestId !== latestListRequest.current[kind]) return
       if (!response.ok || !data.success) {
-        setState((prev) => ({ ...prev, loading: false, error: getErrorText(data, t("customerDashboard.loadFailed")) }))
+        // Remember the page that failed, so Retry repeats that request.
+        setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
         return
       }
       setState({
         items: Array.isArray(data.bookings) ? data.bookings : [],
         page: data.pagination?.page ?? opts.page,
         totalPages: data.pagination?.totalPages ?? 1,
-        total: data.pagination?.total ?? 0,
-        statusCounts: data.statusCounts || {},
-        serviceCounts: data.serviceCounts || {},
+        // A successful but partial response keeps what it lacks unknown:
+        // only an explicit finite count is a count (0 included).
+        total: readServerCount(data.pagination?.total),
+        statusCounts: readFacetCounts(data.statusCounts),
+        serviceCounts: readFacetCounts(data.serviceCounts),
         distinctServices: Array.isArray(data.distinctServices) ? data.distinctServices : [],
+        queryKey,
+        queryStatus: opts.status,
         loading: false,
         error: null,
       })
     } catch (err) {
-      setState((prev) => ({ ...prev, loading: false, error: getErrorText(err, t("customerDashboard.loadFailed")) }))
+      if (requestId !== latestListRequest.current[kind]) return
+      setState((prev) => failedListState(prev, opts.page, getErrorText(err, t("customerDashboard.loadFailed"))))
     }
   }, [getErrorText, t])
 
@@ -246,6 +291,7 @@ export default function CustomerDashboard() {
   useEffect(() => {
     const loadActions = async () => {
       setActionsLoading(true)
+      setActionsError(null)
       try {
         const token = getAuthToken()
         const headers: Record<string, string> = {}
@@ -261,13 +307,17 @@ export default function CustomerDashboard() {
         )
         const payload = await response.json()
         if (response.ok && payload.success) setActionBookings(payload.bookings || [])
-      } catch {
-        // non-blocking
+        else setActionsError(getErrorText(payload, t("customerDashboard.loadFailed")))
+      } catch (err) {
+        // A failed load must not masquerade as "no actions".
+        setActionsError(getErrorText(err, t("customerDashboard.loadFailed")))
       } finally {
         setActionsLoading(false)
       }
     }
     void loadActions()
+    // Mount-only load; the message helpers only format a failure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -304,33 +354,34 @@ export default function CustomerDashboard() {
     }, [])
   }, [warrantyClaims, t])
 
-  const toggleQuoteSelection = useCallback((bookingId: string) => {
-    setSelectedQuoteIds(prev => {
-      const next = new Set(prev)
-      if (next.has(bookingId)) next.delete(bookingId)
-      else next.add(bookingId)
+  const toggleQuoteSelection = useCallback((booking: Booking) => {
+    setSelectedQuotes(prev => {
+      const next = new Map(prev)
+      if (next.has(booking._id)) next.delete(booking._id)
+      else next.set(booking._id, booking)
       return next
     })
   }, [])
 
   const comparisonBookings = useMemo(
-    () => quotes.items
-      .filter(b => selectedQuoteIds.has(b._id))
+    () => Array.from(selectedQuotes.values())
       .map((b) => ({
         _id: b._id,
         professional: b.professional ?? undefined,
         rfqData: b.rfqData,
         status: b.status,
       })),
-    [quotes.items, selectedQuoteIds]
+    [selectedQuotes]
   )
   const visibleSelectedCount = comparisonBookings.length
 
-  // Summary stats from server totals (never page-derived).
-  const totalCompleted = facetCount(bookings.statusCounts, "completed")
-  const totalClosed = totalCompleted
-    + facetCount(bookings.statusCounts, "cancelled")
-    + facetCount(bookings.statusCounts, "refunded")
+  // Summary stats from server totals (never page-derived). A figure whose
+  // inputs are unknown (first load, a failed list, or a response without
+  // them) shows "—", not 0. Active and completed are summed over the same
+  // status scope as the filtered total.
+  const UNKNOWN = "—"
+  const { active: summaryActive, completed: totalCompleted } = customerBookingSummaryCounts(bookings.statusCounts, bookings.queryStatus)
+  const summaryTotal = bookings.total != null && quotes.total != null ? bookings.total + quotes.total : null
 
   const gotoQuotesPage = (page: number) => {
     void fetchList("quotes", { page, status: quoteStatusFilter, service: quoteServiceFilter, search: debouncedQuoteSearch, address: "" })
@@ -350,7 +401,7 @@ export default function CustomerDashboard() {
     setServiceFilter: (v: string) => void,
     placeholder: string,
     services: string[],
-    counts: Record<string, number>,
+    counts: Record<string, number> | null,
   ) => (
     <div className="flex flex-col sm:flex-row gap-4 mb-4">
       <div className="relative flex-1">
@@ -375,7 +426,9 @@ export default function CustomerDashboard() {
               <SelectItem key={opt.id} value={opt.id}>
                 {opt.id === "all"
                   ? t("common.all")
-                  : `${opt.id === "payment_pending" ? statusLabel("payment_pending") : statusLabel(opt.id)} (${facetCount(counts, opt.id)}${opt.id === "payment_pending" ? `+${facetCount(counts, "quote_accepted")}` : ""})`}
+                  : counts
+                    ? `${statusLabel(opt.id)} (${statusOptionCount(counts, opt.id)})`
+                    : statusLabel(opt.id)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -393,6 +446,17 @@ export default function CustomerDashboard() {
         </Select>
       </div>
     </div>
+  )
+
+  // A failed list keeps its filters mounted (rendered by the caller) and offers
+  // a retry of the same page; stale rows from the previous query stay hidden.
+  const renderListError = (message: string, retry: () => void) => (
+    <Card className="bg-rose-50 border border-rose-100">
+      <CardContent role="alert" className="flex flex-col gap-3 py-4 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+        <span>{message}</span>
+        <Button variant="outline" size="sm" onClick={retry}>{t("common.retry")}</Button>
+      </CardContent>
+    </Card>
   )
 
   const renderPager = (state: ListState, gotoPage: (page: number) => void) => (
@@ -514,10 +578,10 @@ export default function CustomerDashboard() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="my_bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myBookings")} {bookings.total > 0 && `(${bookings.total})`}
+                {t("customerDashboard.tabs.myBookings")} {bookings.total != null && bookings.total > 0 && `(${bookings.total})`}
               </TabsTrigger>
               <TabsTrigger value="my_quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myQuotes")} {quotes.total > 0 && `(${quotes.total})`}
+                {t("customerDashboard.tabs.myQuotes")} {quotes.total != null && quotes.total > 0 && `(${quotes.total})`}
               </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 {t("customerDashboard.tabs.actionNeeded")} {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
@@ -536,7 +600,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.totalHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-indigo-900">{bookings.total + quotes.total}</p>
+                  <p className="text-3xl font-semibold text-indigo-900">{summaryTotal ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -549,7 +613,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.activeHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-emerald-900">{bookings.total - totalClosed}</p>
+                  <p className="text-3xl font-semibold text-emerald-900">{summaryActive ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -562,19 +626,13 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.completedHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
+                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
             </div>
 
             {bookings.loading && renderLoadingSkeleton()}
-            {bookings.error && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookings.error}</CardContent>
-              </Card>
-            )}
-            {!bookings.error && (
-              <>
+            <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
@@ -607,8 +665,9 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
-                {!bookings.loading && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
-                {!bookings.loading && bookings.items.length > 0 && (
+                {!bookings.loading && bookings.error && renderListError(bookings.error, () => gotoBookingsPage(bookings.page))}
+                {!bookings.loading && !bookings.error && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
+                {!bookings.loading && !bookings.error && bookings.items.length > 0 && (
                   <>
                     <SharedBookingsTable
                       bookings={bookings.items}
@@ -626,19 +685,12 @@ export default function CustomerDashboard() {
                     {renderPager(bookings, gotoBookingsPage)}
                   </>
                 )}
-              </>
-            )}
+            </>
           </TabsContent>
 
           <TabsContent value="my_quotes" className="space-y-6">
             {quotes.loading && renderLoadingSkeleton()}
-            {!quotes.loading && quotes.error && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{quotes.error}</CardContent>
-              </Card>
-            )}
-            {!quotes.error && (
-              <>
+            <>
                 {renderSearchFilters(
                   quoteSearch, setQuoteSearch, debouncedQuoteSearch,
                   quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
@@ -647,7 +699,8 @@ export default function CustomerDashboard() {
                   quotes.distinctServices,
                   quotes.statusCounts,
                 )}
-                {!quotes.loading && visibleSelectedCount >= 2 && (
+                {!quotes.loading && quotes.error && renderListError(quotes.error, () => gotoQuotesPage(quotes.page))}
+                {!quotes.loading && !quotes.error && visibleSelectedCount >= 2 && (
                   <div className="flex items-center gap-3">
                     <Button
                       size="sm"
@@ -659,15 +712,15 @@ export default function CustomerDashboard() {
                     </Button>
                   </div>
                 )}
-                {!quotes.loading && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
-                {!quotes.loading && quotes.items.length > 0 && (
+                {!quotes.loading && !quotes.error && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
+                {!quotes.loading && !quotes.error && quotes.items.length > 0 && (
                   <>
                     <div className="mb-2 flex flex-wrap gap-2">
                       {quotes.items.map((booking) => (
                         <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
                           <Checkbox
-                            checked={selectedQuoteIds.has(booking._id)}
-                            onCheckedChange={() => toggleQuoteSelection(booking._id)}
+                            checked={selectedQuotes.has(booking._id)}
+                            onCheckedChange={() => toggleQuoteSelection(booking)}
                             aria-label={t("customerDashboard.selectForComparison", { title: booking.bookingNumber || booking._id })}
                           />
                           {booking.bookingNumber || booking._id}
@@ -687,14 +740,18 @@ export default function CustomerDashboard() {
                     {renderPager(quotes, gotoQuotesPage)}
                   </>
                 )}
-              </>
-            )}
+            </>
           </TabsContent>
 
           {/* Action Needed Tab */}
           <TabsContent value="action_needed" className="space-y-4">
             {actionsLoading && renderLoadingSkeleton()}
-            {!actionsLoading && actionItems.length === 0 && warrantyActionItems.length === 0 && (
+            {!actionsLoading && actionsError && (
+              <Card className="border-rose-200 bg-rose-50">
+                <CardContent role="alert" className="py-4 text-sm text-rose-700">{actionsError}</CardContent>
+              </Card>
+            )}
+            {!actionsLoading && !actionsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
               renderEmptyState(t("customerDashboard.emptyActions"))
             )}
             {!actionsLoading && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
@@ -723,7 +780,7 @@ export default function CustomerDashboard() {
               setShowComparison(open)
               if (!open) {
                 if (comparisonCleanupRef.current) clearTimeout(comparisonCleanupRef.current)
-                comparisonCleanupRef.current = setTimeout(() => setSelectedQuoteIds(new Set()), 300)
+                comparisonCleanupRef.current = setTimeout(() => setSelectedQuotes(new Map()), 300)
               }
             }}
             bookings={comparisonBookings}

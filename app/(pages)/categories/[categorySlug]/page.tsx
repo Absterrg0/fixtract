@@ -56,6 +56,9 @@ export default function CategoryPage() {
     const controller = new AbortController();
     const load = async () => {
       setIsLoading(true);
+      // A new slug never shows the previous category, including while an
+      // unknown/noncanonical slug redirects.
+      setCategory(null);
       setError(null);
       try {
         const geoCountry =
@@ -85,7 +88,9 @@ export default function CategoryPage() {
         setError(t('servicesPage.errorMessage'));
         toast.error(t('servicesPage.toastError'));
       } finally {
-        setIsLoading(false);
+        // A superseded (aborted) run must not end the loading state of the
+        // request that replaced it.
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
     void load();

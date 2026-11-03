@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAuthToken, buildUsernameSuggestionParams } from "@/lib/utils"
+import { getAuthToken, buildUsernameSuggestionParams, usernameCheckResult } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
@@ -199,6 +199,27 @@ function ProfileContent() {
   const [usernameSaving, setUsernameSaving] = useState(false)
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usernameAbortRef = useRef<AbortController | null>(null)
+  const usernameSuggestAbortRef = useRef<AbortController | null>(null)
+  // Cancels a debounced or in-flight availability check and an in-flight
+  // Suggest request, so an older response can never overwrite the name now in
+  // the field or reach a closed editor (typing, a picked suggestion, Cancel
+  // and Save all go through here).
+  const cancelPendingUsernameCheck = () => {
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+    usernameTimerRef.current = null
+    if (usernameAbortRef.current) usernameAbortRef.current.abort()
+    usernameAbortRef.current = null
+    if (usernameSuggestAbortRef.current) usernameSuggestAbortRef.current.abort()
+    usernameSuggestAbortRef.current = null
+  }
+  // Leaving the editor (Cancel or a successful save) drops any pending check
+  // and its results, so reopening never shows a stale status or suggestions.
+  const closeUsernameEditor = () => {
+    cancelPendingUsernameCheck()
+    setUsernameEdit(false)
+    setUsernameCheck({})
+    setUsernameSuggestions([])
+  }
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
@@ -1887,8 +1908,7 @@ function ProfileContent() {
                               onChange={(e) => {
                                 const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                                 setUsername(val)
-                                if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
-                                if (usernameAbortRef.current) usernameAbortRef.current.abort()
+                                cancelPendingUsernameCheck()
                                 if (!val || val.length < 3) { setUsernameCheck({}); return }
                                 setUsernameCheck({ checking: true })
                                 usernameTimerRef.current = setTimeout(async () => {
@@ -1897,15 +1917,13 @@ function ProfileContent() {
                                   try {
                                     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
                                     const data = await res.json()
-                                    setUsernameCheck({
-                                      available: data.available,
-                                      reason: data.available
-                                        ? data.reason
-                                        : getErrorText({ msg: data.reason }, t('toasts.usernameCheckFailed')),
-                                    })
+                                    // Superseded by a newer edit or a chosen suggestion.
+                                    if (controller.signal.aborted || usernameAbortRef.current !== controller) return
+                                    setUsernameCheck(usernameCheckResult(data, (reason) =>
+                                      getErrorText({ msg: reason }, t('toasts.usernameCheckFailed'))))
                                   } catch (err: unknown) {
-                                    if (err instanceof Error && err.name === 'AbortError') return
-                                    setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
+                                    if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
+                                    setUsernameCheck({ available: false, reason: t('toasts.usernameCheckFailed') })
                                   }
                                 }, 500)
                               }}
@@ -1916,16 +1934,30 @@ function ProfileContent() {
                               variant="outline"
                               size="sm"
                               onClick={async () => {
+                                // Supersedes an earlier Suggest. A pending availability check
+                                // of the typed name stays until suggestions actually replace it.
+                                usernameSuggestAbortRef.current?.abort()
+                                const controller = new AbortController()
+                                usernameSuggestAbortRef.current = controller
+                                const isCurrent = () => !controller.signal.aborted && usernameSuggestAbortRef.current === controller
                                 try {
                                   const qs = buildUsernameSuggestionParams(businessInfo)
-                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include', signal: controller.signal })
                                   const data = await res.json()
-                                  if (data.suggestions?.length) {
+                                  if (!isCurrent()) return
+                                  usernameSuggestAbortRef.current = null
+                                  if (!res.ok || !data?.success) { toast.error(t('toasts.suggestionsFailed')); return }
+                                  if (Array.isArray(data.suggestions) && data.suggestions.length) {
+                                    cancelPendingUsernameCheck()
                                     setUsernameSuggestions(data.suggestions)
                                     setUsername(data.suggestions[0])
                                     setUsernameCheck({ available: true })
                                   }
-                                } catch { toast.error(t('toasts.suggestionsFailed')) }
+                                } catch {
+                                  if (!isCurrent()) return
+                                  usernameSuggestAbortRef.current = null
+                                  toast.error(t('toasts.suggestionsFailed'))
+                                }
                               }}
                             >
                               {t('business.suggest')}
@@ -1946,7 +1978,7 @@ function ProfileContent() {
                           {usernameSuggestions.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {usernameSuggestions.map((s) => (
-                                <button key={s} type="button" onClick={() => { setUsername(s); setUsernameCheck({ available: true }) }}
+                                <button key={s} type="button" onClick={() => { cancelPendingUsernameCheck(); setUsername(s); setUsernameCheck({ available: true }) }}
                                   className={`text-xs px-3 py-1 rounded-full border ${username === s ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                                   {s}
                                 </button>
@@ -1958,6 +1990,8 @@ function ProfileContent() {
                               size="sm"
                               disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
                               onClick={async () => {
+                                // A late Suggest must not swap the name being saved.
+                                cancelPendingUsernameCheck()
                                 setUsernameSaving(true)
                                 try {
                                   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/username`, {
@@ -1969,7 +2003,7 @@ function ProfileContent() {
                                   const data = await res.json()
                                   if (data.success) {
                                     toast.success(t('toasts.usernameUpdated'))
-                                    setUsernameEdit(false)
+                                    closeUsernameEditor()
                                     await checkAuth()
                                   } else {
                                     toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
@@ -1981,10 +2015,8 @@ function ProfileContent() {
                               {usernameSaving ? t('common.saving') : t('business.saveUsername')}
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => {
-                              setUsernameEdit(false)
+                              closeUsernameEditor()
                               setUsername(user?.username || '')
-                              setUsernameCheck({})
-                              setUsernameSuggestions([])
                             }}>{t('common.cancel')}</Button>
                           </div>
                         </div>

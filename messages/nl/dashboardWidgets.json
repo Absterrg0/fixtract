@@ -456,7 +456,7 @@
     "colBooking": "Boeking",
     "colQuotation": "Offerte",
     "colAddress": "Uitvoeradres",
-    "colProfessional": "Professional",
+    "colProfessional": "Vakman",
     "colCustomer": "Klant",
     "colOrderDate": "Besteldatum",
     "colRequested": "Aangevraagd",
@@ -473,7 +473,9 @@
     "colPayoutDate": "Uitbetalingsdatum",
     "colPayoutRefund": "Uitbetaling / terugbetaling",
     "colActions": "Snelle acties",
-    "colDetails": "Details"
+    "colDetails": "Details",
+    "bookingsTableLabel": "Boekingen",
+    "quotesTableLabel": "Offertes"
   },
   "levelUp": {
     "customerTitle": "Niveau omhoog!",

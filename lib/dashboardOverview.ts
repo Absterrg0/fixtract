@@ -163,11 +163,58 @@ export function describeEarningsBuckets(
   return buckets.map((bucket) => formatAmount(bucket[kind] as number, bucket.currency)).join(" + ")
 }
 
-/** Look up a server facet count, defaulting to 0 for unseen keys. */
+/**
+ * The single validator for server counts: a non-negative safe integer.
+ * Fractional, negative, non-finite or unsafe values are malformed.
+ */
+const isServerCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+
+/**
+ * A count from a successful server response (e.g. `pagination.total`): an
+ * explicit non-negative integer. Absent or malformed (fractional included) is
+ * unknown (null), never 0 — a partial response does not mean "none".
+ */
+export function readServerCount(value: unknown): number | null {
+  return isServerCount(value) ? value : null
+}
+
+/**
+ * Facet counts (`statusCounts` / `serviceCounts`) from a successful server
+ * response. The server's facet aggregation emits only groups that exist, so
+ * inside a present object a missing key is a real 0. An absent facet object,
+ * or a malformed one (not a plain object, or any value that is not a count),
+ * is unknown (null), never an empty "all zero" facet.
+ */
+export function readFacetCounts(value: unknown): Record<string, number> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+  // Plain (JSON) or null-prototype objects only: a Date, RegExp or class
+  // instance has no own count entries and would read as an all-zero facet.
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return null
+  const counts: Record<string, number> = {}
+  for (const [key, count] of Object.entries(value as Record<string, unknown>)) {
+    if (!isServerCount(count)) return null
+    counts[key] = count
+  }
+  return counts
+}
+
 export function facetCount(counts: Record<string, number> | null | undefined, key: string): number {
   if (!counts || typeof counts !== "object") return 0
   const value = counts[key]
   return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+/**
+ * Count shown next to a customer status-filter option. The payment-pending
+ * option queries the server alias `quote_accepted,payment_pending`, so its
+ * count is the sum of both facets: the number of rows the filter returns.
+ */
+export function statusOptionCount(counts: Record<string, number> | null | undefined, id: string): number {
+  return id === "payment_pending"
+    ? facetCount(counts, "payment_pending") + facetCount(counts, "quote_accepted")
+    : facetCount(counts, id)
 }
 
 /** Sum server status counts over a mode set (pending/finished cards). */
@@ -227,6 +274,32 @@ export function cheapestPriceByModelUnit(
   return Array.from(groups.values()).sort((a, b) =>
     a.model.localeCompare(b.model) || (a.unit || "").localeCompare(b.unit || ""),
   )
+}
+
+/**
+ * Translation key (proProjects namespace) for a recorded pricing-model or
+ * unit identifier such as `fixed`, `unit` or `m2`. Free-text values (an
+ * admin-configured pricing option name, or a unit already written for
+ * display like `m²`) return null so the caller shows them as recorded.
+ */
+export const PRICE_TOKEN_KEYS = {
+  fixed: "priceModels.fixed",
+  unit: "priceModels.unit",
+  meter: "priceModels.meter",
+  m2: "priceModels.m2",
+  hour: "priceModels.hour",
+  day: "priceModels.day",
+  room: "priceModels.room",
+} as const
+
+export type PriceTokenKey = (typeof PRICE_TOKEN_KEYS)[keyof typeof PRICE_TOKEN_KEYS]
+
+export function priceTokenKey(value: string | null | undefined): PriceTokenKey | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  return Object.prototype.hasOwnProperty.call(PRICE_TOKEN_KEYS, normalized)
+    ? PRICE_TOKEN_KEYS[normalized as keyof typeof PRICE_TOKEN_KEYS]
+    : null
 }
 
 /** Elapsed hold days require a recorded hold transition, never updatedAt. */

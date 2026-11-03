@@ -473,7 +473,9 @@
     "colPayoutDate": "Payout date",
     "colPayoutRefund": "Payout / refund",
     "colActions": "Quick actions",
-    "colDetails": "Details"
+    "colDetails": "Details",
+    "bookingsTableLabel": "Bookings",
+    "quotesTableLabel": "Quotations"
   },
   "levelUp": {
     "customerTitle": "Level up!",
