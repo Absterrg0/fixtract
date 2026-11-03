@@ -43,7 +43,7 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveQuotationVersionFromUrl, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, legacyRescheduleEntries, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveQuotationVersionFromUrl, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
@@ -2539,22 +2539,9 @@ function BookingDetailContent() {
   // loading/auth early returns.
   const rescheduleEntries = useMemo<RescheduleHistoryDto[]>(() => {
     if (details?.reschedules && details.reschedules.length > 0) return details.reschedules
-    const legacy = booking?.rescheduleRequest
-    if (!legacy) return []
-    return [
-      {
-        requestedAt: legacy.requestedAt ?? null,
-        reason: legacy.reason ?? null,
-        description: legacy.description ?? null,
-        note: legacy.note ?? null,
-        status: legacy.status ?? 'pending',
-        // The legacy shape carries no terminal flag: only a pending request
-        // from the other party is answerable.
-        canRespond: legacy.status === 'pending' && legacy.requestedBy !== user?._id,
-        previousSchedule: legacy.previousSchedule ?? null,
-        proposedSchedule: legacy.proposedSchedule ?? null,
-      },
-    ]
+    // The schema-default `{previousSchedule:{assignedTeamMembers:[]}, …}`
+    // shell every booking carries is not a request; only recorded ones show.
+    return legacyRescheduleEntries(booking?.rescheduleRequest, user?._id)
   }, [details, booking?.rescheduleRequest, user?._id])
   const recordedMilestoneCharges = useMemo<(number | null)[] | null>(() => {
     const plan = details?.payments?.milestones

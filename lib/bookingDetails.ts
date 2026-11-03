@@ -7,6 +7,7 @@ import type {
   PaymentRecordDto,
   QuotationVersionDto,
   RefundDto,
+  RescheduleHistoryDto,
   SnapshotQuestion,
 } from "../types/bookingDetails.ts";
 
@@ -1691,4 +1692,92 @@ export function resolvePanelHourMode(
     bookingExecutionUnit: bookingUnit,
     bookingTimeMode: booking?.project?.timeMode ?? null,
   });
+}
+
+/** `booking.rescheduleRequest` as the booking GET returns it (legacy, pre-details shape). */
+export interface LegacyRescheduleRequest {
+  status?: string | null;
+  requestedBy?: unknown;
+  requestedAt?: string | null;
+  reason?: string | null;
+  description?: string | null;
+  note?: string | null;
+  respondedAt?: string | null;
+  responseNote?: string | null;
+  previousSchedule?: (LegacySchedule & Record<string, unknown>) | null;
+  proposedSchedule?: (LegacySchedule & Record<string, unknown>) | null;
+}
+
+const recordedValue = (value: unknown): boolean => {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+};
+
+const recordedSchedule = (schedule: unknown): boolean =>
+  !!schedule && typeof schedule === "object" && !Array.isArray(schedule)
+  && Object.values(schedule as Record<string, unknown>).some(recordedValue);
+
+/**
+ * True only when `request` carries something a reschedule writer recorded.
+ *
+ * The backend Booking schema declares `rescheduleRequest` as a nested path
+ * whose `previousSchedule`/`proposedSchedule` contain `assignedTeamMembers`
+ * arrays. Mongoose materializes those arrays as `[]` on every hydrated
+ * booking, so a booking that never had a request still serializes as
+ * `{ previousSchedule: { assignedTeamMembers: [] }, proposedSchedule: { … } }`.
+ * That default shell is not a request; any recorded field (status, actor,
+ * time, reason/description/note, response or a schedule value) is.
+ */
+export function hasRecordedRescheduleRequest(request: unknown): request is LegacyRescheduleRequest {
+  if (!request || typeof request !== "object" || Array.isArray(request)) return false;
+  const value = request as LegacyRescheduleRequest;
+  return recordedValue(value.status)
+    || recordedValue(value.requestedAt)
+    || recordedValue(value.requestedBy)
+    || recordedValue(value.reason)
+    || recordedValue(value.description)
+    || recordedValue(value.note)
+    || recordedValue(value.respondedAt)
+    || recordedValue(value.responseNote)
+    || recordedSchedule(value.proposedSchedule)
+    || recordedSchedule(value.previousSchedule);
+}
+
+const actorIdOf = (value: unknown): string | null => {
+  if (typeof value === "string") return value || null;
+  if (value && typeof value === "object") {
+    const record = value as { _id?: unknown; id?: unknown };
+    const id = record._id ?? record.id;
+    return id == null ? null : String(id);
+  }
+  return null;
+};
+
+/**
+ * Reschedule card entries for a booking whose details DTO has no
+ * `reschedules`: the legacy `rescheduleRequest`, but only when it was
+ * actually recorded (see `hasRecordedRescheduleRequest`).
+ */
+export function legacyRescheduleEntries(
+  request: unknown,
+  viewerUserId?: string | null
+): RescheduleHistoryDto[] {
+  if (!hasRecordedRescheduleRequest(request)) return [];
+  const requesterId = actorIdOf(request.requestedBy);
+  return [
+    {
+      requestedAt: request.requestedAt ?? null,
+      reason: request.reason ?? null,
+      description: request.description ?? null,
+      note: request.note ?? null,
+      status: request.status ?? "pending",
+      // The legacy shape carries no terminal flag: only a pending request
+      // from the other party is answerable.
+      canRespond: request.status === "pending" && requesterId !== (viewerUserId ?? null),
+      previousSchedule: request.previousSchedule ?? null,
+      proposedSchedule: request.proposedSchedule ?? null,
+    },
+  ];
 }
