@@ -15,8 +15,12 @@ export type RefundRequestDecision = 'approve' | 'counter' | 'reject'
 
 interface RefundRequestActionsProps {
   bookingId: string
-  /** Highest counter-offer the backend accepts (the booking price). */
-  maxAmount: number
+  /**
+   * Highest counter-offer the backend accepts (the booking price,
+   * `payment.amount`). Without a positive ceiling, Negotiate is hidden:
+   * a zero ceiling would reject every counter-offer.
+   */
+  maxAmount?: number | null
   currency?: string | null
   onResolved?: (decision: RefundRequestDecision) => void | Promise<void>
 }
@@ -38,6 +42,8 @@ export default function RefundRequestActions({
   const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const [busy, setBusy] = useState(false)
+  const ceiling = typeof maxAmount === 'number' && Number.isFinite(maxAmount) && maxAmount > 0 ? maxAmount : 0
+  const canNegotiate = ceiling > 0
   const [negotiating, setNegotiating] = useState(false)
   const [counterAmount, setCounterAmount] = useState("")
   const [note, setNote] = useState("")
@@ -57,8 +63,8 @@ export default function RefundRequestActions({
     let amount: number | undefined
     if (decision === 'counter') {
       amount = Number(counterAmount)
-      if (!Number.isFinite(amount) || amount < 1 || amount > maxAmount) {
-        toast.error(t('refundRequests.counterRange', { max: formatMoney(maxAmount, displayCurrency) }))
+      if (!canNegotiate || !Number.isFinite(amount) || amount < 1 || amount > ceiling) {
+        toast.error(t('refundRequests.counterRange', { max: formatMoney(ceiling, displayCurrency) }))
         return
       }
     }
@@ -94,7 +100,7 @@ export default function RefundRequestActions({
       <div className="space-y-2">
         <Input
           type="number"
-          placeholder={t('refundRequests.counterPlaceholder', { amount: formatMoney(maxAmount, displayCurrency) })}
+          placeholder={t('refundRequests.counterPlaceholder', { amount: formatMoney(ceiling, displayCurrency) })}
           value={counterAmount}
           onChange={(e) => setCounterAmount(e.target.value)}
         />
@@ -128,15 +134,17 @@ export default function RefundRequestActions({
         {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />}
         {t('refundRequests.approveFull')}
       </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 text-xs"
-        disabled={busy}
-        onClick={() => { setCounterAmount(""); setNote(""); setNegotiating(true) }}
-      >
-        <Scale className="h-3 w-3 mr-1" />{t('refundRequests.negotiate')}
-      </Button>
+      {canNegotiate && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={busy}
+          onClick={() => { setCounterAmount(""); setNote(""); setNegotiating(true) }}
+        >
+          <Scale className="h-3 w-3 mr-1" />{t('refundRequests.negotiate')}
+        </Button>
+      )}
       <Button
         size="sm"
         variant="outline"

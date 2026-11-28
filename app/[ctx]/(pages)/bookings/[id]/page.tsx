@@ -2806,7 +2806,9 @@ function BookingDetailContent() {
               (user?.role === 'customer' || user?.role === 'professional' || user?.role === 'admin' ? user.role : null)
             }
             currency={booking.payment?.currency || booking.quote?.currency || 'EUR'}
-            maxCounterAmount={booking.payment?.amount ?? booking.quote?.amount}
+            // The backend caps a counter-offer at payment.amount (the booking
+            // price, also for quotation and milestone bookings); no fallback.
+            maxCounterAmount={booking.payment?.amount}
             onResolved={refreshBooking}
           />
         )}

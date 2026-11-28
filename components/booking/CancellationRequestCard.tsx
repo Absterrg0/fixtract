@@ -139,7 +139,7 @@ export default function CancellationRequestCard({
         {canAct ? (
           <RefundRequestActions
             bookingId={bookingId}
-            maxAmount={maxCounterAmount ?? 0}
+            maxAmount={maxCounterAmount}
             currency={displayCurrency}
             onResolved={() => onResolved?.()}
           />

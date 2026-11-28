@@ -86,6 +86,7 @@ test('CancellationRequestCard renders status, reason, actor and professional act
       request,
       viewerRole: 'professional',
       currency: 'EUR',
+      maxCounterAmount: 109.51,
     })
   )
   assert.match(html, /Cancellation request/)
@@ -97,6 +98,15 @@ test('CancellationRequestCard renders status, reason, actor and professional act
   assert.match(html, />Negotiate</)
   assert.match(html, />Reject</)
   assert.doesNotMatch(html, /Approve cancellation|Reject request/)
+
+  // Without a booking price there is no counter-offer ceiling: hide Negotiate
+  // (a zero ceiling would reject every amount) but keep approve and reject.
+  const noCeilingHtml = renderCard(
+    React.createElement(CancellationRequestCard, { bookingId: 'b1', request, viewerRole: 'professional', currency: 'EUR' })
+  )
+  assert.match(noCeilingHtml, />Approve full refund</)
+  assert.match(noCeilingHtml, />Reject</)
+  assert.doesNotMatch(noCeilingHtml, />Negotiate</)
 
   const customerHtml = renderCard(
     React.createElement(CancellationRequestCard, { bookingId: 'b1', request, viewerRole: 'customer' })
@@ -119,7 +129,7 @@ test('booking card and dashboard panel share the refund request actions (FT3 #3A
     assert.equal(typeof dashboardWidgetsEn.refundRequests[key], 'string')
   }
   const page = readSource('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
-  assert.match(page, /maxCounterAmount=\{booking\.payment\?\.amount \?\? booking\.quote\?\.amount\}/)
+  assert.match(page, /maxCounterAmount=\{booking\.payment\?\.amount\}/)
 })
 
 // Review item 3: the admin-authored resolution note renders for admins only.
